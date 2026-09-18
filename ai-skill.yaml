@@ -1,0 +1,29 @@
+sources:
+  - path: https://github.com/InsonusK/ai-skills.git
+    type: github
+    tree: master
+    subpath:
+      - skills/common-workflow/architecture/core
+      - skills/common-workflow/develop
+      - skills/common-workflow/test
+      - skills/common-workflow/documentation
+      - skills/common-workflow/agent-partnership-mindset.skill
+      - skills/devops
+      - skills/go/devops
+      - skills/go/testing
+      
+settings:
+  target: 
+    for_each:
+      adapters:
+        - link-adapter
+    default:
+      path: .agents/skills
+    claude:
+      path: .claude/skills
+      adapters:
+        - claude-property-adapter
+  remove_orphans: true
+  on_conflict: error
+  dry_run: false
+  add_relations: true
