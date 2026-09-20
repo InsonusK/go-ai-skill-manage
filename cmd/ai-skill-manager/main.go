@@ -69,7 +69,7 @@ func run() (code int) {
 		}
 	}()
 	service := &services.SyncService{
-		Sources: sources, Detector: detector, Relations: relations.Expander{Detector: detector},
+		Sources: sources, Lookup: sources, Detector: detector, Relations: relations.Expander{Detector: detector},
 		Planner: planning.Planner{State: store, Codec: codec}, Writer: store,
 	}
 	app := command.App{Sync: service, ReadFile: os.ReadFile, Out: os.Stdout, Err: os.Stderr, Version: version.Version}

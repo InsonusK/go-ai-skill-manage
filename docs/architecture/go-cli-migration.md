@@ -192,13 +192,16 @@ tools/                           нормализация отчётов и ге
   - depends_on: чтение дерева.
   - usage_scenario: возвращает относительные пути и типы файлов для анализа,
     копирования и вычисления отпечатка содержимого.
-- **SourceMap** (Function), `domain/model`.
-  - responsibility: индексирует полученные репозитории по ключу источника
-    (`Repository.ID`).
-  - depends_on: нет внешних зависимостей.
-  - usage_scenario: `SyncService.Run` регистрирует каждый репозиторий сразу
-    после `Acquire`; `OutputLayout` использует его для содержимого внешних
-    вложений вместо повторной сборки локальной карты из каталога.
+- **RepositoryLookup** (Port), `domain/interfaces`, реализация — `Manager.Lookup`
+  в `domain/services/sourcing`.
+  - responsibility: находит уже полученный `Repository` по его `ID`, без нового
+    получения.
+  - depends_on: нет внешних зависимостей (линейный проход по уже закешированным
+    репозиториям).
+  - usage_scenario: `OutputLayout` знает только `repoID` (из `Link.Target`) и
+    вызывает `Lookup`, чтобы прочитать содержимое внешнего вложения — того же
+    `sourcing.Manager`, что уже используется как `SourceProvider`, без отдельного
+    реестра. `SyncService.Lookup` указывает на тот же экземпляр, что и `Sources`.
 - **SkillMap** (Function), тип `domain/model`, построение `domain/services/discovery`.
   - responsibility: итоговый реестр «имя скила → источник → исходный путь →
     выходной путь», построенный один раз.
@@ -229,7 +232,7 @@ tools/                           нормализация отчётов и ге
     `SyncService` через порт `interfaces.RelationExpander`.
 - **OutputLayout** (Function), `domain/services/planning`.
   - responsibility: назначает выходные пути файлам синхронизации.
-  - depends_on: `Catalog`, `SkillMap`, `SourceMap` (для содержимого внешних вложений).
+  - depends_on: `Catalog`, `SkillMap`, `RepositoryLookup` (для содержимого внешних вложений).
   - usage_scenario: отображает входные скилы в `{name}/SKILL.md`, назначает пути
     вложениям и внешним файлам, сообщает о коллизиях выходных путей. Читает
     готовые назначения из `SkillMap.Destinations()` вместо повторного обхода
@@ -251,7 +254,7 @@ tools/                           нормализация отчётов и ге
     позволяет обнаружить изменение файла, имени, внешнего вложения или адаптера.
 - **SyncPlanner** (Service), `domain/services/planning`.
   - responsibility: определяет набор изменений каждой цели.
-  - depends_on: `Catalog`, `SkillMap`, `SourceMap`, чтение состояния цели,
+  - depends_on: `Catalog`, `SkillMap`, `RepositoryLookup`, чтение состояния цели,
     подготовка выходных документов.
   - usage_scenario: выдаёт операции create/update/skip/remove с причинами;
     учитывает force, managed-маркеры и политику orphan; переписывает ссылки
@@ -368,11 +371,10 @@ coverage собирается обязательно, целевой порог 
 - `Repository.FS` ограничен корнем источника; внутренние пути используют `/`.
 - `Skill.Key` и `Link.Target` включают идентификатор репозитория, поэтому
   одинаковые относительные пути разных источников не смешиваются.
-- `SourceMap` и `SkillMap` строятся один раз за запуск (при получении источника
-  и сразу после `RelationExpander.Expand` соответственно) и переиспользуются
-  без изменений для каждой цели; `OutputLayout` расширяет свою копию
-  `SkillMap.Destinations()` путями внешних вложений конкретной цели, не трогая
-  общий `SkillMap`.
+- `SkillMap` строится один раз за запуск, сразу после `RelationExpander.Expand`,
+  и переиспользуется без изменений для каждой цели; `OutputLayout` расширяет свою
+  копию `SkillMap.Destinations()` путями внешних вложений конкретной цели, не
+  трогая общий `SkillMap`.
 - `Skill.Files` содержит snapshot входных байтов; план хранит готовые выходные
   байты. PlanApplier не вычисляет бизнес-правила и не читает исходный каталог.
 - `StateReader` сообщает наличие, ownership, hash/version и наличие SKILL.md.
@@ -380,21 +382,25 @@ coverage собирается обязательно, целевой порог 
   `AddCloser`) вместо того, чтобы `SourceProvider.Acquire` возвращал отдельную
   функцию очистки. `sourcing.Manager` кеширует `*Repository` по `SourceKey` и
   закрывает каждый в `Close(ctx)`, в порядке, обратном получению; владеет этим
-  временем жизни вызывающий код (`main`), не `SyncService.Run`.
+  временем жизни вызывающий код (`main`), не `SyncService.Run`. Тот же экземпляр
+  реализует `RepositoryLookup.Lookup` (поиск по `Repository.ID` вместо повторного
+  `Acquire` по `SourceKey`) — отдельного реестра вроде `SourceMap` для этого
+  больше не требуется.
 - Сначала строятся все планы; затем выполняется применение. Общей транзакции
   между целями нет. Замена каждого скила использует staging и backup rename.
 
 ## Результаты и ограничения
 
-- Go: 164 проходящих Gherkin-сценария; покрытие 84,6% производственных statements
-  (после выделения `SourceMap`/`SkillMap`/`domain/model`, а также `SourceManager`
-  и разделения identity/selection в получении источников).
+- Go: 164 проходящих Gherkin-сценария; покрытие 84,5% производственных statements
+  (после выделения `SkillMap`/`domain/model`, `sourcing.Manager`, и замены
+  `SourceMap` на порт `RepositoryLookup` — реализован только `sourcing.Manager`,
+  без отдельного реестра).
 - Python baseline: 386 passed; одинаковый исходный каталог даёт совпадающие
   выходные пути и семантическое содержимое 546 файлов в двух целях.
 - Полный mutation-прогон и race detector выполнены; подробности в [testing](../testing.md).
 - [Совместимость и осознанные отличия](compatibility.md).
 - [Проверка архитектуры по файлам](audit.md).
 - [Диаграммы потока данных sync](diagrams.md) — Mermaid-схемы порядка вызовов
-  и контрактов SourceMap/SkillMap, дополняющие автогенерируемый граф пакетов.
+  и контрактов RepositoryLookup/SkillMap, дополняющие автогенерируемый граф пакетов.
 - Генератор диаграмм включён в репозиторий, внешняя установка не требуется.
 - Пользовательский `ai-skills.yaml` и исходная Python-реализация сохранены.

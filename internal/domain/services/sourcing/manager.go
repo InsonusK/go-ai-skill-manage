@@ -49,6 +49,20 @@ func (m *Manager) Acquire(ctx context.Context, s model.SourceSpec, options model
 	return repo, nil
 }
 
+// Lookup returns the already-acquired Repository with the given ID, without
+// fetching anything new -- for callers that only know a Repository.ID (e.g.
+// from a Link.Target) and need the *Repository it came from, not a fresh
+// acquisition by SourceKey. A linear scan is fine here: realistic source
+// counts are small, and IDs are unique by construction.
+func (m *Manager) Lookup(ctx context.Context, id string) (*model.Repository, bool) {
+	for _, repo := range m.repos {
+		if repo.ID == id {
+			return repo, true
+		}
+	}
+	return nil, false
+}
+
 // Close closes every acquired Repository, most recently acquired first,
 // joining any errors. It always attempts every close, even when ctx is
 // already canceled -- shutdown cleanup must not be skipped because the

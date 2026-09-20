@@ -1,8 +1,9 @@
 // Package interfaces contains the narrow outbound roles owned by the
-// domain: infrastructure ports (SourceProvider, DocumentCodec, StateReader,
-// PlanWriter) and the pipeline-stage ports (SourceSelector, RelationExpander,
-// SyncPlanner) SyncService depends on uniformly, so its own orchestration is
-// mockable independent of real discovery/relations/planning logic.
+// domain: infrastructure ports (SourceProvider, RepositoryLookup,
+// DocumentCodec, StateReader, PlanWriter) and the pipeline-stage ports
+// (SourceSelector, RelationExpander, SyncPlanner) SyncService depends on
+// uniformly, so its own orchestration is mockable independent of real
+// discovery/relations/planning logic.
 package interfaces
 
 import (
@@ -12,6 +13,9 @@ import (
 
 type SourceProvider interface {
 	Acquire(context.Context, model.SourceSpec, model.AcquisitionOptions) (*model.Repository, error)
+}
+type RepositoryLookup interface {
+	Lookup(context.Context, string) (*model.Repository, bool)
 }
 type DocumentCodec interface {
 	Decode([]byte) (model.Document, error)
@@ -30,5 +34,5 @@ type RelationExpander interface {
 	Expand(context.Context, *model.Catalog, bool, []string) error
 }
 type SyncPlanner interface {
-	Plan(context.Context, *model.Catalog, *model.SkillMap, *model.SourceMap, model.Request, model.Target) (model.TargetPlan, error)
+	Plan(context.Context, *model.Catalog, *model.SkillMap, RepositoryLookup, model.Request, model.Target) (model.TargetPlan, error)
 }

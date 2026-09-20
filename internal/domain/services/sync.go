@@ -10,6 +10,7 @@ import (
 
 type SyncService struct {
 	Sources   interfaces.SourceProvider
+	Lookup    interfaces.RepositoryLookup
 	Detector  interfaces.SourceSelector
 	Relations interfaces.RelationExpander
 	Planner   interfaces.SyncPlanner
@@ -22,7 +23,6 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 	result.Skills = []string{}
 	result.Plans = []model.TargetPlan{}
 	catalog := &model.Catalog{Conflict: req.Conflict}
-	sources := model.NewSourceMap()
 	var issues model.Issues
 	for _, spec := range req.Sources {
 		slog.DebugContext(ctx, "acquiring source", "type", spec.Type, "path", spec.Path)
@@ -30,7 +30,6 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 		if acquireErr != nil {
 			return result, acquireErr
 		}
-		sources.Put(repo)
 		found, discoverErr := s.Detector.Select(ctx, repo, spec)
 		if discoverErr != nil {
 			issues = append(issues, model.Issue{Code: "discovery", File: spec.Path, Message: discoverErr.Error()})
@@ -56,7 +55,7 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 		return result, err
 	}
 	for _, target := range req.Targets {
-		plan, planErr := s.Planner.Plan(ctx, catalog, skills, sources, req, target)
+		plan, planErr := s.Planner.Plan(ctx, catalog, skills, s.Lookup, req, target)
 		if planErr != nil {
 			return result, planErr
 		}

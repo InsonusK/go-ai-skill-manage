@@ -89,4 +89,17 @@ func initialize(sc *godog.ScenarioContext) {
 	sc.Step(`^repositories were closed in order "([^"]*)"$`, func(ctx context.Context, want string) error {
 		return testsupport.Equal(strings.Join(closedOrder, ","), want)
 	})
+	sc.Step(`^lookup of "([^"]*)" finds the repository$`, func(ctx context.Context, id string) error {
+		repo, ok := manager.Lookup(ctx, id)
+		if !ok {
+			return fmt.Errorf("expected repository %s to be found", id)
+		}
+		return testsupport.Equal(repo.ID, id)
+	})
+	sc.Step(`^lookup of "([^"]*)" finds nothing$`, func(ctx context.Context, id string) error {
+		if _, ok := manager.Lookup(ctx, id); ok {
+			return fmt.Errorf("expected no repository for %s", id)
+		}
+		return nil
+	})
 }

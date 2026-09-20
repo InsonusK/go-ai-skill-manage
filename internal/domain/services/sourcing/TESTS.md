@@ -9,5 +9,7 @@
 | [Acquiring different sources calls the provider for each](features/sourcing.feature) | `Manager.Acquire` | ``the provider was called "2" times`` | passed |
 | [Unknown source type is rejected](features/sourcing.feature) | `Manager.Acquire` | ``acquiring fails with "unknown source type"`` | passed |
 | [Close runs every acquired repository's Close in reverse order](features/sourcing.feature) | `Manager.Close` | ``repositories were closed in order "b,a"`` | passed |
+| [Lookup finds an already-acquired repository by ID](features/sourcing.feature) | `Manager.Lookup` | ``lookup of "a" finds the repository`` | passed |
+| [Lookup reports an unknown ID as not found](features/sourcing.feature) | `Manager.Lookup` | ``lookup of "missing" finds nothing`` | passed |
 
 [Условия вызовов](usecases.md) · [Step definitions](test/) · [Общие правила запуска](../../../../docs/testing.md)

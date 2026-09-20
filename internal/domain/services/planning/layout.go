@@ -3,6 +3,7 @@ package planning
 import (
 	"context"
 	"fmt"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"io/fs"
 	"path"
@@ -15,7 +16,7 @@ type Layout struct {
 	Shared []model.OutputFile
 }
 
-func BuildLayout(ctx context.Context, cat *model.Catalog, skills *model.SkillMap, sources *model.SourceMap) (Layout, error) {
+func BuildLayout(ctx context.Context, cat *model.Catalog, skills *model.SkillMap, sources interfaces.RepositoryLookup) (Layout, error) {
 	layout := Layout{Paths: skills.Destinations(), Shared: []model.OutputFile{}}
 	external := map[string]bool{}
 	for _, s := range cat.Skills {
@@ -48,7 +49,10 @@ func BuildLayout(ctx context.Context, cat *model.Catalog, skills *model.SkillMap
 	used := map[string]bool{}
 	for _, key := range keys {
 		repoID, p, _ := strings.Cut(key, "\x00")
-		repo := sources.Get(repoID)
+		repo, ok := sources.Lookup(ctx, repoID)
+		if !ok {
+			return layout, fmt.Errorf("source not found: %s", repoID)
+		}
 		base := path.Base(p)
 		if base == "." {
 			return layout, fmt.Errorf("external repository root cannot be copied")

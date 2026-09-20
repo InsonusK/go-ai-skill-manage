@@ -30,6 +30,13 @@ func (s source) Acquire(_ context.Context, _ model.SourceSpec, options model.Acq
 	return s.repo, nil
 }
 
+func (s source) Lookup(_ context.Context, id string) (*model.Repository, bool) {
+	if s.repo != nil && s.repo.ID == id {
+		return s.repo, true
+	}
+	return nil, false
+}
+
 type state struct{ fail bool }
 
 func (s state) Snapshot(ctx context.Context, p string) (map[string]model.Managed, error) {
@@ -94,7 +101,8 @@ func initialize(sc *godog.ScenarioContext) {
 	})
 	sc.Step(`^I synchronize$`, func(ctx context.Context) error {
 		detector := discovery.Detector{Codec: document.Codec{}}
-		service := services.SyncService{Sources: source{repo, &acquiredTempDir}, Detector: detector, Relations: relations.Expander{Detector: detector}, Planner: planning.Planner{State: state{fail}, Codec: document.Codec{}}, Writer: writer{&calls}}
+		src := source{repo, &acquiredTempDir}
+		service := services.SyncService{Sources: src, Lookup: src, Detector: detector, Relations: relations.Expander{Detector: detector}, Planner: planning.Planner{State: state{fail}, Codec: document.Codec{}}, Writer: writer{&calls}}
 		if detectorFailure != "" {
 			service.Detector = failingDetector{message: detectorFailure}
 		}

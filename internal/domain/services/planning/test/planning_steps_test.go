@@ -19,6 +19,12 @@ type stateReader map[string]model.Managed
 func (s stateReader) Snapshot(context.Context, string) (map[string]model.Managed, error) {
 	return s, nil
 }
+
+// repoLookup is a fake interfaces.RepositoryLookup: this fixture only ever
+// acquires one repository, so any ID resolves to it.
+type repoLookup struct{ repo *model.Repository }
+
+func (r repoLookup) Lookup(context.Context, string) (*model.Repository, bool) { return r.repo, true }
 func initialize(sc *godog.ScenarioContext) {
 	var state string
 	var force bool
@@ -63,8 +69,7 @@ func initialize(sc *godog.ScenarioContext) {
 		if err != nil {
 			return err
 		}
-		sources := model.NewSourceMap()
-		sources.Put(repo)
+		sources := repoLookup{repo: repo}
 		reader := stateReader{}
 		planner := planning.Planner{State: reader, Codec: document.Codec{}}
 		req := model.Request{Base: "/project", Force: force, RemoveOrphans: true}

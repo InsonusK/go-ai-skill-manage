@@ -23,3 +23,15 @@
                 - input: a source manager with a counting local provider; два I acquire; I close the source manager
                 - output: порядок вызовов Repository.Close
                 - expected_result: ``repositories were closed in order "b,a"``
+    - Manager.Lookup
+        - Contract
+            - WHEN_Lookup_finds_an_already-acquired_repository_by_ID_THEN_declared_result
+                - description: [Lookup finds an already-acquired repository by ID](features/sourcing.feature)
+                - input: a source manager with a counting local provider; I acquire "local" source "a"
+                - output: *Repository с совпадающим ID, найденный без нового Acquire
+                - expected_result: ``lookup of "a" finds the repository``
+            - WHEN_Lookup_reports_an_unknown_ID_as_not_found_THEN_declared_result
+                - description: [Lookup reports an unknown ID as not found](features/sourcing.feature)
+                - input: a source manager with a counting local provider (ничего не получено)
+                - output: ok == false, без обращения к провайдеру
+                - expected_result: ``lookup of "missing" finds nothing``

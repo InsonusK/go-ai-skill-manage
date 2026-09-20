@@ -33,7 +33,7 @@ depends_on:
 | Возможность | Основные единицы |
 | --- | --- |
 | YAML/JSON и CLI | Arguments, ConfigLoader, OptionResolver, SyncCommand |
-| Local / GitHub | LocalSource, RepositoryFetcher, GitCloner, ArchiveFetcher, SourceManager, SourceMap |
+| Local / GitHub | LocalSource, RepositoryFetcher, GitCloner, ArchiveFetcher, SourceManager, RepositoryLookup |
 | Форматы и фильтры | SkillDetector, SourceSelector, TagExpression, SkillCatalog |
 | Связи и вложения | FileInventory, LinkExtractor, LinkExclusion, LinkResolver, RelationExpander |
 | Выходные файлы | SkillMap, OutputLayout, LinkRewriter, ClaudeTransformer, FrontmatterCodec |
@@ -53,13 +53,13 @@ Gherkin-сценарии и проверки. Общий код тестовог
 | OptionResolver | Function | [Resolve](../../internal/config/resolve.go) — Вычисляет эффективный запрос | базовый путь и overrides | [условия](../../internal/config/usecases.md), [сценарии](../../internal/config/TESTS.md) |
 | SyncCommand | Command | [App.Execute](../../internal/command/sync.go) — Связывает команду с синхронизацией | чтение конфига, SyncService, output streams | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
 | ResultFormatter | Function | [PrintResult](../../internal/command/format.go) — Представляет план в консоли | io.Writer | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
-| SyncService | Orchestrator | [SyncService.Run](../../internal/domain/services/sync.go) — Координирует стадии одного запуска | SourceProvider, SourceSelector, RelationExpander, SyncPlanner, PlanWriter (порты); строит SourceMap и SkillMap; не управляет временем жизни источников | [условия](../../internal/domain/services/usecases.md), [сценарии](../../internal/domain/services/TESTS.md) |
+| SyncService | Orchestrator | [SyncService.Run](../../internal/domain/services/sync.go) — Координирует стадии одного запуска | SourceProvider, RepositoryLookup, SourceSelector, RelationExpander, SyncPlanner, PlanWriter (порты); строит SkillMap; не управляет временем жизни источников | [условия](../../internal/domain/services/usecases.md), [сценарии](../../internal/domain/services/TESTS.md) |
 | LocalSource | Service | [Local.Acquire](../../internal/infrastructure/repository/local.go) — Открывает локальное дерево, определяет `Repository.SingleFile` | os.Root / fs.FS | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
 | RepositoryFetcher | Service | [Fetcher.Acquire](../../internal/infrastructure/repository/fetch.go) — Предоставляет временную копию репозитория, регистрирует очистку через `Repository.AddCloser` | Cloner, ArchiveFetcher, временная директория | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
 | GitCloner | Service | [GitCloner.Clone / GitProcess.Run](../../internal/infrastructure/repository/git.go) — Получает ветку или тег через Git | ProcessRunner | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
 | ArchiveFetcher | Service | [Archive.Fetch](../../internal/infrastructure/repository/archive.go) — Предоставляет дерево из GitHub tar.gz | HTTPClient, ограниченный файловый корень | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
-| SourceManager | Service | [Manager.Acquire / Close](../../internal/domain/services/sourcing/manager.go) — Кеширует `Repository` по `SourceKey`, диспетчеризует по типу, владеет их временем жизни; не выполняет I/O сама, только делегирует зарегистрированным `SourceProvider` | LocalSource, RepositoryFetcher (по типу, через порт) | [условия](../../internal/domain/services/sourcing/usecases.md), [сценарии](../../internal/domain/services/sourcing/TESTS.md) |
-| SourceMap | Function | [SourceMap.Put / Get / Repositories](../../internal/domain/model/source_map.go) — Индексирует полученные репозитории по ключу источника | нет | [условия](../../internal/domain/model/usecases.md), [сценарии](../../internal/domain/model/TESTS.md) |
+| SourceManager | Service | [Manager.Acquire / Lookup / Close](../../internal/domain/services/sourcing/manager.go) — Кеширует `Repository` по `SourceKey`, диспетчеризует по типу, владеет их временем жизни; не выполняет I/O сама, только делегирует зарегистрированным `SourceProvider` | LocalSource, RepositoryFetcher (по типу, через порт) | [условия](../../internal/domain/services/sourcing/usecases.md), [сценарии](../../internal/domain/services/sourcing/TESTS.md) |
+| RepositoryLookup | Port | [Lookup](../../internal/domain/interfaces/ports.go) — Находит уже полученный `Repository` по `ID`; реализован `Manager.Lookup` | нет | [условия](../../internal/domain/services/sourcing/usecases.md), [сценарии](../../internal/domain/services/sourcing/TESTS.md) |
 | SkillDetector | Service | [Detector.Discover / Rooted / Find](../../internal/domain/services/discovery/detector.go) — Распознаёт расположение скила | DocumentCodec, fs.FS | [условия](../../internal/domain/services/discovery/usecases.md), [сценарии](../../internal/domain/services/discovery/TESTS.md) |
 | SourceSelector | Function | [Detector.Select](../../internal/domain/services/discovery/source.go) — Выбирает скилы источника по `SourceSpec`, резолвит scan paths (`scanPaths`) | Detector, TagExpression | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
 | TagExpression | Function | [Match](../../internal/domain/services/tags/tags.go) — Вычисляет фильтр тегов | нет | [условия](../../internal/domain/services/tags/usecases.md), [сценарии](../../internal/domain/services/tags/TESTS.md) |
@@ -70,11 +70,11 @@ Gherkin-сценарии и проверки. Общий код тестовог
 | LinkResolver | Function | [Resolve](../../internal/domain/services/links/resolve.go) — Определяет путь адресата | fs.FS, knownOwner predicate | [условия](../../internal/domain/services/links/usecases.md), [сценарии](../../internal/domain/services/links/TESTS.md) |
 | RelationExpander | Service | [Expander.Expand](../../internal/domain/services/relations/expand.go) — Строит замыкание связанных скилов | Detector, Catalog, LinkResolver | [условия](../../internal/domain/services/relations/usecases.md), [сценарии](../../internal/domain/services/relations/TESTS.md) |
 | SkillMap | Function | [BuildSkillMap](../../internal/domain/services/discovery/skillmap.go) / [SkillMap.Owner](../../internal/domain/model/skill_map.go) — Строит итоговый реестр «имя → источник → путь» один раз после RelationExpander | Catalog | [условия](../../internal/domain/model/usecases.md), [сценарии](../../internal/domain/model/TESTS.md) |
-| OutputLayout | Function | [BuildLayout](../../internal/domain/services/planning/layout.go) — Назначает выходные пути | Catalog, SkillMap, SourceMap (для внешних вложений) | [условия](../../internal/domain/services/planning/usecases.md), [сценарии](../../internal/domain/services/planning/TESTS.md) |
+| OutputLayout | Function | [BuildLayout](../../internal/domain/services/planning/layout.go) — Назначает выходные пути | Catalog, SkillMap, RepositoryLookup (для внешних вложений) | [условия](../../internal/domain/services/planning/usecases.md), [сценарии](../../internal/domain/services/planning/TESTS.md) |
 | LinkRewriter | Function | [Rewrite](../../internal/domain/services/transform/links.go) — Заменяет адреса ссылок по layout | нет | [условия](../../internal/domain/services/transform/usecases.md), [сценарии](../../internal/domain/services/transform/TESTS.md) |
 | ClaudeTransformer | Function | [Claude](../../internal/domain/services/transform/claude.go) — Преобразует свойства Claude | нет | [условия](../../internal/domain/services/transform/usecases.md), [сценарии](../../internal/domain/services/transform/TESTS.md) |
 | Fingerprint | Function | [Fingerprint](../../internal/domain/services/planning/fingerprint.go) — Вычисляет отпечаток результата | готовые OutputFile | [условия](../../internal/domain/services/planning/usecases.md), [сценарии](../../internal/domain/services/planning/TESTS.md) |
-| SyncPlanner | Service | [Planner.Plan](../../internal/domain/services/planning/planner.go) — Определяет операции обновления цели | Catalog, SkillMap, SourceMap, StateReader, DocumentCodec, OutputLayout, преобразования | [условия](../../internal/domain/services/planning/usecases.md), [сценарии](../../internal/domain/services/planning/TESTS.md) |
+| SyncPlanner | Service | [Planner.Plan](../../internal/domain/services/planning/planner.go) — Определяет операции обновления цели | Catalog, SkillMap, RepositoryLookup, StateReader, DocumentCodec, OutputLayout, преобразования | [условия](../../internal/domain/services/planning/usecases.md), [сценарии](../../internal/domain/services/planning/TESTS.md) |
 | PlanApplier | Service | [Store.Apply](../../internal/infrastructure/filesystem/apply.go) — Применяет готовый план | os.Root | [условия](../../internal/infrastructure/filesystem/usecases.md), [сценарии](../../internal/infrastructure/filesystem/TESTS.md) |
 | StateReader | Service | [Store.Snapshot](../../internal/infrastructure/filesystem/store.go) — Читает управляемое состояние цели | os.Root | [условия](../../internal/infrastructure/filesystem/usecases.md), [сценарии](../../internal/infrastructure/filesystem/TESTS.md) |
 | FrontmatterCodec | Service | [Codec.Decode / Encode](../../internal/infrastructure/document/codec.go) — Преобразует frontmatter в модель | YAML codec | [условия](../../internal/infrastructure/document/usecases.md), [сценарии](../../internal/infrastructure/document/TESTS.md) |
@@ -83,8 +83,8 @@ Gherkin-сценарии и проверки. Общий код тестовог
 
 ### Модели, порты, composition root
 
-- [model](../../internal/domain/model/model.go): Request → Repository/Skill/Link → TargetPlan → Result; ошибки Issue/Issues. Также [Catalog](../../internal/domain/model/catalog.go), [SourceMap](../../internal/domain/model/source_map.go), [SkillMap/SkillEntry](../../internal/domain/model/skill_map.go) и примитивы [OwnsPath/RelativePath](../../internal/domain/model/ownership.go).
-- [interfaces](../../internal/domain/interfaces/ports.go): SourceProvider, DocumentCodec, StateReader, PlanWriter, SourceSelector, RelationExpander, SyncPlanner. Получатель порта определяет необходимую роль.
+- [model](../../internal/domain/model/model.go): Request → Repository/Skill/Link → TargetPlan → Result; ошибки Issue/Issues. Также [Catalog](../../internal/domain/model/catalog.go), [SkillMap/SkillEntry](../../internal/domain/model/skill_map.go) и примитивы [OwnsPath/RelativePath](../../internal/domain/model/ownership.go).
+- [interfaces](../../internal/domain/interfaces/ports.go): SourceProvider, RepositoryLookup, DocumentCodec, StateReader, PlanWriter, SourceSelector, RelationExpander, SyncPlanner. Получатель порта определяет необходимую роль.
 - [main](../../cmd/ai-skill-manager/main.go): реальные адаптеры, constructor injection, сигналы, profiler, exit code; создаёт `sourcing.Manager` и владеет его временем жизни (`defer sources.Close(ctx)`).
 - [version](../../internal/version/version.go): build-time значение из VERSION; без отдельной бизнес-логики.
 
@@ -92,15 +92,18 @@ Gherkin-сценарии и проверки. Общий код тестовог
 
 1. Arguments и SyncCommand получают вызов пользователя. ConfigLoader и OptionResolver создают Request.
 2. `main` создаёт один `sourcing.Manager` на весь процесс и связывает его с SyncService
-   как SourceProvider. SyncService получает источники через него (Manager
-   отдаёт кеш по `SourceKey`, реально получая источник только на первый запрос —
-   сам делегируя LocalSource/RepositoryFetcher, а не выполняя I/O напрямую),
-   регистрирует их в SourceMap, вызывает SourceSelector и SkillCatalog.
+   сразу как SourceProvider и как RepositoryLookup (`Sources`/`Lookup` — один и тот
+   же экземпляр). SyncService получает источники через него (Manager отдаёт кеш по
+   `SourceKey`, реально получая источник только на первый запрос — сам делегируя
+   LocalSource/RepositoryFetcher, а не выполняя I/O напрямую), вызывает
+   SourceSelector и SkillCatalog.
 3. RelationExpander обходит Markdown; LinkResolver находит владельца или внешнее вложение.
 4. SkillMap строится один раз после RelationExpander и переиспользуется для каждой цели.
-5. SyncPlanner строит все TargetPlan, читая StateReader и используя SkillMap/SourceMap.
-   OutputLayout и преобразования готовят окончательные байты; переписывание ссылок
-   применяется только когда `link-adapter` присутствует в адаптерах цели.
+5. SyncPlanner строит все TargetPlan, читая StateReader и используя SkillMap; для
+   содержимого внешних вложений вызывает RepositoryLookup.Lookup по `Repository.ID`
+   вместо отдельного реестра. OutputLayout и преобразования готовят окончательные
+   байты; переписывание ссылок применяется только когда `link-adapter` присутствует
+   в адаптерах цели.
 6. Dry-run возвращает планы. Обычный запуск передаёт планы PlanApplier.
 7. ResultFormatter выводит результат. `main` закрывает `sourcing.Manager` (`defer
    sources.Close(ctx)`) после `Execute`, независимо от результата — SyncService.Run
@@ -114,5 +117,5 @@ Gherkin-сценарии и проверки. Общий код тестовог
 через локальный [diagram-renderer](../../tools/diagram-renderer/main.go).
 `depends_on` задаёт состав, Go imports — связи; стрелка означает «импортирует».
 Диаграмма показывает зависимости типов/пакетов, порядок выполнения приведён выше.
-Порядок вызовов и контракты `SourceMap`/`SkillMap` — в
+Порядок вызовов и контракты `RepositoryLookup`/`SkillMap` — в
 [диаграммах потока данных](../architecture/diagrams.md) (Mermaid, вручную).

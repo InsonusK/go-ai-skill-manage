@@ -20,3 +20,12 @@ Feature: Cache and dispatch source acquisitions
   When I acquire "local" source "a" and "local" source "b"
   And I close the source manager
   Then repositories were closed in order "b,a"
+
+ Scenario: Lookup finds an already-acquired repository by ID
+  Given a source manager with a counting local provider
+  When I acquire "local" source "a"
+  Then lookup of "a" finds the repository
+
+ Scenario: Lookup reports an unknown ID as not found
+  Given a source manager with a counting local provider
+  Then lookup of "missing" finds nothing
