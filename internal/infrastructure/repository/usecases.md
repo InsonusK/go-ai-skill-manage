@@ -1,0 +1,68 @@
+# Use cases: internal/infrastructure/repository
+
+- internal/infrastructure/repository
+    - GitCloner.Clone
+        - Contract
+            - WHEN_Git_clone_arguments_preserve_branch_and_URL_boundaries_THEN_declared_result
+                - description: [Git clone arguments preserve branch and URL boundaries](features/git.feature)
+                - input: I prepare a clone for branch "feature/demo"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``git arguments are``
+            - WHEN_Default_branch_is_master_THEN_declared_result
+                - description: [Default branch is master](features/git.feature)
+                - input: I prepare a clone for branch ""; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``git arguments are``
+    - GitProcess.Run
+        - Contract
+            - WHEN_Git_process_executes_a_real_local_command_THEN_declared_result
+                - description: [Git process executes a real local command](features/git.feature)
+                - input: I run Git with "version"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``git process error contains ""``
+            - WHEN_Git_process_propagates_errors_THEN_declared_result
+                - description: [Git process propagates errors](features/git.feature)
+                - input: I run Git with "not-a-command"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``git process error contains "git:"``
+            - WHEN_Git_process_respects_cancellation_THEN_declared_result
+                - description: [Git process respects cancellation](features/git.feature)
+                - input: I run Git in a cancelled context; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``git process error contains "context canceled"``
+    - Local.Acquire
+        - Contract
+            - WHEN_Local_source_paths_remain_relative_to_source_root_THEN_declared_result
+                - description: [Local source paths remain relative to source root](features/repository.feature)
+                - input: a repository source; I acquire the local source; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``scan paths equal "skills"; acquired file "skills/a.skill.md" equals "content"``
+    - Fetcher.Acquire
+        - Contract
+            - WHEN_Failed_clone_falls_back_to_GitHub_archive_THEN_declared_result
+                - description: [Failed clone falls back to GitHub archive](features/repository.feature)
+                - input: a repository source; I fetch GitHub with clone failure "true"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``acquired file "skills/a.skill.md" equals "content"; archive calls equal "1"``
+            - WHEN_Successful_clone_needs_no_archive_THEN_declared_result
+                - description: [Successful clone needs no archive](features/repository.feature)
+                - input: a repository source; I fetch GitHub with clone failure "false"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``acquired file "skills/a.skill.md" equals "content"; archive calls equal "0"``
+            - WHEN_GitHub_workspace_uses_requested_temporary_directory_THEN_declared_result
+                - description: [GitHub workspace uses requested temporary directory](features/repository.feature)
+                - input: a repository source and acquisition options containing a temporary directory
+                - output: acquired repository root
+                - expected_result: root matches `aism-source-*/repo` below the requested directory
+    - Archive.Fetch
+        - Contract
+            - WHEN_Archive_traversal_is_rejected_THEN_declared_result
+                - description: [Archive traversal is rejected](features/repository.feature)
+                - input: a repository source; I extract an archive with path "../escape"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``repository error contains "unsafe archive"``
+            - WHEN_Archive_response_is_extracted_THEN_declared_result
+                - description: [Archive response is extracted](features/repository.feature)
+                - input: a repository source; I extract an archive with path "repo/skills/a.skill.md"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``acquired file "skills/a.skill.md" equals "content"``

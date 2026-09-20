@@ -1,0 +1,24 @@
+# Use cases: internal/domain/services/discovery
+
+- internal/domain/services/discovery
+    - Detector.Discover, Rooted, ValidName
+        - Contract
+            - WHEN_Skill_formats_and_structural_validation_THEN_declared_result
+                - description: [Skill formats and structural validation](features/discovery.feature)
+                - input: a source tree; I discover skills at "."; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``discovered names are "<names>" and discovery error contains "<error>"``
+    - Detector.Find, Rooted
+        - Contract
+            - WHEN_A_flat_example_belongs_to_its_ancestor_skill_THEN_declared_result
+                - description: [A flat example belongs to its ancestor skill](features/discovery.feature)
+                - input: a source tree; I find the owner of "guide/examples/sample.skill.md"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``discovered names are "guide" and discovery error contains ""``
+    - Detector.Discover
+        - Cancellation
+            - WHEN_context_is_canceled_THEN_no_skills_are_read
+                - description: [Canceled discovery](features/discovery.feature)
+                - input: canceled context and a valid skill tree
+                - output: discovered skills and error
+                - expected_result: empty skills, context canceled

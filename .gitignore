@@ -1,2 +1,7 @@
 .claude/skills
 .agents/skills
+/.venv/
+/bin/
+/tmp/
+/public/
+*.prof

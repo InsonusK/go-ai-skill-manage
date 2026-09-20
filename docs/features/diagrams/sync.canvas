@@ -1,0 +1,427 @@
+{
+  "nodes": [
+    {
+      "id": "cmd/ai-skill-manager",
+      "type": "file",
+      "file": "cmd/ai-skill-manager/main.go",
+      "x": 0,
+      "y": 0,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/command",
+      "type": "file",
+      "file": "internal/command/arguments.go",
+      "x": 320,
+      "y": 0,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/config",
+      "type": "file",
+      "file": "internal/config/config.go",
+      "x": 320,
+      "y": 125,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/domain/interfaces",
+      "type": "file",
+      "file": "internal/domain/interfaces/ports.go",
+      "x": 640,
+      "y": 0,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/domain/model",
+      "type": "file",
+      "file": "internal/domain/model/model.go",
+      "x": 640,
+      "y": 125,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/domain/services",
+      "type": "file",
+      "file": "internal/domain/services/sync.go",
+      "x": 640,
+      "y": 250,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/domain/services/discovery",
+      "type": "file",
+      "file": "internal/domain/services/discovery/detector.go",
+      "x": 960,
+      "y": 0,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/domain/services/links",
+      "type": "file",
+      "file": "internal/domain/services/links/extract.go",
+      "x": 960,
+      "y": 125,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/domain/services/planning",
+      "type": "file",
+      "file": "internal/domain/services/planning/layout.go",
+      "x": 960,
+      "y": 250,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/domain/services/relations",
+      "type": "file",
+      "file": "internal/domain/services/relations/expand.go",
+      "x": 960,
+      "y": 375,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/domain/services/tags",
+      "type": "file",
+      "file": "internal/domain/services/tags/tags.go",
+      "x": 960,
+      "y": 500,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/domain/services/transform",
+      "type": "file",
+      "file": "internal/domain/services/transform/links.go",
+      "x": 960,
+      "y": 625,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/infrastructure/document",
+      "type": "file",
+      "file": "internal/infrastructure/document/codec.go",
+      "x": 1280,
+      "y": 0,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/infrastructure/filesystem",
+      "type": "file",
+      "file": "internal/infrastructure/filesystem/apply.go",
+      "x": 1280,
+      "y": 125,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/infrastructure/repository",
+      "type": "file",
+      "file": "internal/infrastructure/repository/local.go",
+      "x": 1280,
+      "y": 250,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/logging",
+      "type": "file",
+      "file": "internal/logging/logger.go",
+      "x": 640,
+      "y": 375,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/profiling",
+      "type": "file",
+      "file": "internal/profiling/profile.go",
+      "x": 640,
+      "y": 500,
+      "width": 280,
+      "height": 85
+    },
+    {
+      "id": "internal/version",
+      "type": "file",
+      "file": "internal/version/version.go",
+      "x": 640,
+      "y": 625,
+      "width": 280,
+      "height": 85
+    }
+  ],
+  "edges": [
+    {
+      "id": "cmd/ai-skill-manager-\u003einternal/command",
+      "fromNode": "cmd/ai-skill-manager",
+      "fromSide": "right",
+      "toNode": "internal/command",
+      "toSide": "left"
+    },
+    {
+      "id": "cmd/ai-skill-manager-\u003einternal/domain/services",
+      "fromNode": "cmd/ai-skill-manager",
+      "fromSide": "right",
+      "toNode": "internal/domain/services",
+      "toSide": "left"
+    },
+    {
+      "id": "cmd/ai-skill-manager-\u003einternal/domain/services/discovery",
+      "fromNode": "cmd/ai-skill-manager",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/discovery",
+      "toSide": "left"
+    },
+    {
+      "id": "cmd/ai-skill-manager-\u003einternal/domain/services/planning",
+      "fromNode": "cmd/ai-skill-manager",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/planning",
+      "toSide": "left"
+    },
+    {
+      "id": "cmd/ai-skill-manager-\u003einternal/domain/services/relations",
+      "fromNode": "cmd/ai-skill-manager",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/relations",
+      "toSide": "left"
+    },
+    {
+      "id": "cmd/ai-skill-manager-\u003einternal/infrastructure/document",
+      "fromNode": "cmd/ai-skill-manager",
+      "fromSide": "right",
+      "toNode": "internal/infrastructure/document",
+      "toSide": "left"
+    },
+    {
+      "id": "cmd/ai-skill-manager-\u003einternal/infrastructure/filesystem",
+      "fromNode": "cmd/ai-skill-manager",
+      "fromSide": "right",
+      "toNode": "internal/infrastructure/filesystem",
+      "toSide": "left"
+    },
+    {
+      "id": "cmd/ai-skill-manager-\u003einternal/infrastructure/repository",
+      "fromNode": "cmd/ai-skill-manager",
+      "fromSide": "right",
+      "toNode": "internal/infrastructure/repository",
+      "toSide": "left"
+    },
+    {
+      "id": "cmd/ai-skill-manager-\u003einternal/logging",
+      "fromNode": "cmd/ai-skill-manager",
+      "fromSide": "right",
+      "toNode": "internal/logging",
+      "toSide": "left"
+    },
+    {
+      "id": "cmd/ai-skill-manager-\u003einternal/profiling",
+      "fromNode": "cmd/ai-skill-manager",
+      "fromSide": "right",
+      "toNode": "internal/profiling",
+      "toSide": "left"
+    },
+    {
+      "id": "cmd/ai-skill-manager-\u003einternal/version",
+      "fromNode": "cmd/ai-skill-manager",
+      "fromSide": "right",
+      "toNode": "internal/version",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/command-\u003einternal/config",
+      "fromNode": "internal/command",
+      "fromSide": "right",
+      "toNode": "internal/config",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/command-\u003einternal/domain/model",
+      "fromNode": "internal/command",
+      "fromSide": "right",
+      "toNode": "internal/domain/model",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/command-\u003einternal/domain/services",
+      "fromNode": "internal/command",
+      "fromSide": "right",
+      "toNode": "internal/domain/services",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/config-\u003einternal/domain/model",
+      "fromNode": "internal/config",
+      "fromSide": "right",
+      "toNode": "internal/domain/model",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/interfaces-\u003einternal/domain/model",
+      "fromNode": "internal/domain/interfaces",
+      "fromSide": "right",
+      "toNode": "internal/domain/model",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services-\u003einternal/domain/interfaces",
+      "fromNode": "internal/domain/services",
+      "fromSide": "right",
+      "toNode": "internal/domain/interfaces",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services-\u003einternal/domain/model",
+      "fromNode": "internal/domain/services",
+      "fromSide": "right",
+      "toNode": "internal/domain/model",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services-\u003einternal/domain/services/discovery",
+      "fromNode": "internal/domain/services",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/discovery",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services-\u003einternal/domain/services/planning",
+      "fromNode": "internal/domain/services",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/planning",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services-\u003einternal/domain/services/relations",
+      "fromNode": "internal/domain/services",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/relations",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services/discovery-\u003einternal/domain/interfaces",
+      "fromNode": "internal/domain/services/discovery",
+      "fromSide": "right",
+      "toNode": "internal/domain/interfaces",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services/discovery-\u003einternal/domain/model",
+      "fromNode": "internal/domain/services/discovery",
+      "fromSide": "right",
+      "toNode": "internal/domain/model",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services/discovery-\u003einternal/domain/services/tags",
+      "fromNode": "internal/domain/services/discovery",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/tags",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services/links-\u003einternal/domain/model",
+      "fromNode": "internal/domain/services/links",
+      "fromSide": "right",
+      "toNode": "internal/domain/model",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services/planning-\u003einternal/domain/interfaces",
+      "fromNode": "internal/domain/services/planning",
+      "fromSide": "right",
+      "toNode": "internal/domain/interfaces",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services/planning-\u003einternal/domain/model",
+      "fromNode": "internal/domain/services/planning",
+      "fromSide": "right",
+      "toNode": "internal/domain/model",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services/planning-\u003einternal/domain/services/discovery",
+      "fromNode": "internal/domain/services/planning",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/discovery",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services/planning-\u003einternal/domain/services/transform",
+      "fromNode": "internal/domain/services/planning",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/transform",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services/relations-\u003einternal/domain/model",
+      "fromNode": "internal/domain/services/relations",
+      "fromSide": "right",
+      "toNode": "internal/domain/model",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services/relations-\u003einternal/domain/services/discovery",
+      "fromNode": "internal/domain/services/relations",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/discovery",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services/relations-\u003einternal/domain/services/links",
+      "fromNode": "internal/domain/services/relations",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/links",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services/transform-\u003einternal/domain/model",
+      "fromNode": "internal/domain/services/transform",
+      "fromSide": "right",
+      "toNode": "internal/domain/model",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/infrastructure/document-\u003einternal/domain/model",
+      "fromNode": "internal/infrastructure/document",
+      "fromSide": "right",
+      "toNode": "internal/domain/model",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/infrastructure/filesystem-\u003einternal/domain/model",
+      "fromNode": "internal/infrastructure/filesystem",
+      "fromSide": "right",
+      "toNode": "internal/domain/model",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/infrastructure/filesystem-\u003einternal/domain/services/discovery",
+      "fromNode": "internal/infrastructure/filesystem",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/discovery",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/infrastructure/repository-\u003einternal/domain/model",
+      "fromNode": "internal/infrastructure/repository",
+      "fromSide": "right",
+      "toNode": "internal/domain/model",
+      "toSide": "left"
+    }
+  ]
+}

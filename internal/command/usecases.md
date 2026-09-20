@@ -1,0 +1,72 @@
+# Use cases: internal/command
+
+- internal/command
+    - Parse
+        - Contract
+            - WHEN_All_options_are_parsed_without_executing_integrations_THEN_declared_result
+                - description: [All options are parsed without executing integrations](features/arguments.feature)
+                - input: I parse argument list; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``parsed options are``
+            - WHEN_Malformed_arguments_fail_parsing_THEN_declared_result
+                - description: [Malformed arguments fail parsing](features/arguments.feature)
+                - input: I parse argument list; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``argument error contains "<error>"``
+    - App.Execute, request, PrintResult
+        - Contract
+            - WHEN_Sync_a_local_directory_from_configuration_THEN_declared_result
+                - description: [Sync a local directory from configuration](features/command.feature)
+                - input: CLI project; I run arguments "sync"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``exit code is "0"; stdout contains "Synced 1 skill"; project file "output/a/SKILL.md" contains "Content"``
+            - WHEN_Config_dry_run_does_not_create_targets_THEN_declared_result
+                - description: [Config dry run does not create targets](features/command.feature)
+                - input: CLI project; I run arguments "sync"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``exit code is "0"; stdout contains "Dry run"; project path "output" exists "false"``
+            - WHEN_Direct_mode_skips_config_loading_THEN_declared_result
+                - description: [Direct mode skips config loading](features/command.feature)
+                - input: CLI project; I run arguments "sync --type local --path input --target output"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``exit code is "0"; project file "output/a/SKILL.md" contains "Content"``
+            - WHEN_Usage_and_failures_have_stable_exit_codes_THEN_declared_result
+                - description: [Usage and failures have stable exit codes](features/command.feature)
+                - input: CLI project; I run arguments "<args>"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``exit code is "<code>"; console contains "<message>"``
+            - WHEN_Named_targets_share_dependencies_with_different_adapters_THEN_declared_result
+                - description: [Named targets share dependencies with different adapters](features/command.feature)
+                - input: CLI project; I run arguments "sync"; I run arguments "sync"; I run arguments "sync -f"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``exit code is "0"; exit code is "0"; exit code is "0"; project file "out/a/SKILL.md" contains "[Read](out/b/SKILL.md#part)"; project file "claude/a/SKILL.md" contains "[Read](claude/b/SKILL.md#part)"; project file "claude/a/SKILL.md" contains "## Metadata"; stdout contains "(unchanged)"; stdout contains "(forced)"``
+            - WHEN_Tag_filter_and_name_override_select_one_skill_THEN_declared_result
+                - description: [Tag filter and name override select one skill](features/command.feature)
+                - input: CLI project; I run arguments "sync"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``exit code is "0"; project file "out/renamed/SKILL.md" contains "name: renamed"; project path "out/b" exists "false"``
+            - WHEN_Last_source_wins_a_configured_name_conflict_THEN_declared_result
+                - description: [Last source wins a configured name conflict](features/command.feature)
+                - input: CLI project; I run arguments "sync"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``exit code is "0"; project file "out/same/SKILL.md" contains "Second"``
+            - WHEN_Duplicate_names_block_writes_by_default_THEN_declared_result
+                - description: [Duplicate names block writes by default](features/command.feature)
+                - input: CLI project; I run arguments "sync"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``exit code is "1"; console contains "duplicate-name"; project path "out" exists "false"``
+            - WHEN_Human_directory_attachments_and_external_folders_are_copied_THEN_declared_result
+                - description: [Human directory attachments and external folders are copied](features/command.feature)
+                - input: CLI project; I run arguments "sync"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``exit code is "0"; project file "out/a/notes.txt" contains "Own"; project file "out/files/assets/nested/info.txt" contains "Info"; project file "out/a/SKILL.md" contains "[own](out/a/notes.txt) [ext](out/files/assets)"``
+            - WHEN_Missing_subpaths_produce_an_empty_selection_THEN_declared_result
+                - description: [Missing subpaths produce an empty selection](features/command.feature)
+                - input: CLI project; I run arguments "sync --keep-orphans"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``exit code is "0"; stdout contains "Synced 0 skill"``
+            - WHEN_Whitespace_GitHub_path_is_a_configuration_error_THEN_declared_result
+                - description: [Whitespace GitHub path is a configuration error](features/command.feature)
+                - input: CLI project; I run argv; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``exit code is "1"; console contains "--path is required"``

@@ -11,18 +11,20 @@ sources:
       - skills/devops
       - skills/go/devops
       - skills/go/testing
+      - skills/go/architecture/plateau/plateau-http-service
       
+target:
+  for_each:
+    adapters:
+      - link-adapter
+  default:
+    path: .agents/skills
+  claude:
+    path: .claude/skills
+    adapters:
+      - claude-property-adapter
+
 settings:
-  target: 
-    for_each:
-      adapters:
-        - link-adapter
-    default:
-      path: .agents/skills
-    claude:
-      path: .claude/skills
-      adapters:
-        - claude-property-adapter
   remove_orphans: true
   on_conflict: error
   dry_run: false

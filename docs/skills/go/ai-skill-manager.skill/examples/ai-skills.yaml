@@ -1,0 +1,68 @@
+# Complete ai-skills.yaml example.
+# Labels in comments:
+#   REQUIRED - the field must be present in this context.
+#   OPTIONAL - the field may be omitted; the comment states its default.
+
+sources: # OPTIONAL; defaults to an empty list.
+  - path: ./local-skills # REQUIRED for every source; relative to this file.
+    type: local # OPTIONAL; local is the default. Other supported value: github.
+    subpath: # OPTIONAL; local defaults to the source root.
+      - skills/go
+    tags: # OPTIONAL; no tag filter by default. Multiple entries are combined with AND.
+      - "stack/go & concern/testing"
+    skip_folder: # OPTIONAL; defaults to [examples] for nested-skill discovery.
+      - examples
+      - fixtures
+    name: local-go-skill # OPTIONAL; allowed only when this source selects exactly one skill.
+
+  - path: https://github.com/example/ai-skills.git # REQUIRED; Git URL for github.
+    type: github # OPTIONAL only because local is the default; set it for GitHub URLs.
+    tree: main # OPTIONAL; Git branch or tag, defaults to master.
+    subpath: # OPTIONAL; GitHub sources default to [skills].
+      - skills/common-workflow
+      - skills/go
+    tags: # OPTIONAL; string or list of tag expressions.
+      - "!deprecated"
+    skip_folder: # OPTIONAL; string or list, defaults to [examples].
+      - examples
+    # name is OPTIONAL and omitted because this source can select multiple skills.
+
+target: # OPTIONAL; string path or the named-target mapping shown below.
+  for_each: # OPTIONAL; adapters merged into every named target.
+    adapters: # OPTIONAL; string or list.
+      - link-adapter
+
+  default: # OPTIONAL named target; default path is .agents/skills.
+    path: .agents/skills # OPTIONAL for the target named default.
+    adapters: [] # OPTIONAL; inherited adapters still apply.
+
+  claude: # OPTIONAL named target; default path is .claude/skills.
+    path: .claude/skills # OPTIONAL for the target named claude.
+    adapters: # OPTIONAL; merged with for_each.adapters.
+      - claude-property-adapter # OPTIONAL; converts properties for Claude skills.
+
+  review: # OPTIONAL custom named target.
+    path: .review/skills # REQUIRED for names other than default and claude.
+    adapters: # OPTIONAL; merged with for_each.adapters.
+      - link-adapter
+
+settings: # OPTIONAL; every child has a default.
+  # OPTIONAL string path; base directory for GitHub acquisition workspaces.
+  # A relative path is resolved from this ai-skills.yaml file.
+  # The directory must already exist and be writable.
+  # Omit it or use an empty string to use the operating system temp directory.
+  temp_dir: ./.tmp/ai-skill-manager
+
+  dry_run: false # OPTIONAL; default false. Plan and validate without target writes.
+  remove_orphans: true # OPTIONAL; default true. Remove managed skills no longer selected.
+  add_relations: true # OPTIONAL; default false. Include skills referenced by selected skills.
+  on_conflict: error # OPTIONAL; error (default) or last_wins for duplicate skill names.
+
+  validation: # OPTIONAL.
+    rules: # OPTIONAL.
+      link: # OPTIONAL.
+        # OPTIONAL; defaults to [examples].
+        # Use [] or null to validate links in every folder.
+        skip_folder: # OPTIONAL; string or list.
+          - examples
+

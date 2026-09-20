@@ -1,0 +1,6 @@
+{
+  "go.testFlags": ["-v"],
+  "cucumber.glue": ["**/*_steps_test.go", "**/*_test.go"],
+  "cucumber.features": ["**/*.feature"],
+  "files.exclude": {"tmp": true}
+}
