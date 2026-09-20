@@ -66,19 +66,3 @@ func (f Fetcher) Acquire(ctx context.Context, s model.SourceSpec, options model.
 	failed = false
 	return repo, nil
 }
-
-type Provider struct {
-	Local  Local
-	Remote Fetcher
-}
-
-func (p Provider) Acquire(ctx context.Context, s model.SourceSpec, options model.AcquisitionOptions) (*model.Repository, error) {
-	switch s.Type {
-	case "local":
-		return p.Local.Acquire(ctx, s, options)
-	case "github":
-		return p.Remote.Acquire(ctx, s, options)
-	default:
-		return nil, fmt.Errorf("unknown source type %q", s.Type)
-	}
-}

@@ -26,7 +26,6 @@
 
 | Изменённая функция или ветвь | Сценарий |
 | --- | --- |
-| `Provider.Acquire`: GitHub options forwarding | [GitHub workspace uses requested temporary directory](features/repository.feature) |
 | `Fetcher.Acquire`: configured temp-directory root | [GitHub workspace uses requested temporary directory](features/repository.feature) |
 
 [Условия вызовов](usecases.md) · [Step definitions](test/) · [Общие правила запуска](../../../docs/testing.md)

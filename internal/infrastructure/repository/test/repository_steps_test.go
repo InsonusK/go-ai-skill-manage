@@ -84,10 +84,10 @@ func initialize(sc *godog.ScenarioContext) {
 		return err
 	})
 	sc.Step(`^I fetch GitHub in the configured temporary directory$`, func(ctx context.Context) error {
-		provider := repository.Provider{Remote: repository.Fetcher{Git: cloneStub{}, Archive: archiveStub{calls: &calls}}}
+		fetcher := repository.Fetcher{Git: cloneStub{}, Archive: archiveStub{calls: &calls}}
 		testsupport.Log("configured temp dir=%s", temp)
 		var err error
-		repo, err = provider.Acquire(ctx, model.SourceSpec{Type: "github", Path: "https://github.com/owner/repo.git", Tree: "main"}, model.AcquisitionOptions{TempDir: temp})
+		repo, err = fetcher.Acquire(ctx, model.SourceSpec{Type: "github", Path: "https://github.com/owner/repo.git", Tree: "main"}, model.AcquisitionOptions{TempDir: temp})
 		return err
 	})
 	sc.Step(`^I extract an archive with path "([^"]*)"$`, func(ctx context.Context, p string) error {

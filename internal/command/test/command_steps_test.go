@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/InsonusK/go-ai-skill-manage/internal/command"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
@@ -62,7 +63,8 @@ func initialize(sc *godog.ScenarioContext) {
 		}
 		detector := discovery.Detector{Codec: document.Codec{}}
 		store := filesystem.Store{}
-		service := &services.SyncService{Sources: repository.Provider{}, Detector: detector, Relations: relations.Expander{Detector: detector}, Planner: planning.Planner{State: store, Codec: document.Codec{}}, Writer: store}
+		sources := repository.NewSourceManager(map[string]interfaces.SourceProvider{"local": repository.Local{}})
+		service := &services.SyncService{Sources: sources, Detector: detector, Relations: relations.Expander{Detector: detector}, Planner: planning.Planner{State: store, Codec: document.Codec{}}, Writer: store}
 		app := command.App{Sync: service, ReadFile: os.ReadFile, Out: &stdout, Err: &stderr, Version: "test-version"}
 		code = app.Execute(ctx, opts, dir)
 		testsupport.Log("exit=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())

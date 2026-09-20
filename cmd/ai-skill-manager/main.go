@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/InsonusK/go-ai-skill-manage/internal/command"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
@@ -53,10 +54,19 @@ func run() (code int) {
 	codec := document.Codec{}
 	store := filesystem.Store{}
 	detector := discovery.Detector{Codec: codec}
-	sources := repository.Provider{Local: repository.Local{}, Remote: repository.Fetcher{
-		Git:     repository.GitCloner{Runner: repository.GitProcess{}},
-		Archive: repository.Archive{Client: &http.Client{Timeout: 60 * time.Second}},
-	}}
+	sources := repository.NewSourceManager(map[string]interfaces.SourceProvider{
+		"local": repository.Local{},
+		"github": repository.Fetcher{
+			Git:     repository.GitCloner{Runner: repository.GitProcess{}},
+			Archive: repository.Archive{Client: &http.Client{Timeout: 60 * time.Second}},
+		},
+	})
+	defer func() {
+		if err := sources.Close(); err != nil {
+			logger.Error("close sources", "error", err)
+			code = 1
+		}
+	}()
 	service := &services.SyncService{
 		Sources: sources, Detector: detector, Relations: relations.Expander{Detector: detector},
 		Planner: planning.Planner{State: store, Codec: codec}, Writer: store,
