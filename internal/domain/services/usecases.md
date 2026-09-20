@@ -25,3 +25,8 @@
                 - input: request with `TempDir` set; I synchronize
                 - output: source-provider acquisition options
                 - expected_result: acquisition `TempDir` equals the request value
+            - WHEN_A_failing_skill_detector_blocks_writes_without_real_discovery_THEN_declared_result
+                - description: [A failing skill detector blocks writes without real discovery](features/sync.feature)
+                - input: skill detection always fails with "boom" (a hand-written `interfaces.SourceSelector` fake, no markdown parsing); I synchronize
+                - output: результат вызова и наблюдаемое состояние
+                - expected_result: ``writer calls equal "0" and cleanup calls equal "1"; sync error contains "boom"``

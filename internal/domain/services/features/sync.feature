@@ -21,3 +21,10 @@ Feature: Synchronization orchestration
   And request temporary directory is "/project/.tmp"
   When I synchronize
   Then source acquisition temp dir equals "/project/.tmp"
+
+ Scenario: A failing skill detector blocks writes without real discovery
+  Given sync source content "valid" and dry run "false"
+  And skill detection always fails with "boom"
+  When I synchronize
+  Then writer calls equal "0" and cleanup calls equal "1"
+  And sync error contains "boom"

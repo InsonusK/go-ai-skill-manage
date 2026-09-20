@@ -39,6 +39,17 @@ func (s state) Snapshot(ctx context.Context, p string) (map[string]model.Managed
 type writer struct{ calls *int }
 
 func (w writer) Apply(context.Context, model.TargetPlan) error { *w.calls++; return nil }
+
+// failingDetector proves SyncService.Run surfaces a discovery-stage error
+// without needing real markdown parsing -- only possible to fake now that
+// Detector is a port (interfaces.SourceSelector) rather than a concrete
+// discovery.Detector field.
+type failingDetector struct{ message string }
+
+func (d failingDetector) Select(context.Context, *model.Repository) ([]*model.Skill, error) {
+	return nil, fmt.Errorf("%s", d.message)
+}
+
 func initialize(sc *godog.ScenarioContext) {
 	architectureSteps(sc)
 	var request model.Request
@@ -47,6 +58,7 @@ func initialize(sc *godog.ScenarioContext) {
 	var acquiredTempDir string
 	var fail bool
 	var failure error
+	var detectorFailure string
 	sc.Step(`^sync source content "([^"]*)" and dry run "([^"]*)"$`, func(ctx context.Context, content, dry string) error {
 		body := "---\nname: sample\n---\n"
 		if content == "broken" {
@@ -58,7 +70,13 @@ func initialize(sc *godog.ScenarioContext) {
 		closed = 0
 		acquiredTempDir = ""
 		fail = false
+		detectorFailure = ""
 		testsupport.Log("content=%s dry=%s", content, dry)
+		return nil
+	})
+	sc.Step(`^skill detection always fails with "([^"]*)"$`, func(ctx context.Context, message string) error {
+		detectorFailure = message
+		testsupport.Log("detector failure=%s", message)
 		return nil
 	})
 	sc.Step(`^a second target fails state loading$`, func(ctx context.Context) error {
@@ -75,6 +93,9 @@ func initialize(sc *godog.ScenarioContext) {
 	sc.Step(`^I synchronize$`, func(ctx context.Context) error {
 		detector := discovery.Detector{Codec: document.Codec{}}
 		service := services.SyncService{Sources: source{repo, &closed, &acquiredTempDir}, Detector: detector, Relations: relations.Expander{Detector: detector}, Planner: planning.Planner{State: state{fail}, Codec: document.Codec{}}, Writer: writer{&calls}}
+		if detectorFailure != "" {
+			service.Detector = failingDetector{message: detectorFailure}
+		}
 		_, failure = service.Run(ctx, request)
 		testsupport.Log("sync error=%v", failure)
 		return nil

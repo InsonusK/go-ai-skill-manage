@@ -19,3 +19,12 @@ type StateReader interface {
 type PlanWriter interface {
 	Apply(context.Context, model.TargetPlan) error
 }
+type SourceSelector interface {
+	Select(context.Context, *model.Repository) ([]*model.Skill, error)
+}
+type RelationExpander interface {
+	Expand(context.Context, *model.Catalog, bool, []string) error
+}
+type SyncPlanner interface {
+	Plan(context.Context, *model.Catalog, *model.SkillMap, *model.SourceMap, model.Request, model.Target) (model.TargetPlan, error)
+}
