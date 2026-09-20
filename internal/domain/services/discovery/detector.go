@@ -123,7 +123,7 @@ func (d Detector) Rooted(ctx context.Context, repo *model.Repository, dir string
 			rel = p
 		}
 		first := strings.Split(rel, "/")[0]
-		for _, skip := range repo.Spec.SkipFolders {
+		for _, skip := range repo.SkipFolders {
 			if first == skip {
 				if e.IsDir() {
 					return fs.SkipDir

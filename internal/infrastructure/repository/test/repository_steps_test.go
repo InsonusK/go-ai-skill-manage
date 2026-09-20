@@ -44,12 +44,11 @@ func initialize(sc *godog.ScenarioContext) {
 	gitSteps(sc)
 	var temp string
 	var repo *model.Repository
-	var close func() error
 	var failure error
 	var calls int
 	sc.After(func(ctx context.Context, s *godog.Scenario, err error) (context.Context, error) {
-		if close != nil {
-			if e := close(); e != nil {
+		if repo != nil {
+			if e := repo.Close(); e != nil {
 				return ctx, e
 			}
 		}
@@ -59,7 +58,7 @@ func initialize(sc *godog.ScenarioContext) {
 		var err error
 		temp, err = os.MkdirTemp("", "aism-repo-test-")
 		calls = 0
-		close = nil
+		repo = nil
 		failure = nil
 		testsupport.Log("source=%s", temp)
 		if err != nil {
@@ -69,20 +68,25 @@ func initialize(sc *godog.ScenarioContext) {
 	})
 	sc.Step(`^I acquire the local source$`, func(ctx context.Context) error {
 		var err error
-		repo, close, err = (repository.Local{}).Acquire(ctx, model.SourceSpec{Type: "local", Path: temp, Subpaths: []string{"skills"}})
+		repo, err = (repository.Local{}).Acquire(ctx, model.SourceSpec{Type: "local", Path: temp}, model.AcquisitionOptions{})
+		return err
+	})
+	sc.Step(`^I acquire the local source at "([^"]*)"$`, func(ctx context.Context, relative string) error {
+		var err error
+		repo, err = (repository.Local{}).Acquire(ctx, model.SourceSpec{Type: "local", Path: filepath.Join(temp, relative)}, model.AcquisitionOptions{})
 		return err
 	})
 	sc.Step(`^I fetch GitHub with clone failure "([^"]*)"$`, func(ctx context.Context, s string) error {
 		fetcher := repository.Fetcher{Git: cloneStub{fail: s == "true"}, Archive: archiveStub{calls: &calls}}
 		var err error
-		repo, close, err = fetcher.Acquire(ctx, model.SourceSpec{Type: "github", Path: "https://github.com/owner/repo.git", Tree: "main", Subpaths: []string{"skills"}}, model.AcquisitionOptions{TempDir: temp})
+		repo, err = fetcher.Acquire(ctx, model.SourceSpec{Type: "github", Path: "https://github.com/owner/repo.git", Tree: "main"}, model.AcquisitionOptions{TempDir: temp})
 		return err
 	})
 	sc.Step(`^I fetch GitHub in the configured temporary directory$`, func(ctx context.Context) error {
 		provider := repository.Provider{Remote: repository.Fetcher{Git: cloneStub{}, Archive: archiveStub{calls: &calls}}}
 		testsupport.Log("configured temp dir=%s", temp)
 		var err error
-		repo, close, err = provider.Acquire(ctx, model.SourceSpec{Type: "github", Path: "https://github.com/owner/repo.git", Tree: "main", Subpaths: []string{"skills"}}, model.AcquisitionOptions{TempDir: temp})
+		repo, err = provider.Acquire(ctx, model.SourceSpec{Type: "github", Path: "https://github.com/owner/repo.git", Tree: "main"}, model.AcquisitionOptions{TempDir: temp})
 		return err
 	})
 	sc.Step(`^I extract an archive with path "([^"]*)"$`, func(ctx context.Context, p string) error {
@@ -108,13 +112,13 @@ func initialize(sc *godog.ScenarioContext) {
 		root, err := fetcher.Fetch(ctx, "https://github.com/owner/repo", "main", filepath.Join(temp, "archive"))
 		failure = err
 		if err == nil {
-			repo, close, err = (repository.Local{}).Acquire(ctx, model.SourceSpec{Path: root})
+			repo, err = (repository.Local{}).Acquire(ctx, model.SourceSpec{Path: root}, model.AcquisitionOptions{})
 			return err
 		}
 		return nil
 	})
-	sc.Step(`^scan paths equal "([^"]*)"$`, func(ctx context.Context, want string) error {
-		return testsupport.Equal(strings.Join(repo.ScanPaths, ","), want)
+	sc.Step(`^acquired repository single file equals "([^"]*)"$`, func(ctx context.Context, want string) error {
+		return testsupport.Equal(repo.SingleFile, want)
 	})
 	sc.Step(`^acquired file "([^"]*)" equals "([^"]*)"$`, func(ctx context.Context, p, want string) error {
 		raw, err := fs.ReadFile(repo.FS, p)

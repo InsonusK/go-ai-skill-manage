@@ -16,15 +16,18 @@ import (
 	"testing/fstest"
 )
 
+// source is a fake SourceProvider: acquisition/cleanup lifetime is no longer
+// SyncService.Run's concern (it moved to repository.SourceManager, tested in
+// its own package), so this fake only needs to hand back a fixed repo and
+// record the acquisition options it received.
 type source struct {
 	repo    *model.Repository
-	closed  *int
 	tempDir *string
 }
 
-func (s source) Acquire(_ context.Context, _ model.SourceSpec, options model.AcquisitionOptions) (*model.Repository, func() error, error) {
+func (s source) Acquire(_ context.Context, _ model.SourceSpec, options model.AcquisitionOptions) (*model.Repository, error) {
 	*s.tempDir = options.TempDir
-	return s.repo, func() error { *s.closed++; return nil }, nil
+	return s.repo, nil
 }
 
 type state struct{ fail bool }
@@ -46,7 +49,7 @@ func (w writer) Apply(context.Context, model.TargetPlan) error { *w.calls++; ret
 // discovery.Detector field.
 type failingDetector struct{ message string }
 
-func (d failingDetector) Select(context.Context, *model.Repository) ([]*model.Skill, error) {
+func (d failingDetector) Select(context.Context, *model.Repository, model.SourceSpec) ([]*model.Skill, error) {
 	return nil, fmt.Errorf("%s", d.message)
 }
 
@@ -54,7 +57,7 @@ func initialize(sc *godog.ScenarioContext) {
 	architectureSteps(sc)
 	var request model.Request
 	var repo *model.Repository
-	var calls, closed int
+	var calls int
 	var acquiredTempDir string
 	var fail bool
 	var failure error
@@ -64,10 +67,9 @@ func initialize(sc *godog.ScenarioContext) {
 		if content == "broken" {
 			body += "[bad](missing)"
 		}
-		repo = &model.Repository{ID: "repo", Root: "/source", FS: fstest.MapFS{"a.skill.md": &fstest.MapFile{Data: []byte(body), Mode: 0644}}, ScanPaths: []string{"."}}
+		repo = &model.Repository{ID: "repo", Root: "/source", FS: fstest.MapFS{"a.skill.md": &fstest.MapFile{Data: []byte(body), Mode: 0644}}}
 		request = model.Request{Base: "/project", Sources: []model.SourceSpec{{Type: "local"}}, Targets: []model.Target{{Name: "one", Path: "/project/out"}}, DryRun: dry == "true", RemoveOrphans: true, Conflict: "error"}
 		calls = 0
-		closed = 0
 		acquiredTempDir = ""
 		fail = false
 		detectorFailure = ""
@@ -92,7 +94,7 @@ func initialize(sc *godog.ScenarioContext) {
 	})
 	sc.Step(`^I synchronize$`, func(ctx context.Context) error {
 		detector := discovery.Detector{Codec: document.Codec{}}
-		service := services.SyncService{Sources: source{repo, &closed, &acquiredTempDir}, Detector: detector, Relations: relations.Expander{Detector: detector}, Planner: planning.Planner{State: state{fail}, Codec: document.Codec{}}, Writer: writer{&calls}}
+		service := services.SyncService{Sources: source{repo, &acquiredTempDir}, Detector: detector, Relations: relations.Expander{Detector: detector}, Planner: planning.Planner{State: state{fail}, Codec: document.Codec{}}, Writer: writer{&calls}}
 		if detectorFailure != "" {
 			service.Detector = failingDetector{message: detectorFailure}
 		}
@@ -100,8 +102,8 @@ func initialize(sc *godog.ScenarioContext) {
 		testsupport.Log("sync error=%v", failure)
 		return nil
 	})
-	sc.Step(`^writer calls equal "([^"]*)" and cleanup calls equal "([^"]*)"$`, func(ctx context.Context, w, c string) error {
-		return testsupport.Equal([]string{strconv.Itoa(calls), strconv.Itoa(closed)}, []string{w, c})
+	sc.Step(`^writer calls equal "([^"]*)"$`, func(ctx context.Context, w string) error {
+		return testsupport.Equal(strconv.Itoa(calls), w)
 	})
 	sc.Step(`^source acquisition temp dir equals "([^"]*)"$`, func(ctx context.Context, want string) error {
 		testsupport.Log("source acquisition temp dir=%s", acquiredTempDir)

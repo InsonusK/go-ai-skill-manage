@@ -5,6 +5,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"strings"
@@ -17,6 +18,14 @@ type SourceSpec struct {
 	Type, Path, Tree, Name      string
 	Subpaths, Tags, SkipFolders []string
 }
+
+// SourceKey identifies what to fetch (type/path/tree), excluding selection
+// fields (Subpaths/Tags/Name) that vary per SourceSpec even when they point at
+// the same underlying source. Used by SourceManager to dedup acquisitions.
+type SourceKey struct{ Type, Path, Tree string }
+
+func (s SourceSpec) Key() SourceKey { return SourceKey{Type: s.Type, Path: s.Path, Tree: s.Tree} }
+
 type AcquisitionOptions struct {
 	TempDir string
 }
@@ -34,11 +43,27 @@ type Request struct {
 	LinkSkipFolders                            []string
 }
 type Repository struct {
-	ID, Root  string
-	FS        fs.FS
-	ScanPaths []string
-	Spec      SourceSpec
+	ID, Root    string
+	FS          fs.FS
+	SingleFile  string   // relative path, set when the source itself is one flat skill file
+	SkipFolders []string // this source's skip_folder, baked in once at first acquisition
+	closers     []func() error
 }
+
+// Close runs every cleanup registered by the provider that built this
+// Repository (temp directory removal, bounded root handles), in the order
+// they were added.
+func (r *Repository) Close() error {
+	var err error
+	for _, c := range r.closers {
+		err = errors.Join(err, c())
+	}
+	return err
+}
+
+// AddCloser registers a cleanup function to run on Close, in call order.
+func (r *Repository) AddCloser(c func() error) { r.closers = append(r.closers, c) }
+
 type Document struct {
 	Properties     map[string]any
 	Metadata       map[string]any

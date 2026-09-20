@@ -36,3 +36,27 @@ Feature: Discover skill definitions
   And discovery is canceled
   When I discover skills at "."
   Then discovered names are "" and discovery error contains "context canceled"
+
+ Scenario Outline: Select resolves subpaths, tags and name override
+  Given a source tree
+   """
+   <files>
+   """
+  When I select from subpath "<subpath>" with tags "<tags>" and name "<name>"
+  Then discovered names are "<names>" and discovery error contains "<error>"
+  Examples:
+   | files | subpath | tags | name | names | error |
+   | {"a.skill.md":"---\\nname: a\\n---\\n"} |  |  |  | a | |
+   | {"skills/a.skill.md":"---\\nname: a\\n---\\n"} | skills |  |  | a | |
+   | {"a.skill.md":"---\\nname: a\\ntags: [go]\\n---\\n"} |  | go |  | a | |
+   | {"a.skill.md":"---\\nname: a\\ntags: [go]\\n---\\n"} |  | cli |  |  | |
+   | {"a.skill.md":"---\\nname: a\\n---\\n"} |  |  | renamed | renamed | |
+   | {"a.skill.md":"---\\nname: a\\n---\\n"} | ../escape |  |  |  | unsafe subpath |
+
+ Scenario: A single-file source ignores a configured subpath
+  Given a source tree
+   """
+   {"a.skill.md":"---\nname: a\n---\n"}
+   """
+  When I select the single file "a.skill.md" with subpath "elsewhere"
+  Then discovered names are "a" and discovery error contains ""

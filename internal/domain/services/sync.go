@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
@@ -24,22 +23,15 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 	result.Plans = []model.TargetPlan{}
 	catalog := &model.Catalog{Conflict: req.Conflict}
 	sources := model.NewSourceMap()
-	var cleanups []func() error
-	defer func() {
-		for i := len(cleanups) - 1; i >= 0; i-- {
-			err = errors.Join(err, cleanups[i]())
-		}
-	}()
 	var issues model.Issues
 	for _, spec := range req.Sources {
 		slog.DebugContext(ctx, "acquiring source", "type", spec.Type, "path", spec.Path)
-		repo, close, acquireErr := s.Sources.Acquire(ctx, spec, model.AcquisitionOptions{TempDir: req.TempDir})
+		repo, acquireErr := s.Sources.Acquire(ctx, spec, model.AcquisitionOptions{TempDir: req.TempDir})
 		if acquireErr != nil {
 			return result, acquireErr
 		}
-		cleanups = append(cleanups, close)
 		sources.Put(repo)
-		found, discoverErr := s.Detector.Select(ctx, repo)
+		found, discoverErr := s.Detector.Select(ctx, repo, spec)
 		if discoverErr != nil {
 			issues = append(issues, model.Issue{Code: "discovery", File: spec.Path, Message: discoverErr.Error()})
 		}

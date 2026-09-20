@@ -11,7 +11,7 @@ import (
 )
 
 type SourceProvider interface {
-	Acquire(context.Context, model.SourceSpec, model.AcquisitionOptions) (*model.Repository, func() error, error)
+	Acquire(context.Context, model.SourceSpec, model.AcquisitionOptions) (*model.Repository, error)
 }
 type DocumentCodec interface {
 	Decode([]byte) (model.Document, error)
@@ -24,7 +24,7 @@ type PlanWriter interface {
 	Apply(context.Context, model.TargetPlan) error
 }
 type SourceSelector interface {
-	Select(context.Context, *model.Repository) ([]*model.Skill, error)
+	Select(context.Context, *model.Repository, model.SourceSpec) ([]*model.Skill, error)
 }
 type RelationExpander interface {
 	Expand(context.Context, *model.Catalog, bool, []string) error

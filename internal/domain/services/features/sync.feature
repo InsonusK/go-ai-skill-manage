@@ -2,7 +2,7 @@ Feature: Synchronization orchestration
  Scenario Outline: Dry run and validation gate all writes
   Given sync source content "<content>" and dry run "<dry>"
   When I synchronize
-  Then writer calls equal "<writes>" and cleanup calls equal "1"
+  Then writer calls equal "<writes>"
   And sync error contains "<error>"
   Examples:
    | content | dry | writes | error |
@@ -13,7 +13,7 @@ Feature: Synchronization orchestration
   Given sync source content "valid" and dry run "false"
   And a second target fails state loading
   When I synchronize
-  Then writer calls equal "0" and cleanup calls equal "1"
+  Then writer calls equal "0"
   And sync error contains "state unavailable"
 
  Scenario: Configured temporary directory reaches source acquisition
@@ -26,5 +26,5 @@ Feature: Synchronization orchestration
   Given sync source content "valid" and dry run "false"
   And skill detection always fails with "boom"
   When I synchronize
-  Then writer calls equal "0" and cleanup calls equal "1"
+  Then writer calls equal "0"
   And sync error contains "boom"

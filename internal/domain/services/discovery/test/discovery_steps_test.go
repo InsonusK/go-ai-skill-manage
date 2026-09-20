@@ -33,7 +33,7 @@ func initialize(sc *godog.ScenarioContext) {
 	})
 	sc.Step(`^discovery is canceled$`, func(ctx context.Context) error { canceled = true; return nil })
 	sc.Step(`^I find the owner of "([^"]*)"$`, func(ctx context.Context, p string) error {
-		repo := &model.Repository{ID: "local", Root: "/source", FS: tree, Spec: model.SourceSpec{SkipFolders: []string{"examples"}}}
+		repo := &model.Repository{ID: "local", Root: "/source", FS: tree, SkipFolders: []string{"examples"}}
 		skill, err := (discovery.Detector{Codec: document.Codec{}}).Find(ctx, repo, p)
 		failure = err
 		names = []string{}
@@ -43,13 +43,41 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I discover skills at "([^"]*)"$`, func(ctx context.Context, p string) error {
-		repo := &model.Repository{ID: "local", Root: "/source", FS: tree, Spec: model.SourceSpec{SkipFolders: []string{"examples"}}}
+		repo := &model.Repository{ID: "local", Root: "/source", FS: tree, SkipFolders: []string{"examples"}}
 		if canceled {
 			var cancel context.CancelFunc
 			ctx, cancel = context.WithCancel(ctx)
 			cancel()
 		}
 		skills, err := (discovery.Detector{Codec: document.Codec{}}).Discover(ctx, repo, p)
+		failure = err
+		names = []string{}
+		for _, s := range skills {
+			names = append(names, s.Name)
+		}
+		return nil
+	})
+	sc.Step(`^I select from subpath "([^"]*)" with tags "([^"]*)" and name "([^"]*)"$`, func(ctx context.Context, subpath, tagsArg, name string) error {
+		repo := &model.Repository{ID: "local", Root: "/source", FS: tree}
+		spec := model.SourceSpec{Name: name}
+		if subpath != "" {
+			spec.Subpaths = []string{subpath}
+		}
+		if tagsArg != "" {
+			spec.Tags = []string{tagsArg}
+		}
+		skills, err := (discovery.Detector{Codec: document.Codec{}}).Select(ctx, repo, spec)
+		failure = err
+		names = []string{}
+		for _, s := range skills {
+			names = append(names, s.Name)
+		}
+		return nil
+	})
+	sc.Step(`^I select the single file "([^"]*)" with subpath "([^"]*)"$`, func(ctx context.Context, file, subpath string) error {
+		repo := &model.Repository{ID: "local", Root: "/source", FS: tree, SingleFile: file}
+		spec := model.SourceSpec{Subpaths: []string{subpath}}
+		skills, err := (discovery.Detector{Codec: document.Codec{}}).Select(ctx, repo, spec)
 		failure = err
 		names = []string{}
 		for _, s := range skills {

@@ -20,13 +20,13 @@ type Fetcher struct {
 	Archive ArchiveFetcher
 }
 
-func (f Fetcher) Acquire(ctx context.Context, s model.SourceSpec, options model.AcquisitionOptions) (*model.Repository, func() error, error) {
+func (f Fetcher) Acquire(ctx context.Context, s model.SourceSpec, options model.AcquisitionOptions) (*model.Repository, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	temp, err := os.MkdirTemp(options.TempDir, "aism-source-")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	failed := true
 	defer func() {
@@ -42,29 +42,29 @@ func (f Fetcher) Acquire(ctx context.Context, s model.SourceSpec, options model.
 	cloneErr := f.Git.Clone(ctx, s.Path, tree, root)
 	if cloneErr != nil {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if _, _, err := GitHubURL(s.Path); err != nil {
-			return nil, nil, cloneErr
+			return nil, cloneErr
 		}
 		if err := os.RemoveAll(root); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		root, err = f.Archive.Fetch(ctx, s.Path, tree, filepath.Join(temp, "archive"))
 		if err != nil {
-			return nil, nil, fmt.Errorf("source acquisition: %w", errors.Join(cloneErr, err))
+			return nil, fmt.Errorf("source acquisition: %w", errors.Join(cloneErr, err))
 		}
 	}
 	local := s
 	local.Path = root
-	repo, close, err := (Local{}).Acquire(ctx, local)
+	repo, err := (Local{}).Acquire(ctx, local, options)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	repo.ID = s.Path + "@" + tree
-	repo.Spec = s
+	repo.AddCloser(func() error { return os.RemoveAll(temp) })
 	failed = false
-	return repo, func() error { return errors.Join(close(), os.RemoveAll(temp)) }, nil
+	return repo, nil
 }
 
 type Provider struct {
@@ -72,13 +72,13 @@ type Provider struct {
 	Remote Fetcher
 }
 
-func (p Provider) Acquire(ctx context.Context, s model.SourceSpec, options model.AcquisitionOptions) (*model.Repository, func() error, error) {
+func (p Provider) Acquire(ctx context.Context, s model.SourceSpec, options model.AcquisitionOptions) (*model.Repository, error) {
 	switch s.Type {
 	case "local":
-		return p.Local.Acquire(ctx, s)
+		return p.Local.Acquire(ctx, s, options)
 	case "github":
 		return p.Remote.Acquire(ctx, s, options)
 	default:
-		return nil, nil, fmt.Errorf("unknown source type %q", s.Type)
+		return nil, fmt.Errorf("unknown source type %q", s.Type)
 	}
 }
