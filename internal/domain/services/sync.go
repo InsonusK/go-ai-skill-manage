@@ -61,8 +61,12 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 	for _, skill := range catalog.Skills {
 		result.Skills = append(result.Skills, skill.Name)
 	}
+	skills, err := discovery.BuildSkillMap(catalog)
+	if err != nil {
+		return result, err
+	}
 	for _, target := range req.Targets {
-		plan, planErr := s.Planner.Plan(ctx, catalog, req, target)
+		plan, planErr := s.Planner.Plan(ctx, catalog, skills, sources, req, target)
 		if planErr != nil {
 			return result, planErr
 		}

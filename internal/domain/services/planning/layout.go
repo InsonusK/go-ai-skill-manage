@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"io/fs"
 	"path"
 	"sort"
@@ -16,28 +15,8 @@ type Layout struct {
 	Shared []model.OutputFile
 }
 
-func BuildLayout(ctx context.Context, cat *model.Catalog) (Layout, error) {
-	layout := Layout{Paths: map[string]string{}, Shared: []model.OutputFile{}}
-	occupied := map[string]string{}
-	repos := map[string]*model.Repository{}
-	put := func(key, dest string) error {
-		if old, ok := occupied[dest]; ok && old != key {
-			return fmt.Errorf("output-collision: %s", dest)
-		}
-		occupied[dest] = key
-		layout.Paths[key] = dest
-		return nil
-	}
-	for _, s := range cat.Skills {
-		repos[s.Repo.ID] = s.Repo
-		for _, f := range s.Files {
-			dest := path.Join(s.Name, discovery.Relative(s, f.Path))
-			if err := put(s.Repo.ID+"\x00"+f.Path, dest); err != nil {
-				return layout, err
-			}
-		}
-		layout.Paths[s.Repo.ID+"\x00"+s.Root] = path.Join(s.Name, "SKILL.md")
-	}
+func BuildLayout(ctx context.Context, cat *model.Catalog, skills *model.SkillMap, sources *model.SourceMap) (Layout, error) {
+	layout := Layout{Paths: skills.Destinations(), Shared: []model.OutputFile{}}
 	external := map[string]bool{}
 	for _, s := range cat.Skills {
 		for _, f := range s.Files {
@@ -46,8 +25,8 @@ func BuildLayout(ctx context.Context, cat *model.Catalog) (Layout, error) {
 					continue
 				}
 				repoID, p, _ := strings.Cut(l.Target, "\x00")
-				if owner := discovery.Owner(ctx, cat, repoID, p); owner != nil {
-					layout.Paths[l.Target] = path.Join(owner.Name, discovery.Relative(owner, p))
+				if _, dest, ok := skills.Owner(repoID, p); ok {
+					layout.Paths[l.Target] = dest
 				} else {
 					external[l.Target] = true
 				}
@@ -69,7 +48,7 @@ func BuildLayout(ctx context.Context, cat *model.Catalog) (Layout, error) {
 	used := map[string]bool{}
 	for _, key := range keys {
 		repoID, p, _ := strings.Cut(key, "\x00")
-		repo := repos[repoID]
+		repo := sources.Get(repoID)
 		base := path.Base(p)
 		if base == "." {
 			return layout, fmt.Errorf("external repository root cannot be copied")

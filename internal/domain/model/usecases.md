@@ -13,3 +13,22 @@
                 - input: a source map; I put repository "a" and repository "b"; I put repository "a" again with root "/root-a2"
                 - output: содержимое SourceMap после повторного Put с тем же ID
                 - expected_result: ``repositories in order are "a,b"``
+    - OwnsPath, RelativePath
+        - Contract
+            - WHEN_Ownership_and_relative-path_rules_THEN_declared_result
+                - description: [Ownership and relative-path rules](features/ownership.feature)
+                - input: a skill rooted at "<root>" main "<main>" flat "<flat>"; значения и таблицы в сценарии
+                - output: результат OwnsPath и RelativePath
+                - expected_result: ``path "<path>" is owned "<owned>" and relative is "<relative>"``
+    - NewSkillMap, SkillMap.Owner
+        - Contract
+            - WHEN_Build_a_skill_map_and_resolve_ownership_THEN_declared_result
+                - description: [Build a skill map and resolve ownership](features/skillmap.feature)
+                - input: skill entries; skill file destinations; I build the skill map
+                - output: результат SkillMap.Owner для точного совпадения и для fallback через OwnsPath/RelativePath
+                - expected_result: ``owner of "repo" path "a/guide.md" is skill "a" at "a/guide.md"``
+            - WHEN_Colliding_destinations_across_skills_are_rejected_THEN_declared_result
+                - description: [Colliding destinations across skills are rejected](features/skillmap.feature)
+                - input: skill entries; skill file destinations с одинаковым destination у двух разных скилов; I build the skill map
+                - output: ошибка NewSkillMap
+                - expected_result: ``building the skill map fails with "output-collision"``
