@@ -14,12 +14,12 @@
                 - description: [Dry run and validation gate all writes](features/sync.feature)
                 - input: sync source content "<content>" and dry run "<dry>"; I synchronize; значения и таблицы в сценарии
                 - output: результат вызова и наблюдаемое состояние
-                - expected_result: ``writer calls equal "<writes>" and cleanup calls equal "1"; sync error contains "<error>"``
+                - expected_result: ``writer calls equal "<writes>"; sync error contains "<error>"``
             - WHEN_All_target_plans_are_validated_before_any_write_THEN_declared_result
                 - description: [All target plans are validated before any write](features/sync.feature)
                 - input: sync source content "valid" and dry run "false"; I synchronize; значения и таблицы в сценарии
                 - output: результат вызова и наблюдаемое состояние
-                - expected_result: ``writer calls equal "0" and cleanup calls equal "1"; sync error contains "state unavailable"``
+                - expected_result: ``writer calls equal "0"; sync error contains "state unavailable"``
             - WHEN_Configured_temporary_directory_reaches_source_acquisition_THEN_declared_result
                 - description: [Configured temporary directory reaches source acquisition](features/sync.feature)
                 - input: request with `TempDir` set; I synchronize
@@ -29,4 +29,4 @@
                 - description: [A failing skill detector blocks writes without real discovery](features/sync.feature)
                 - input: skill detection always fails with "boom" (a hand-written `interfaces.SourceSelector` fake, no markdown parsing); I synchronize
                 - output: результат вызова и наблюдаемое состояние
-                - expected_result: ``writer calls equal "0" and cleanup calls equal "1"; sync error contains "boom"``
+                - expected_result: ``writer calls equal "0"; sync error contains "boom"``

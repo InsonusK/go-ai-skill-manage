@@ -22,3 +22,15 @@
                 - input: canceled context and a valid skill tree
                 - output: discovered skills and error
                 - expected_result: empty skills, context canceled
+    - Detector.Select, scanPaths
+        - Contract
+            - WHEN_Select_resolves_subpaths_tags_and_name_override_THEN_declared_result
+                - description: [Select resolves subpaths, tags and name override](features/discovery.feature)
+                - input: a source tree; I select from subpath "<subpath>" with tags "<tags>" and name "<name>"; значения и таблицы в сценарии
+                - output: результат вызова и наблюдаемое состояние, включая отклонение небезопасного subpath
+                - expected_result: ``discovered names are "<names>" and discovery error contains "<error>"``
+            - WHEN_A_single-file_source_ignores_a_configured_subpath_THEN_declared_result
+                - description: [A single-file source ignores a configured subpath](features/discovery.feature)
+                - input: a source tree; I select the single file "a.skill.md" with subpath "elsewhere"
+                - output: scanPaths игнорирует spec.Subpaths, когда repo.SingleFile задан
+                - expected_result: ``discovered names are "a" and discovery error contains ""``

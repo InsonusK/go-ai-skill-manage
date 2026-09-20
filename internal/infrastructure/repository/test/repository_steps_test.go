@@ -42,6 +42,7 @@ func fixture(dir string) error {
 }
 func initialize(sc *godog.ScenarioContext) {
 	gitSteps(sc)
+	managerSteps(sc)
 	var temp string
 	var repo *model.Repository
 	var failure error

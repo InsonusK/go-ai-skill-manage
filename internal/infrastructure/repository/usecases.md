@@ -36,7 +36,12 @@
                 - description: [Local source paths remain relative to source root](features/repository.feature)
                 - input: a repository source; I acquire the local source; значения и таблицы в сценарии
                 - output: результат вызова и наблюдаемое состояние
-                - expected_result: ``scan paths equal "skills"; acquired file "skills/a.skill.md" equals "content"``
+                - expected_result: ``acquired file "skills/a.skill.md" equals "content"``
+            - WHEN_A_single-file_local_source_is_remembered_on_the_repository_THEN_declared_result
+                - description: [A single-file local source is remembered on the repository](features/repository.feature)
+                - input: a repository source; I acquire the local source at "skills/a.skill.md"
+                - output: Repository.SingleFile, независимо от subpath, который резолвит discovery.Select
+                - expected_result: ``acquired repository single file equals "a.skill.md"; acquired file "a.skill.md" equals "content"``
     - Fetcher.Acquire
         - Contract
             - WHEN_Failed_clone_falls_back_to_GitHub_archive_THEN_declared_result
@@ -66,3 +71,25 @@
                 - input: a repository source; I extract an archive with path "repo/skills/a.skill.md"; значения и таблицы в сценарии
                 - output: результат вызова и наблюдаемое состояние
                 - expected_result: ``acquired file "skills/a.skill.md" equals "content"``
+    - SourceManager.Acquire, SourceManager.Close
+        - Contract
+            - WHEN_Acquiring_the_same_source_twice_reuses_the_cached_repository_THEN_declared_result
+                - description: [Acquiring the same source twice reuses the cached repository](features/manager.feature)
+                - input: a source manager with a counting local provider; I acquire "local" source "same" twice
+                - output: количество вызовов провайдера и идентичность возвращённых *Repository
+                - expected_result: ``the provider was called "1" times; both acquisitions returned the same repository``
+            - WHEN_Acquiring_different_sources_calls_the_provider_for_each_THEN_declared_result
+                - description: [Acquiring different sources calls the provider for each](features/manager.feature)
+                - input: a source manager with a counting local provider; I acquire "local" source "a" and "local" source "b"
+                - output: количество вызовов провайдера
+                - expected_result: ``the provider was called "2" times``
+            - WHEN_Unknown_source_type_is_rejected_THEN_declared_result
+                - description: [Unknown source type is rejected](features/manager.feature)
+                - input: a source manager with a counting local provider; I acquire "unknown" source "x"
+                - output: ошибка Acquire
+                - expected_result: ``acquiring fails with "unknown source type"``
+            - WHEN_Close_runs_every_acquired_repositorys_Close_in_reverse_order_THEN_declared_result
+                - description: [Close runs every acquired repository's Close in reverse order](features/manager.feature)
+                - input: a source manager with a counting local provider; два I acquire; I close the source manager
+                - output: порядок вызовов Repository.Close
+                - expected_result: ``repositories were closed in order "b,a"``
