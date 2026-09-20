@@ -82,6 +82,19 @@ tools/                           нормализация отчётов и ге
 создало бы цикл `interfaces → discovery → interfaces`. Поведение (`Add`, `Owner`)
 остаётся в `discovery` как свободные функции, принимающие `*model.Catalog`.
 
+`Repository` хранит только идентичность источника (`ID`, `Root`, `FS`, `SingleFile`,
+`SkipFolders`) — ничего, что зависит от того, *какой* `SourceSpec` его запросил.
+`Subpaths`/`Tags`/`Name` — параметры выбора конкретного `SourceSpec` — не хранятся
+на `Repository` и передаются в `SourceSelector.Select` явно при каждом вызове. Это
+разделение обязательно для `SourceManager` (`infrastructure/repository`): он кеширует
+`*Repository` по `SourceKey` (`Type`+`Path`+`Tree`), так что два `sources:` с одним
+и тем же источником, но разными `subpath`, не скачиваются повторно — один и тот же
+кешированный `Repository` не может при этом нести значения `Subpaths`/`Tags`,
+рассчитанные под первый вызов. `SkipFolders` остаётся на `Repository` (не параметр
+`Select`), поскольку это не фильтр выбора, а правило разбора дерева: `Detector.Rooted`
+читает его и вызывается также из `Find` при раскрытии связей — уже без доступного
+исходного `SourceSpec`.
+
 ## Декомпозиция
 
 Для каждой единицы указаны ответственность, роли зависимостей и сценарий вызова.
@@ -111,20 +124,35 @@ tools/                           нормализация отчётов и ге
   - usage_scenario: печатает найденные скилы, итог или сгруппированные ошибки;
     тест проверяет текст через буфер.
 - **SyncService** (Service/orchestrator), `domain/services`.
-  - responsibility: координирует жизненный цикл одной синхронизации.
+  - responsibility: координирует стадии одной синхронизации.
   - depends_on: получение источников, обнаружение, обработка связей, планирование,
     применение плана.
   - usage_scenario: выполняет стадии в заданном порядке; ошибки валидации
-    блокируют запись во все цели, dry-run возвращает план без применения.
+    блокируют запись во все цели, dry-run возвращает план без применения. Не
+    управляет временем жизни источников — не закрывает и не кеширует их;
+    это ответственность `SourceManager`, живущего в вызывающем коде (`main`).
 - **LocalSource** (Service), `infrastructure/repository`.
-  - responsibility: предоставляет расположения локального источника.
+  - responsibility: предоставляет корень локального источника.
   - depends_on: чтение дерева.
-  - usage_scenario: возвращает корень репозитория и выбранные scan paths.
+  - usage_scenario: определяет, является ли путь источника отдельным плоским
+    файлом (`Repository.SingleFile`) или директорией; scan paths (из `subpath:`)
+    в `Repository` не сохраняются — их резолвит `SourceSelector.Select` для
+    каждого `SourceSpec` отдельно.
 - **RepositoryFetcher** (Service), `infrastructure/repository`.
   - responsibility: предоставляет временную копию удалённого репозитория.
   - depends_on: клонирование Git, скачивание архива, временное хранилище.
   - usage_scenario: сначала пробует clone, для GitHub использует archive fallback;
-    предоставляет cleanup, выполняемый при успешном и неуспешном sync.
+    регистрирует очистку временной директории через `Repository.AddCloser`
+    вместо возврата отдельной функции очистки.
+- **SourceManager** (Service), `infrastructure/repository`.
+  - responsibility: кеширует полученные `Repository` по `SourceKey`
+    (`Type`+`Path`+`Tree`) и диспетчеризует по `SourceSpec.Type` к
+    `LocalSource`/`RepositoryFetcher`.
+  - depends_on: `interfaces.SourceProvider` реализации, зарегистрированные по типу.
+  - usage_scenario: несколько `sources:` с одинаковым источником, но разными
+    `subpath`/`tags`, скачиваются один раз; `Close` закрывает каждый полученный
+    `Repository` в порядке, обратном получению. Владеет временем жизни источников
+    вместо `SyncService.Run` — создаётся и закрывается в `main` (`defer sources.Close()`).
 - **GitCloner** (Service), `infrastructure/repository`.
   - responsibility: получает выбранную ветку или тег через Git.
   - depends_on: запуск процесса с context.
@@ -323,7 +351,8 @@ coverage собирается обязательно, целевой порог 
 | Conformance testing | godog рядом с пакетами, coverage >=80%, mutation и public reports |
 | Runtime | Одноразовый CLI; сервер, health endpoint, HTTP shutdown и порты не требуются |
 
-Имена интерфейсов задают роли. `main` связывает их с Local/Fetcher, Codec и Store.
+Имена интерфейсов задают роли. `main` связывает их с `SourceManager` (сам
+диспетчеризующий на Local/Fetcher), Codec и Store.
 Интерфейсы не добавляются чистым функциям только ради подмены.
 `Detector.Select` отдельно выполняет выбор по subpaths, tags и name;
 это выделенная часть ответственности SkillDetector из согласованной схемы.
@@ -341,15 +370,19 @@ coverage собирается обязательно, целевой порог 
 - `Skill.Files` содержит snapshot входных байтов; план хранит готовые выходные
   байты. PlanApplier не вычисляет бизнес-правила и не читает исходный каталог.
 - `StateReader` сообщает наличие, ownership, hash/version и наличие SKILL.md.
-- `SourceProvider` возвращает cleanup; SyncService вызывает его в обратном порядке,
-  объединяя ошибки cleanup с основной ошибкой.
+- `Repository` сам владеет своей очисткой (`Close`, накапливает `closers` через
+  `AddCloser`) вместо того, чтобы `SourceProvider.Acquire` возвращал отдельную
+  функцию очистки. `SourceManager` кеширует `*Repository` по `SourceKey` и
+  закрывает каждый в `Close()`, в порядке, обратном получению; владеет этим
+  временем жизни вызывающий код (`main`), не `SyncService.Run`.
 - Сначала строятся все планы; затем выполняется применение. Общей транзакции
   между целями нет. Замена каждого скила использует staging и backup rename.
 
 ## Результаты и ограничения
 
-- Go: 152 проходящих Gherkin-сценария; покрытие 83,4% производственных statements
-  (после выделения `SourceMap`/`SkillMap` и связанных сценариев в `domain/model`).
+- Go: 164 проходящих Gherkin-сценария; покрытие 84,6% производственных statements
+  (после выделения `SourceMap`/`SkillMap`/`domain/model`, а также `SourceManager`
+  и разделения identity/selection в получении источников).
 - Python baseline: 386 passed; одинаковый исходный каталог даёт совпадающие
   выходные пути и семантическое содержимое 546 файлов в двух целях.
 - Полный mutation-прогон и race detector выполнены; подробности в [testing](../testing.md).

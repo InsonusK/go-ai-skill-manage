@@ -172,6 +172,13 @@
       "toSide": "left"
     },
     {
+      "id": "cmd/ai-skill-manager-\u003einternal/domain/interfaces",
+      "fromNode": "cmd/ai-skill-manager",
+      "fromSide": "right",
+      "toNode": "internal/domain/interfaces",
+      "toSide": "left"
+    },
+    {
       "id": "cmd/ai-skill-manager-\u003einternal/domain/services",
       "fromNode": "cmd/ai-skill-manager",
       "fromSide": "right",
@@ -400,6 +407,13 @@
       "fromNode": "internal/infrastructure/filesystem",
       "fromSide": "right",
       "toNode": "internal/domain/services/discovery",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/infrastructure/repository-\u003einternal/domain/interfaces",
+      "fromNode": "internal/infrastructure/repository",
+      "fromSide": "right",
+      "toNode": "internal/domain/interfaces",
       "toSide": "left"
     },
     {

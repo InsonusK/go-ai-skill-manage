@@ -9,9 +9,10 @@
 
 ```mermaid
 sequenceDiagram
+    participant Main as main (composition root)
     participant CLI as command.App
     participant Sync as SyncService
-    participant Src as SourceProvider
+    participant Mgr as SourceManager<br/>(SourceProvider)
     participant SrcMap as SourceMap
     participant Det as SourceSelector<br/>(discovery.Detector)
     participant Cat as Catalog
@@ -20,12 +21,18 @@ sequenceDiagram
     participant Plan as SyncPlanner<br/>(planning.Planner)
     participant Writer as PlanWriter
 
+    Main->>Mgr: NewSourceManager(providers)
+    Main->>CLI: Execute(ctx, opts, cwd)
     CLI->>Sync: Run(req)
     loop каждый source из req.Sources
-        Sync->>Src: Acquire(spec)
-        Src-->>Sync: repo, cleanup, err
+        Sync->>Mgr: Acquire(spec, options)
+        alt SourceKey уже в кеше
+            Mgr-->>Sync: тот же *Repository (провайдер не вызывается)
+        else первый запрос для этого SourceKey
+            Mgr-->>Sync: repo, err (провайдер вызван, добавлен в кеш)
+        end
         Sync->>SrcMap: Put(repo)
-        Sync->>Det: Select(repo)
+        Sync->>Det: Select(repo, spec)
         Det-->>Sync: []*Skill
         loop каждый найденный skill
             Sync->>Cat: discovery.Add(cat, skill)
@@ -47,13 +54,18 @@ sequenceDiagram
         end
         Sync-->>CLI: Result
     end
-    Sync->>Src: cleanup() для каждого source (LIFO, через defer)
+    CLI-->>Main: exit code
+    Main->>Mgr: Close() (defer, всегда выполняется)
+    Mgr->>Mgr: закрывает каждый закешированный Repository,<br/>в порядке, обратном получению
 ```
 
-`SourceMap` и `SkillMap` строятся **один раз** за весь запуск и переиспользуются
-без изменений в цикле по `req.Targets` — `SkillMap.Destinations()` возвращает
-копию, которую `OutputLayout` расширяет вложениями конкретной цели, не трогая
-общий реестр.
+`SourceManager` живёт **дольше одного `Run`** — его создаёт и закрывает `main`,
+не `SyncService.Run`: `Acquire` дедуплицирует по `SourceKey` (тип+путь+ветка),
+так что два `sources:` с одним источником, но разными `subpath`/`tags`, скачиваются
+один раз. `SourceMap` и `SkillMap`, в отличие от этого, строятся **один раз за
+запуск** и переиспользуются без изменений в цикле по `req.Targets` —
+`SkillMap.Destinations()` возвращает копию, которую `OutputLayout` расширяет
+вложениями конкретной цели, не трогая общий реестр.
 
 ## От исходного описания пайплайна к реальным вызовам
 
@@ -72,7 +84,7 @@ flowchart TD
     H["8. Записать каждый target в target.path"]
 
     A -.->|"config.Parse + config.Resolve"| A1[/"model.Request"/]
-    B -.->|"SourceProvider.Acquire<br/>repository.Local / repository.Fetcher"| B1[/"model.Repository"/]
+    B -.->|"SourceManager.Acquire (deduped by SourceKey)<br/>repository.Local / repository.Fetcher"| B1[/"model.Repository"/]
     C -.->|"SyncService.Run<br/>sources.Put(repo)"| C1[/"model.SourceMap"/]
     D -.->|"discovery.Detector.Select"| D1[/"[]model.Skill"/]
     E -.->|"relations.Expander.Expand<br/>discovery.BuildSkillMap"| E1[/"model.Catalog + model.SkillMap"/]
@@ -128,8 +140,9 @@ classDiagram
 
 | Реестр | Кто пишет | Кто читает | Когда строится |
 | --- | --- | --- | --- |
-| `SourceMap` | `SyncService.Run` (цикл acquire) | `OutputLayout` (содержимое внешних вложений) | один раз, по мере получения каждого source |
-| `SkillMap` | `discovery.BuildSkillMap` | `OutputLayout` (назначение выходных путей, включая fallback через `OwnsPath`/`RelativePath` для путей вне инвентаря) | один раз, сразу после `RelationExpander.Expand` |
+| `SourceManager` (`repository`) | `main` создаёт; `Acquire` кеширует по `SourceKey` | `SyncService.Run` (через порт `SourceProvider`) | один раз на процесс; переживает несколько `Run`, если бы они были |
+| `SourceMap` | `SyncService.Run` (цикл acquire) | `OutputLayout` (содержимое внешних вложений) | один раз за запуск, по мере получения каждого source |
+| `SkillMap` | `discovery.BuildSkillMap` | `OutputLayout` (назначение выходных путей, включая fallback через `OwnsPath`/`RelativePath` для путей вне инвентаря) | один раз за запуск, сразу после `RelationExpander.Expand` |
 | `Catalog` | `discovery.Add` (в цикле acquire), `RelationExpander.Expand` (добавляет связанные скилы) | `discovery.BuildSkillMap`, `SyncPlanner.Plan` | растёт по мере обнаружения и раскрытия связей |
 
 `SkillMap.Owner` сначала ищет точное совпадение среди проинвентаризированных

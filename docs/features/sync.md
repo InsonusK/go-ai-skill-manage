@@ -32,7 +32,7 @@ depends_on:
 | Возможность | Основные единицы |
 | --- | --- |
 | YAML/JSON и CLI | Arguments, ConfigLoader, OptionResolver, SyncCommand |
-| Local / GitHub | LocalSource, RepositoryFetcher, GitCloner, ArchiveFetcher, SourceMap |
+| Local / GitHub | LocalSource, RepositoryFetcher, GitCloner, ArchiveFetcher, SourceManager, SourceMap |
 | Форматы и фильтры | SkillDetector, SourceSelector, TagExpression, SkillCatalog |
 | Связи и вложения | FileInventory, LinkExtractor, LinkExclusion, LinkResolver, RelationExpander |
 | Выходные файлы | SkillMap, OutputLayout, LinkRewriter, ClaudeTransformer, FrontmatterCodec |
@@ -52,14 +52,15 @@ Gherkin-сценарии и проверки. Общий код тестовог
 | OptionResolver | Function | [Resolve](../../internal/config/resolve.go) — Вычисляет эффективный запрос | базовый путь и overrides | [условия](../../internal/config/usecases.md), [сценарии](../../internal/config/TESTS.md) |
 | SyncCommand | Command | [App.Execute](../../internal/command/sync.go) — Связывает команду с синхронизацией | чтение конфига, SyncService, output streams | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
 | ResultFormatter | Function | [PrintResult](../../internal/command/format.go) — Представляет план в консоли | io.Writer | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
-| SyncService | Orchestrator | [SyncService.Run](../../internal/domain/services/sync.go) — Координирует стадии одного запуска | SourceProvider, SourceSelector, RelationExpander, SyncPlanner, PlanWriter (порты); строит SourceMap и SkillMap | [условия](../../internal/domain/services/usecases.md), [сценарии](../../internal/domain/services/TESTS.md) |
-| LocalSource | Service | [Local.Acquire](../../internal/infrastructure/repository/local.go) — Открывает локальное дерево | os.Root / fs.FS | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
-| RepositoryFetcher | Service | [Fetcher.Acquire](../../internal/infrastructure/repository/fetch.go) — Предоставляет временную копию репозитория | Cloner, ArchiveFetcher, временная директория | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
+| SyncService | Orchestrator | [SyncService.Run](../../internal/domain/services/sync.go) — Координирует стадии одного запуска | SourceProvider, SourceSelector, RelationExpander, SyncPlanner, PlanWriter (порты); строит SourceMap и SkillMap; не управляет временем жизни источников | [условия](../../internal/domain/services/usecases.md), [сценарии](../../internal/domain/services/TESTS.md) |
+| LocalSource | Service | [Local.Acquire](../../internal/infrastructure/repository/local.go) — Открывает локальное дерево, определяет `Repository.SingleFile` | os.Root / fs.FS | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
+| RepositoryFetcher | Service | [Fetcher.Acquire](../../internal/infrastructure/repository/fetch.go) — Предоставляет временную копию репозитория, регистрирует очистку через `Repository.AddCloser` | Cloner, ArchiveFetcher, временная директория | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
 | GitCloner | Service | [GitCloner.Clone / GitProcess.Run](../../internal/infrastructure/repository/git.go) — Получает ветку или тег через Git | ProcessRunner | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
 | ArchiveFetcher | Service | [Archive.Fetch](../../internal/infrastructure/repository/archive.go) — Предоставляет дерево из GitHub tar.gz | HTTPClient, ограниченный файловый корень | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
+| SourceManager | Service | [SourceManager.Acquire / Close](../../internal/infrastructure/repository/manager.go) — Кеширует `Repository` по `SourceKey`, диспетчеризует по типу, владеет их временем жизни | LocalSource, RepositoryFetcher (по типу) | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
 | SourceMap | Function | [SourceMap.Put / Get / Repositories](../../internal/domain/model/source_map.go) — Индексирует полученные репозитории по ключу источника | нет | [условия](../../internal/domain/model/usecases.md), [сценарии](../../internal/domain/model/TESTS.md) |
 | SkillDetector | Service | [Detector.Discover / Rooted / Find](../../internal/domain/services/discovery/detector.go) — Распознаёт расположение скила | DocumentCodec, fs.FS | [условия](../../internal/domain/services/discovery/usecases.md), [сценарии](../../internal/domain/services/discovery/TESTS.md) |
-| SourceSelector | Function | [Detector.Select](../../internal/domain/services/discovery/source.go) — Выбирает скилы источника | Detector, TagExpression | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
+| SourceSelector | Function | [Detector.Select](../../internal/domain/services/discovery/source.go) — Выбирает скилы источника по `SourceSpec`, резолвит scan paths (`scanPaths`) | Detector, TagExpression | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
 | TagExpression | Function | [Match](../../internal/domain/services/tags/tags.go) — Вычисляет фильтр тегов | нет | [условия](../../internal/domain/services/tags/usecases.md), [сценарии](../../internal/domain/services/tags/TESTS.md) |
 | SkillCatalog | Service | [Add / Owner](../../internal/domain/services/discovery/catalog.go) — Разрешает коллизии скилов (тип `Catalog` — `domain/model`) | модели каталога | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
 | FileInventory | Function | [Files / Owns / Relative / Tags](../../internal/domain/services/discovery/inventory.go) — Описывает файлы и принадлежность скила | fs.FS | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
@@ -83,21 +84,25 @@ Gherkin-сценарии и проверки. Общий код тестовог
 
 - [model](../../internal/domain/model/model.go): Request → Repository/Skill/Link → TargetPlan → Result; ошибки Issue/Issues. Также [Catalog](../../internal/domain/model/catalog.go), [SourceMap](../../internal/domain/model/source_map.go), [SkillMap/SkillEntry](../../internal/domain/model/skill_map.go) и примитивы [OwnsPath/RelativePath](../../internal/domain/model/ownership.go).
 - [interfaces](../../internal/domain/interfaces/ports.go): SourceProvider, DocumentCodec, StateReader, PlanWriter, SourceSelector, RelationExpander, SyncPlanner. Получатель порта определяет необходимую роль.
-- [main](../../cmd/ai-skill-manager/main.go): реальные адаптеры, constructor injection, сигналы, profiler, exit code.
+- [main](../../cmd/ai-skill-manager/main.go): реальные адаптеры, constructor injection, сигналы, profiler, exit code; создаёт `SourceManager` и владеет его временем жизни (`defer sources.Close()`).
 - [version](../../internal/version/version.go): build-time значение из VERSION; без отдельной бизнес-логики.
 
 ## Использование единиц
 
 1. Arguments и SyncCommand получают вызов пользователя. ConfigLoader и OptionResolver создают Request.
-2. SyncService получает источники, регистрирует их в SourceMap, регистрирует cleanup,
-   вызывает SourceSelector и SkillCatalog.
+2. `main` создаёт один SourceManager на весь процесс и связывает его с SyncService
+   как SourceProvider. SyncService получает источники через него (SourceManager
+   отдаёт кеш по `SourceKey`, реально получая источник только на первый запрос),
+   регистрирует их в SourceMap, вызывает SourceSelector и SkillCatalog.
 3. RelationExpander обходит Markdown; LinkResolver находит владельца или внешнее вложение.
 4. SkillMap строится один раз после RelationExpander и переиспользуется для каждой цели.
 5. SyncPlanner строит все TargetPlan, читая StateReader и используя SkillMap/SourceMap.
    OutputLayout и преобразования готовят окончательные байты; переписывание ссылок
    применяется только когда `link-adapter` присутствует в адаптерах цели.
 6. Dry-run возвращает планы. Обычный запуск передаёт планы PlanApplier.
-7. ResultFormatter выводит результат; cleanup источников выполняется и при ошибках.
+7. ResultFormatter выводит результат. `main` закрывает SourceManager (`defer
+   sources.Close()`) после `Execute`, независимо от результата — SyncService.Run
+   больше не управляет временем жизни источников само.
 
 ## Диаграмма
 
