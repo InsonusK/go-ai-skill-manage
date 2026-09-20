@@ -45,7 +45,8 @@ settings:
 ## Как читать проект
 
 1. [Справочник CLI и конфигурации](docs/api/reference.md).
-2. [Архитектура и поток выполнения](docs/architecture/go-cli-migration.md).
+2. [Архитектура и поток выполнения](docs/architecture/go-cli-migration.md);
+   [диаграммы потока данных sync](docs/architecture/diagrams.md).
 3. [Индекс возможностей, модулей и тестов](docs/features/sync.md).
 4. [Запуск тестов, coverage и mutation testing](docs/testing.md).
 5. [Совместимость с Python](docs/architecture/compatibility.md).

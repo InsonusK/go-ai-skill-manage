@@ -75,6 +75,13 @@ tools/                           нормализация отчётов и ге
 скила, файла и ссылки. CLI определяет их представление и exit code.
 Глобальное изменяемое состояние не используется для настроек, очередей или кешей.
 
+`Catalog` (набор выбранных скилов и политика конфликта) объявлен в `domain/model`,
+а не в `domain/services/discovery`: `domain/interfaces` должен ссылаться на его тип
+в сигнатурах портов `SourceSelector`/`RelationExpander`/`SyncPlanner`, а `discovery`
+уже зависит от `interfaces` (через `DocumentCodec`) — оставление `Catalog` в `discovery`
+создало бы цикл `interfaces → discovery → interfaces`. Поведение (`Add`, `Owner`)
+остаётся в `discovery` как свободные функции, принимающие `*model.Catalog`.
+
 ## Декомпозиция
 
 Для каждой единицы указаны ответственность, роли зависимостей и сценарий вызова.
@@ -132,22 +139,39 @@ tools/                           нормализация отчётов и ге
   - responsibility: распознаёт скилы в выбранном дереве источника.
   - depends_on: чтение дерева, чтение документа, декодирование frontmatter.
   - usage_scenario: обнаруживает Agent/HumanDir/HumanFlat и сообщает о конфликте
-    форматов, вложенных скилах или некорректном имени.
+    форматов, вложенных скилах или некорректном имени. Его метод `Select`
+    связан с `SyncService` через порт `interfaces.SourceSelector`, а не как
+    конкретная структура напрямую.
 - **TagExpression** (Function), `domain/services/tags`.
   - responsibility: вычисляет результат выражения фильтра по тегам скила.
   - depends_on: нет.
   - usage_scenario: фильтрует кандидатов по `!`, `&`, `|`, скобкам,
     иерархическим тегам и поддерживаемым исходной реализацией wildcard-правилам.
-- **SkillCatalog** (Service), `domain/services/discovery`.
+- **SkillCatalog** (Service), тип `domain/model`, поведение `domain/services/discovery`.
   - responsibility: разрешает коллизии имён в наборе найденных скилов.
   - depends_on: нет внешних зависимостей.
-  - usage_scenario: объединяет кандидатов с учётом выбранной политики конфликта;
+  - usage_scenario: `discovery.Add`/`discovery.Owner` — свободные функции над
+    `model.Catalog`; объединяют кандидатов с учётом выбранной политики конфликта,
     повтор того же скила не создаёт дубль.
 - **FileInventory** (Service), `domain/services/discovery`.
   - responsibility: определяет собственные файлы скила.
   - depends_on: чтение дерева.
   - usage_scenario: возвращает относительные пути и типы файлов для анализа,
     копирования и вычисления отпечатка содержимого.
+- **SourceMap** (Function), `domain/model`.
+  - responsibility: индексирует полученные репозитории по ключу источника
+    (`Repository.ID`).
+  - depends_on: нет внешних зависимостей.
+  - usage_scenario: `SyncService.Run` регистрирует каждый репозиторий сразу
+    после `Acquire`; `OutputLayout` использует его для содержимого внешних
+    вложений вместо повторной сборки локальной карты из каталога.
+- **SkillMap** (Function), тип `domain/model`, построение `domain/services/discovery`.
+  - responsibility: итоговый реестр «имя скила → источник → исходный путь →
+    выходной путь», построенный один раз.
+  - depends_on: `Catalog`.
+  - usage_scenario: `discovery.BuildSkillMap` вызывается один раз после
+    `RelationExpander.Expand`; `OutputLayout` переиспользует один и тот же
+    `SkillMap` для каждой цели вместо повторного обхода каталога.
 - **LinkExtractor** (Function), `domain/services/links`.
   - responsibility: извлекает ссылки с позициями в исходном тексте.
   - depends_on: нет.
@@ -167,12 +191,15 @@ tools/                           нормализация отчётов и ге
   - responsibility: вычисляет замыкание зависимостей выбранных скилов.
   - depends_on: поиск скила по пути, каталог, получение ссылок скила.
   - usage_scenario: при `add_relations` добавляет связанные скилы до исчерпания
-    очереди; защищает обход от циклов и повторной обработки.
+    очереди; защищает обход от циклов и повторной обработки. Связан с
+    `SyncService` через порт `interfaces.RelationExpander`.
 - **OutputLayout** (Function), `domain/services/planning`.
   - responsibility: назначает выходные пути файлам синхронизации.
-  - depends_on: каталог и fs.FS для содержимого внешних вложений.
+  - depends_on: `Catalog`, `SkillMap`, `SourceMap` (для содержимого внешних вложений).
   - usage_scenario: отображает входные скилы в `{name}/SKILL.md`, назначает пути
-    вложениям и внешним файлам, сообщает о коллизиях выходных путей.
+    вложениям и внешним файлам, сообщает о коллизиях выходных путей. Читает
+    готовые назначения из `SkillMap.Destinations()` вместо повторного обхода
+    каталога на каждую цель.
 - **LinkRewriter** (Function), `domain/services/transform`.
   - responsibility: заменяет адреса разрешённых ссылок на выходные пути.
   - depends_on: нет.
@@ -190,9 +217,12 @@ tools/                           нормализация отчётов и ге
     позволяет обнаружить изменение файла, имени, внешнего вложения или адаптера.
 - **SyncPlanner** (Service), `domain/services/planning`.
   - responsibility: определяет набор изменений каждой цели.
-  - depends_on: чтение состояния цели, подготовка выходных документов.
+  - depends_on: `Catalog`, `SkillMap`, `SourceMap`, чтение состояния цели,
+    подготовка выходных документов.
   - usage_scenario: выдаёт операции create/update/skip/remove с причинами;
-    учитывает force, managed-маркеры и политику orphan.
+    учитывает force, managed-маркеры и политику orphan; переписывает ссылки
+    только когда `link-adapter` присутствует в объединённом списке адаптеров
+    цели. Связан с `SyncService` через порт `interfaces.SyncPlanner`.
 - **PlanApplier** (Service), `infrastructure/filesystem`.
   - responsibility: применяет подготовленные изменения к файловой системе.
   - depends_on: файловые операции цели.
@@ -288,7 +318,7 @@ coverage собирается обязательно, целевой порог 
 | Config | YAML/JSON и флаги Python-контракта вместо HTTP environment settings |
 | Logging | slog, info по умолчанию, debug через флаг; настройка до создания адаптеров |
 | Signals | SIGINT/SIGTERM отменяют context операций Git/HTTP/применения |
-| Domain ports | SourceProvider, DocumentCodec, StateReader, PlanWriter; fs.FS для bounded source tree |
+| Domain ports | SourceProvider, DocumentCodec, StateReader, PlanWriter, SourceSelector, RelationExpander, SyncPlanner; fs.FS для bounded source tree |
 | Pure transformations | tags/transform не выполняют файловые или сетевые операции |
 | Conformance testing | godog рядом с пакетами, coverage >=80%, mutation и public reports |
 | Runtime | Одноразовый CLI; сервер, health endpoint, HTTP shutdown и порты не требуются |
@@ -303,6 +333,11 @@ coverage собирается обязательно, целевой порог 
 - `Repository.FS` ограничен корнем источника; внутренние пути используют `/`.
 - `Skill.Key` и `Link.Target` включают идентификатор репозитория, поэтому
   одинаковые относительные пути разных источников не смешиваются.
+- `SourceMap` и `SkillMap` строятся один раз за запуск (при получении источника
+  и сразу после `RelationExpander.Expand` соответственно) и переиспользуются
+  без изменений для каждой цели; `OutputLayout` расширяет свою копию
+  `SkillMap.Destinations()` путями внешних вложений конкретной цели, не трогая
+  общий `SkillMap`.
 - `Skill.Files` содержит snapshot входных байтов; план хранит готовые выходные
   байты. PlanApplier не вычисляет бизнес-правила и не читает исходный каталог.
 - `StateReader` сообщает наличие, ownership, hash/version и наличие SKILL.md.
@@ -313,11 +348,14 @@ coverage собирается обязательно, целевой порог 
 
 ## Результаты и ограничения
 
-- Go: 133 проходящих Gherkin-сценария; покрытие 82,7% производственных statements.
+- Go: 152 проходящих Gherkin-сценария; покрытие 83,4% производственных statements
+  (после выделения `SourceMap`/`SkillMap` и связанных сценариев в `domain/model`).
 - Python baseline: 386 passed; одинаковый исходный каталог даёт совпадающие
   выходные пути и семантическое содержимое 546 файлов в двух целях.
 - Полный mutation-прогон и race detector выполнены; подробности в [testing](../testing.md).
 - [Совместимость и осознанные отличия](compatibility.md).
 - [Проверка архитектуры по файлам](audit.md).
+- [Диаграммы потока данных sync](diagrams.md) — Mermaid-схемы порядка вызовов
+  и контрактов SourceMap/SkillMap, дополняющие автогенерируемый граф пакетов.
 - Генератор диаграмм включён в репозиторий, внешняя установка не требуется.
 - Пользовательский `ai-skills.yaml` и исходная Python-реализация сохранены.

@@ -17,9 +17,8 @@ HTML, нормализованную метрику и проверку поро
 Для изменений относительно Git ref:
 `make mutation-test ONLY_DELTA=true DELTA_BASE=origin/master`.
 
-Текущий baseline: 133 сценария, 133 passed, покрытие production statements 82,7%.
+Текущий baseline: 152 сценария, 152 passed, покрытие production statements 83,4%.
 Поле `linePct` в общем формате отчёта содержит именно метрику Go statements.
-Бизнес-слой `internal/domain` покрыт на 89,9%.
 Актуальные цифры после изменений смотрите в отчёте, а не в этом baseline.
 
 ## Где находится проверка конкретного правила

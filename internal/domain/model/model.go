@@ -1,4 +1,7 @@
-// Package model defines transport-independent synchronization data.
+// Package model defines transport-independent synchronization data,
+// including the Catalog, SourceMap, and SkillMap/SkillEntry registries and
+// the OwnsPath/RelativePath ownership primitives they share. Zero outward
+// dependencies.
 package model
 
 import (

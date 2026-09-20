@@ -298,20 +298,6 @@
       "toSide": "left"
     },
     {
-      "id": "internal/domain/services-\u003einternal/domain/services/planning",
-      "fromNode": "internal/domain/services",
-      "fromSide": "right",
-      "toNode": "internal/domain/services/planning",
-      "toSide": "left"
-    },
-    {
-      "id": "internal/domain/services-\u003einternal/domain/services/relations",
-      "fromNode": "internal/domain/services",
-      "fromSide": "right",
-      "toNode": "internal/domain/services/relations",
-      "toSide": "left"
-    },
-    {
       "id": "internal/domain/services/discovery-\u003einternal/domain/interfaces",
       "fromNode": "internal/domain/services/discovery",
       "fromSide": "right",

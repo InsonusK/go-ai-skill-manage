@@ -1,4 +1,8 @@
-// Package interfaces contains the narrow outbound roles owned by the domain.
+// Package interfaces contains the narrow outbound roles owned by the
+// domain: infrastructure ports (SourceProvider, DocumentCodec, StateReader,
+// PlanWriter) and the pipeline-stage ports (SourceSelector, RelationExpander,
+// SyncPlanner) SyncService depends on uniformly, so its own orchestration is
+// mockable independent of real discovery/relations/planning logic.
 package interfaces
 
 import (
