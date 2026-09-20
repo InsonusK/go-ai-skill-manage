@@ -20,3 +20,25 @@
                 - input: skill entries; skill file destinations с одинаковым destination у двух разных скилов; I build the skill map
                 - output: ошибка NewSkillMap
                 - expected_result: ``building the skill map fails with "output-collision"``
+    - Catalog.Add, Catalog.Owner
+        - Contract
+            - WHEN_Re-adding_the_same_skill_is_a_no-op_THEN_declared_result
+                - description: [Re-adding the same skill is a no-op](features/catalog.feature)
+                - input: a catalog with conflict policy "error"; I add skill "a" from repo "repo" main "a/SKILL.md" (дважды, одинаковый Key)
+                - output: без дубля в catalog.Skills
+                - expected_result: ``catalog error contains ""; catalog skills are "a"``
+            - WHEN_Duplicate_name_from_a_different_source_errors_by_default_THEN_declared_result
+                - description: [Duplicate name from a different source errors by default](features/catalog.feature)
+                - input: a catalog with conflict policy "error"; I add skill "a" из двух разных repo
+                - output: ошибка Add
+                - expected_result: ``catalog error contains "duplicate-name"``
+            - WHEN_last_wins_replaces_the_earlier_skill_with_the_same_name_THEN_declared_result
+                - description: [last_wins replaces the earlier skill with the same name](features/catalog.feature)
+                - input: a catalog with conflict policy "last_wins"; I add skill "a" из двух разных repo
+                - output: второй skill заменяет первый в catalog.Skills
+                - expected_result: ``catalog skill "a" belongs to repo "other"``
+            - WHEN_Owner_finds_the_skill_owning_a_path_inside_its_root_THEN_declared_result
+                - description: [Owner finds the skill owning a path inside its root](features/catalog.feature)
+                - input: a catalog with conflict policy "error"; I add skill "a" from repo "repo" main "a/SKILL.md"
+                - output: результат Catalog.Owner по repoID и пути
+                - expected_result: ``catalog owner of "repo" path "a/guide.md" is "a"``

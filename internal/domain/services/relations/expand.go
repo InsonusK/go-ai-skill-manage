@@ -38,15 +38,15 @@ func (e Expander) Expand(ctx context.Context, cat *model.Catalog, add bool, skip
 				if links.Excluded(string(f.Data), f.Path, link, skip) {
 					continue
 				}
-				resolved, err := links.Resolve(s.Repo, f.Path, link.Path, func(p string) bool { return discovery.Owner(ctx, cat, s.Repo.ID, p) != nil })
-				if err == nil && discovery.Owner(ctx, cat, s.Repo.ID, resolved) == nil {
+				resolved, err := links.Resolve(s.Repo, f.Path, link.Path, func(p string) bool { return cat.Owner(ctx, s.Repo.ID, p) != nil })
+				if err == nil && cat.Owner(ctx, s.Repo.ID, resolved) == nil {
 					var candidate *model.Skill
 					candidate, err = e.Detector.Find(ctx, s.Repo, resolved)
 					if err == nil && candidate != nil {
 						if !add {
 							err = model.Problem("unselected-skill", candidate.Name)
 						} else {
-							err = discovery.Add(ctx, cat, candidate)
+							err = cat.Add(ctx, candidate)
 						}
 					}
 				}

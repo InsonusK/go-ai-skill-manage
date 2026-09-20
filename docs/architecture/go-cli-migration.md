@@ -80,8 +80,11 @@ tools/                           нормализация отчётов и ге
 а не в `domain/services/discovery`: `domain/interfaces` должен ссылаться на его тип
 в сигнатурах портов `SourceSelector`/`RelationExpander`/`SyncPlanner`, а `discovery`
 уже зависит от `interfaces` (через `DocumentCodec`) — оставление `Catalog` в `discovery`
-создало бы цикл `interfaces → discovery → interfaces`. Поведение (`Add`, `Owner`)
-остаётся в `discovery` как свободные функции, принимающие `*model.Catalog`.
+создало бы цикл `interfaces → discovery → interfaces`. Поведение (`Add`, `Owner`) —
+методы самого `model.Catalog`, а не свободные функции в `discovery`: обе операции
+используют только то, что уже есть в `model` (`Skill.Key`, `Issue`, примитив
+`OwnsPath`), без единой зависимости на `discovery` — держать их отдельно от типа,
+которым они управляют, не давало ничего, кроме лишнего косвенного вызова.
 
 `Repository` хранит только идентичность источника (`ID`, `Root`, `FS`, `SingleFile`,
 `SkipFolders`) — ничего, что зависит от того, *какой* `SourceSpec` его запросил.
@@ -181,12 +184,13 @@ tools/                           нормализация отчётов и ге
   - depends_on: нет.
   - usage_scenario: фильтрует кандидатов по `!`, `&`, `|`, скобкам,
     иерархическим тегам и поддерживаемым исходной реализацией wildcard-правилам.
-- **SkillCatalog** (Service), тип `domain/model`, поведение `domain/services/discovery`.
-  - responsibility: разрешает коллизии имён в наборе найденных скилов.
+- **SkillCatalog** (Service), `Catalog.Add`/`Catalog.Owner` в `domain/model`.
+  - responsibility: разрешает коллизии имён в наборе найденных скилов; находит
+    скил, владеющий путём внутри своего репозитория.
   - depends_on: нет внешних зависимостей.
-  - usage_scenario: `discovery.Add`/`discovery.Owner` — свободные функции над
-    `model.Catalog`; объединяют кандидатов с учётом выбранной политики конфликта,
-    повтор того же скила не создаёт дубль.
+  - usage_scenario: `Add` объединяет кандидатов с учётом выбранной политики
+    конфликта, повтор того же скила не создаёт дубль; `Owner` используется
+    `RelationExpander` при раскрытии связей.
 - **FileInventory** (Service), `domain/services/discovery`.
   - responsibility: определяет собственные файлы скила.
   - depends_on: чтение дерева.
@@ -391,10 +395,10 @@ coverage собирается обязательно, целевой порог 
 
 ## Результаты и ограничения
 
-- Go: 164 проходящих Gherkin-сценария; покрытие 84,5% производственных statements
-  (после выделения `SkillMap`/`domain/model`, `sourcing.Manager`, и замены
-  `SourceMap` на порт `RepositoryLookup` — реализован только `sourcing.Manager`,
-  без отдельного реестра).
+- Go: 168 проходящих Gherkin-сценария; покрытие 84,5% производственных statements
+  (после выделения `SkillMap`/`domain/model`, `sourcing.Manager`, замены
+  `SourceMap` на порт `RepositoryLookup`, и переноса `Catalog.Add`/`Catalog.Owner`
+  из свободных функций `discovery` в методы самого `model.Catalog`).
 - Python baseline: 386 passed; одинаковый исходный каталог даёт совпадающие
   выходные пути и семантическое содержимое 546 файлов в двух целях.
 - Полный mutation-прогон и race detector выполнены; подробности в [testing](../testing.md).
