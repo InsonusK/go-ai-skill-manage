@@ -25,6 +25,7 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 	result.Skills = []string{}
 	result.Plans = []model.TargetPlan{}
 	catalog := &model.Catalog{Conflict: req.Conflict}
+	sources := model.NewSourceMap()
 	var cleanups []func() error
 	defer func() {
 		for i := len(cleanups) - 1; i >= 0; i-- {
@@ -39,6 +40,7 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 			return result, acquireErr
 		}
 		cleanups = append(cleanups, close)
+		sources.Put(repo)
 		found, discoverErr := s.Detector.Select(ctx, repo)
 		if discoverErr != nil {
 			issues = append(issues, model.Issue{Code: "discovery", File: spec.Path, Message: discoverErr.Error()})
