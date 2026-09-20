@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"io/fs"
-	"path"
 	"strings"
 )
 
@@ -54,18 +53,5 @@ func Tags(s *model.Skill) []string {
 	}
 	return out
 }
-func Owns(s *model.Skill, p string) bool {
-	if p == s.Main || p == s.Root {
-		return true
-	}
-	return !s.Flat && (s.Root == "." || strings.HasPrefix(p, strings.TrimSuffix(s.Root, "/")+"/"))
-}
-func Relative(s *model.Skill, p string) string {
-	if p == s.Main || p == s.Root {
-		return "SKILL.md"
-	}
-	if s.Root == "." {
-		return p
-	}
-	return strings.TrimPrefix(p, path.Clean(s.Root)+"/")
-}
+func Owns(s *model.Skill, p string) bool       { return model.OwnsPath(s.Main, s.Root, s.Flat, p) }
+func Relative(s *model.Skill, p string) string { return model.RelativePath(s.Main, s.Root, p) }

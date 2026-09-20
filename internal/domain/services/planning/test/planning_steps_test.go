@@ -55,7 +55,7 @@ func initialize(sc *godog.ScenarioContext) {
 		if err != nil {
 			return err
 		}
-		cat := &discovery.Catalog{Skills: skills}
+		cat := &model.Catalog{Skills: skills}
 		if err := (relations.Expander{Detector: detector}).Expand(ctx, cat, true, nil); err != nil {
 			return err
 		}

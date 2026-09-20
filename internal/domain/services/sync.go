@@ -24,7 +24,7 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 	result.DryRun = req.DryRun
 	result.Skills = []string{}
 	result.Plans = []model.TargetPlan{}
-	catalog := &discovery.Catalog{Conflict: req.Conflict}
+	catalog := &model.Catalog{Conflict: req.Conflict}
 	var cleanups []func() error
 	defer func() {
 		for i := len(cleanups) - 1; i >= 0; i-- {
@@ -44,7 +44,7 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 			issues = append(issues, model.Issue{Code: "discovery", File: spec.Path, Message: discoverErr.Error()})
 		}
 		for _, skill := range found {
-			if addErr := catalog.Add(ctx, skill); addErr != nil {
+			if addErr := discovery.Add(ctx, catalog, skill); addErr != nil {
 				issues = append(issues, model.Issue{Code: "duplicate-name", Skill: skill.Name, Message: addErr.Error()})
 			}
 		}

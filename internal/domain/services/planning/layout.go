@@ -16,7 +16,7 @@ type Layout struct {
 	Shared []model.OutputFile
 }
 
-func BuildLayout(ctx context.Context, cat *discovery.Catalog) (Layout, error) {
+func BuildLayout(ctx context.Context, cat *model.Catalog) (Layout, error) {
 	layout := Layout{Paths: map[string]string{}, Shared: []model.OutputFile{}}
 	occupied := map[string]string{}
 	repos := map[string]*model.Repository{}
@@ -46,7 +46,7 @@ func BuildLayout(ctx context.Context, cat *discovery.Catalog) (Layout, error) {
 					continue
 				}
 				repoID, p, _ := strings.Cut(l.Target, "\x00")
-				if owner := cat.Owner(ctx, repoID, p); owner != nil {
+				if owner := discovery.Owner(ctx, cat, repoID, p); owner != nil {
 					layout.Paths[l.Target] = path.Join(owner.Name, discovery.Relative(owner, p))
 				} else {
 					external[l.Target] = true
