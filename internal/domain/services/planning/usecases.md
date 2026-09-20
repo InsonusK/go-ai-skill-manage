@@ -8,6 +8,13 @@
                 - input: planning input with state "<state>" and force "<force>"; I plan a sync; значения и таблицы в сценарии
                 - output: результат вызова и наблюдаемое состояние
                 - expected_result: ``plan actions are "<actions>"; planned main text is``
+    - Plan
+        - Contract
+            - WHEN_Link_rewriting_is_skipped_without_link-adapter_THEN_declared_result
+                - description: [Link rewriting is skipped without link-adapter](features/planning.feature)
+                - input: planning input with state "missing" and force "false"; I plan a sync without link-adapter
+                - output: файл записан без переписывания ссылок, когда link-adapter отсутствует в target.Adapters
+                - expected_result: ``planned main text is``
     - BuildLayout, Plan
         - Contract
             - WHEN_External_files_are_named_deterministically_THEN_declared_result

@@ -48,7 +48,7 @@ func initialize(sc *godog.ScenarioContext) {
 		testsupport.Log("files=%v", raw)
 		return nil
 	})
-	sc.Step(`^I plan a sync$`, func(ctx context.Context) error {
+	runPlan := func(ctx context.Context, adapters []string) error {
 		detector := discovery.Detector{Codec: document.Codec{}}
 		repo := &model.Repository{ID: "repo", Root: "/source", FS: tree}
 		discovered, err := detector.Discover(ctx, repo, ".")
@@ -68,7 +68,7 @@ func initialize(sc *godog.ScenarioContext) {
 		reader := stateReader{}
 		planner := planning.Planner{State: reader, Codec: document.Codec{}}
 		req := model.Request{Base: "/project", Force: force, RemoveOrphans: true}
-		target := model.Target{Name: "default", Path: "/project/out"}
+		target := model.Target{Name: "default", Path: "/project/out", Adapters: adapters}
 		first, err := planner.Plan(ctx, cat, skillMap, sources, req, target)
 		if err != nil {
 			return err
@@ -87,6 +87,12 @@ func initialize(sc *godog.ScenarioContext) {
 		}
 		plan, err = planner.Plan(ctx, cat, skillMap, sources, req, target)
 		return err
+	}
+	sc.Step(`^I plan a sync$`, func(ctx context.Context) error {
+		return runPlan(ctx, []string{"link-adapter"})
+	})
+	sc.Step(`^I plan a sync without link-adapter$`, func(ctx context.Context) error {
+		return runPlan(ctx, nil)
 	})
 	sc.Step(`^plan actions are "([^"]*)"$`, func(ctx context.Context, want string) error {
 		out := []string{}

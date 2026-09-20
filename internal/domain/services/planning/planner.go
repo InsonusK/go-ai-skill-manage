@@ -8,6 +8,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/transform"
 	"path/filepath"
+	"slices"
 	"sort"
 )
 
@@ -35,6 +36,7 @@ func (p Planner) Plan(ctx context.Context, cat *model.Catalog, skills *model.Ski
 	if err != nil {
 		return plan, err
 	}
+	linkAdapter := slices.Contains(target.Adapters, "link-adapter")
 	wanted := map[string]bool{}
 	for _, s := range cat.Skills {
 		if err := ctx.Err(); err != nil {
@@ -44,7 +46,7 @@ func (p Planner) Plan(ctx context.Context, cat *model.Catalog, skills *model.Ski
 		files := []model.OutputFile{}
 		for _, f := range s.Files {
 			data := f.Data
-			if len(f.Links) > 0 {
+			if linkAdapter && len(f.Links) > 0 {
 				updated, err := transform.Rewrite(string(data), f.Links, destinations)
 				if err != nil {
 					return plan, err

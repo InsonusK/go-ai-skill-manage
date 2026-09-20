@@ -18,6 +18,16 @@ Feature: Compute changes independently of filesystem writes
    | old | false | a:update,b:update |
    | orphan | false | a:create,b:create,old:remove |
    | unmanaged | false | a:create,b:create |
+ Scenario: Link rewriting is skipped without link-adapter
+  Given planning input with state "missing" and force "false"
+  When I plan a sync without link-adapter
+  Then planned main text is
+   """
+   ---
+   name: a
+   ---
+   [B](b.skill.md)
+   """
  Scenario: External files are named deterministically
   Given a planning tree
    """

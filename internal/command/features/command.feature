@@ -47,7 +47,7 @@ Feature: Command line synchronization
  Scenario: Named targets share dependencies with different adapters
   Given CLI project
    """
-   {"ai-skills.yaml":"sources:\n  - path: input\n    subpath: a.skill.md\ntarget:\n  default:\n    path: out\n  claude:\n    path: claude\n    adapters: [claude-property-adapter]\nsettings:\n  add_relations: true\n","input/a.skill.md":"---\nname: a\ntags: [go]\n---\n[[b.skill.md#part|Read]]","input/b.skill.md":"---\nname: b\n---\nBody"}
+   {"ai-skills.yaml":"sources:\n  - path: input\n    subpath: a.skill.md\ntarget:\n  for_each:\n    adapters: [link-adapter]\n  default:\n    path: out\n  claude:\n    path: claude\n    adapters: [claude-property-adapter]\nsettings:\n  add_relations: true\n","input/a.skill.md":"---\nname: a\ntags: [go]\n---\n[[b.skill.md#part|Read]]","input/b.skill.md":"---\nname: b\n---\nBody"}
    """
   When I run arguments "sync"
   Then exit code is "0"
