@@ -11,6 +11,7 @@ depends_on:
   - "[internal/domain/services/links](../../internal/domain/services/links/extract.go)"
   - "[internal/domain/services/planning](../../internal/domain/services/planning/layout.go)"
   - "[internal/domain/services/relations](../../internal/domain/services/relations/expand.go)"
+  - "[internal/domain/services/sourcing](../../internal/domain/services/sourcing/manager.go)"
   - "[internal/domain/services/tags](../../internal/domain/services/tags/tags.go)"
   - "[internal/domain/services/transform](../../internal/domain/services/transform/links.go)"
   - "[internal/infrastructure/document](../../internal/infrastructure/document/codec.go)"
@@ -57,7 +58,7 @@ Gherkin-сценарии и проверки. Общий код тестовог
 | RepositoryFetcher | Service | [Fetcher.Acquire](../../internal/infrastructure/repository/fetch.go) — Предоставляет временную копию репозитория, регистрирует очистку через `Repository.AddCloser` | Cloner, ArchiveFetcher, временная директория | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
 | GitCloner | Service | [GitCloner.Clone / GitProcess.Run](../../internal/infrastructure/repository/git.go) — Получает ветку или тег через Git | ProcessRunner | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
 | ArchiveFetcher | Service | [Archive.Fetch](../../internal/infrastructure/repository/archive.go) — Предоставляет дерево из GitHub tar.gz | HTTPClient, ограниченный файловый корень | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
-| SourceManager | Service | [SourceManager.Acquire / Close](../../internal/infrastructure/repository/manager.go) — Кеширует `Repository` по `SourceKey`, диспетчеризует по типу, владеет их временем жизни | LocalSource, RepositoryFetcher (по типу) | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
+| SourceManager | Service | [Manager.Acquire / Close](../../internal/domain/services/sourcing/manager.go) — Кеширует `Repository` по `SourceKey`, диспетчеризует по типу, владеет их временем жизни; не выполняет I/O сама, только делегирует зарегистрированным `SourceProvider` | LocalSource, RepositoryFetcher (по типу, через порт) | [условия](../../internal/domain/services/sourcing/usecases.md), [сценарии](../../internal/domain/services/sourcing/TESTS.md) |
 | SourceMap | Function | [SourceMap.Put / Get / Repositories](../../internal/domain/model/source_map.go) — Индексирует полученные репозитории по ключу источника | нет | [условия](../../internal/domain/model/usecases.md), [сценарии](../../internal/domain/model/TESTS.md) |
 | SkillDetector | Service | [Detector.Discover / Rooted / Find](../../internal/domain/services/discovery/detector.go) — Распознаёт расположение скила | DocumentCodec, fs.FS | [условия](../../internal/domain/services/discovery/usecases.md), [сценарии](../../internal/domain/services/discovery/TESTS.md) |
 | SourceSelector | Function | [Detector.Select](../../internal/domain/services/discovery/source.go) — Выбирает скилы источника по `SourceSpec`, резолвит scan paths (`scanPaths`) | Detector, TagExpression | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
@@ -84,15 +85,16 @@ Gherkin-сценарии и проверки. Общий код тестовог
 
 - [model](../../internal/domain/model/model.go): Request → Repository/Skill/Link → TargetPlan → Result; ошибки Issue/Issues. Также [Catalog](../../internal/domain/model/catalog.go), [SourceMap](../../internal/domain/model/source_map.go), [SkillMap/SkillEntry](../../internal/domain/model/skill_map.go) и примитивы [OwnsPath/RelativePath](../../internal/domain/model/ownership.go).
 - [interfaces](../../internal/domain/interfaces/ports.go): SourceProvider, DocumentCodec, StateReader, PlanWriter, SourceSelector, RelationExpander, SyncPlanner. Получатель порта определяет необходимую роль.
-- [main](../../cmd/ai-skill-manager/main.go): реальные адаптеры, constructor injection, сигналы, profiler, exit code; создаёт `SourceManager` и владеет его временем жизни (`defer sources.Close()`).
+- [main](../../cmd/ai-skill-manager/main.go): реальные адаптеры, constructor injection, сигналы, profiler, exit code; создаёт `sourcing.Manager` и владеет его временем жизни (`defer sources.Close(ctx)`).
 - [version](../../internal/version/version.go): build-time значение из VERSION; без отдельной бизнес-логики.
 
 ## Использование единиц
 
 1. Arguments и SyncCommand получают вызов пользователя. ConfigLoader и OptionResolver создают Request.
-2. `main` создаёт один SourceManager на весь процесс и связывает его с SyncService
-   как SourceProvider. SyncService получает источники через него (SourceManager
-   отдаёт кеш по `SourceKey`, реально получая источник только на первый запрос),
+2. `main` создаёт один `sourcing.Manager` на весь процесс и связывает его с SyncService
+   как SourceProvider. SyncService получает источники через него (Manager
+   отдаёт кеш по `SourceKey`, реально получая источник только на первый запрос —
+   сам делегируя LocalSource/RepositoryFetcher, а не выполняя I/O напрямую),
    регистрирует их в SourceMap, вызывает SourceSelector и SkillCatalog.
 3. RelationExpander обходит Markdown; LinkResolver находит владельца или внешнее вложение.
 4. SkillMap строится один раз после RelationExpander и переиспользуется для каждой цели.
@@ -100,8 +102,8 @@ Gherkin-сценарии и проверки. Общий код тестовог
    OutputLayout и преобразования готовят окончательные байты; переписывание ссылок
    применяется только когда `link-adapter` присутствует в адаптерах цели.
 6. Dry-run возвращает планы. Обычный запуск передаёт планы PlanApplier.
-7. ResultFormatter выводит результат. `main` закрывает SourceManager (`defer
-   sources.Close()`) после `Execute`, независимо от результата — SyncService.Run
+7. ResultFormatter выводит результат. `main` закрывает `sourcing.Manager` (`defer
+   sources.Close(ctx)`) после `Execute`, независимо от результата — SyncService.Run
    больше не управляет временем жизни источников само.
 
 ## Диаграмма

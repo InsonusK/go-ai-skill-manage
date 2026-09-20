@@ -11,6 +11,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/relations"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/document"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/filesystem"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/repository"
@@ -63,7 +64,7 @@ func initialize(sc *godog.ScenarioContext) {
 		}
 		detector := discovery.Detector{Codec: document.Codec{}}
 		store := filesystem.Store{}
-		sources := repository.NewSourceManager(map[string]interfaces.SourceProvider{"local": repository.Local{}})
+		sources := sourcing.NewManager(map[string]interfaces.SourceProvider{"local": repository.Local{}})
 		service := &services.SyncService{Sources: sources, Detector: detector, Relations: relations.Expander{Detector: detector}, Planner: planning.Planner{State: store, Codec: document.Codec{}}, Writer: store}
 		app := command.App{Sync: service, ReadFile: os.ReadFile, Out: &stdout, Err: &stderr, Version: "test-version"}
 		code = app.Execute(ctx, opts, dir)

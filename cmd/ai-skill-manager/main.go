@@ -10,6 +10,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/relations"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/document"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/filesystem"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/repository"
@@ -54,7 +55,7 @@ func run() (code int) {
 	codec := document.Codec{}
 	store := filesystem.Store{}
 	detector := discovery.Detector{Codec: codec}
-	sources := repository.NewSourceManager(map[string]interfaces.SourceProvider{
+	sources := sourcing.NewManager(map[string]interfaces.SourceProvider{
 		"local": repository.Local{},
 		"github": repository.Fetcher{
 			Git:     repository.GitCloner{Runner: repository.GitProcess{}},
@@ -62,7 +63,7 @@ func run() (code int) {
 		},
 	})
 	defer func() {
-		if err := sources.Close(); err != nil {
+		if err := sources.Close(ctx); err != nil {
 			logger.Error("close sources", "error", err)
 			code = 1
 		}

@@ -12,7 +12,7 @@ sequenceDiagram
     participant Main as main (composition root)
     participant CLI as command.App
     participant Sync as SyncService
-    participant Mgr as SourceManager<br/>(SourceProvider)
+    participant Mgr as sourcing.Manager<br/>(SourceProvider)
     participant SrcMap as SourceMap
     participant Det as SourceSelector<br/>(discovery.Detector)
     participant Cat as Catalog
@@ -21,7 +21,7 @@ sequenceDiagram
     participant Plan as SyncPlanner<br/>(planning.Planner)
     participant Writer as PlanWriter
 
-    Main->>Mgr: NewSourceManager(providers)
+    Main->>Mgr: NewManager(providers)
     Main->>CLI: Execute(ctx, opts, cwd)
     CLI->>Sync: Run(req)
     loop каждый source из req.Sources
@@ -55,11 +55,11 @@ sequenceDiagram
         Sync-->>CLI: Result
     end
     CLI-->>Main: exit code
-    Main->>Mgr: Close() (defer, всегда выполняется)
+    Main->>Mgr: Close(ctx) (defer, всегда выполняется)
     Mgr->>Mgr: закрывает каждый закешированный Repository,<br/>в порядке, обратном получению
 ```
 
-`SourceManager` живёт **дольше одного `Run`** — его создаёт и закрывает `main`,
+`sourcing.Manager` живёт **дольше одного `Run`** — его создаёт и закрывает `main`,
 не `SyncService.Run`: `Acquire` дедуплицирует по `SourceKey` (тип+путь+ветка),
 так что два `sources:` с одним источником, но разными `subpath`/`tags`, скачиваются
 один раз. `SourceMap` и `SkillMap`, в отличие от этого, строятся **один раз за
@@ -84,7 +84,7 @@ flowchart TD
     H["8. Записать каждый target в target.path"]
 
     A -.->|"config.Parse + config.Resolve"| A1[/"model.Request"/]
-    B -.->|"SourceManager.Acquire (deduped by SourceKey)<br/>repository.Local / repository.Fetcher"| B1[/"model.Repository"/]
+    B -.->|"sourcing.Manager.Acquire (deduped by SourceKey)<br/>repository.Local / repository.Fetcher"| B1[/"model.Repository"/]
     C -.->|"SyncService.Run<br/>sources.Put(repo)"| C1[/"model.SourceMap"/]
     D -.->|"discovery.Detector.Select"| D1[/"[]model.Skill"/]
     E -.->|"relations.Expander.Expand<br/>discovery.BuildSkillMap"| E1[/"model.Catalog + model.SkillMap"/]
@@ -140,7 +140,7 @@ classDiagram
 
 | Реестр | Кто пишет | Кто читает | Когда строится |
 | --- | --- | --- | --- |
-| `SourceManager` (`repository`) | `main` создаёт; `Acquire` кеширует по `SourceKey` | `SyncService.Run` (через порт `SourceProvider`) | один раз на процесс; переживает несколько `Run`, если бы они были |
+| `sourcing.Manager` (`domain/services/sourcing`) | `main` создаёт; `Acquire` кеширует по `SourceKey` | `SyncService.Run` (через порт `SourceProvider`) | один раз на процесс; переживает несколько `Run`, если бы они были |
 | `SourceMap` | `SyncService.Run` (цикл acquire) | `OutputLayout` (содержимое внешних вложений) | один раз за запуск, по мере получения каждого source |
 | `SkillMap` | `discovery.BuildSkillMap` | `OutputLayout` (назначение выходных путей, включая fallback через `OwnsPath`/`RelativePath` для путей вне инвентаря) | один раз за запуск, сразу после `RelationExpander.Expand` |
 | `Catalog` | `discovery.Add` (в цикле acquire), `RelationExpander.Expand` (добавляет связанные скилы) | `discovery.BuildSkillMap`, `SyncPlanner.Plan` | растёт по мере обнаружения и раскрытия связей |

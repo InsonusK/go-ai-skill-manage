@@ -1,11 +1,11 @@
-package repository_test
+package sourcing_test
 
 import (
 	"context"
 	"fmt"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/repository"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
 	"strconv"
@@ -14,8 +14,8 @@ import (
 
 // countingProvider is a fake interfaces.SourceProvider recording how many
 // times it was asked to acquire, and the order its issued repositories were
-// closed in -- exactly what SourceManager needs a real provider for is
-// irrelevant to proving dedup/dispatch/Close ordering.
+// closed in -- exactly what Manager needs a real provider for is irrelevant
+// to proving dedup/dispatch/Close ordering.
 type countingProvider struct {
 	calls  *int
 	closed *[]string
@@ -29,8 +29,8 @@ func (p countingProvider) Acquire(ctx context.Context, s model.SourceSpec, optio
 	return repo, nil
 }
 
-func managerSteps(sc *godog.ScenarioContext) {
-	var manager *repository.SourceManager
+func initialize(sc *godog.ScenarioContext) {
+	var manager *sourcing.Manager
 	var calls int
 	var closedOrder []string
 	var repos []*model.Repository
@@ -40,7 +40,7 @@ func managerSteps(sc *godog.ScenarioContext) {
 		closedOrder = nil
 		repos = nil
 		failure = nil
-		manager = repository.NewSourceManager(map[string]interfaces.SourceProvider{
+		manager = sourcing.NewManager(map[string]interfaces.SourceProvider{
 			"local": countingProvider{calls: &calls, closed: &closedOrder},
 		})
 		return nil
@@ -85,7 +85,7 @@ func managerSteps(sc *godog.ScenarioContext) {
 		}
 		return nil
 	})
-	sc.Step(`^I close the source manager$`, func(ctx context.Context) error { return manager.Close() })
+	sc.Step(`^I close the source manager$`, func(ctx context.Context) error { return manager.Close(ctx) })
 	sc.Step(`^repositories were closed in order "([^"]*)"$`, func(ctx context.Context, want string) error {
 		return testsupport.Equal(strings.Join(closedOrder, ","), want)
 	})

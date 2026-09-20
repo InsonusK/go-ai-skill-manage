@@ -91,11 +91,20 @@
       "height": 85
     },
     {
+      "id": "internal/domain/services/sourcing",
+      "type": "file",
+      "file": "internal/domain/services/sourcing/manager.go",
+      "x": 960,
+      "y": 500,
+      "width": 280,
+      "height": 85
+    },
+    {
       "id": "internal/domain/services/tags",
       "type": "file",
       "file": "internal/domain/services/tags/tags.go",
       "x": 960,
-      "y": 500,
+      "y": 625,
       "width": 280,
       "height": 85
     },
@@ -104,7 +113,7 @@
       "type": "file",
       "file": "internal/domain/services/transform/links.go",
       "x": 960,
-      "y": 625,
+      "y": 750,
       "width": 280,
       "height": 85
     },
@@ -204,6 +213,13 @@
       "fromNode": "cmd/ai-skill-manager",
       "fromSide": "right",
       "toNode": "internal/domain/services/relations",
+      "toSide": "left"
+    },
+    {
+      "id": "cmd/ai-skill-manager-\u003einternal/domain/services/sourcing",
+      "fromNode": "cmd/ai-skill-manager",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/sourcing",
       "toSide": "left"
     },
     {
@@ -382,6 +398,20 @@
       "toSide": "left"
     },
     {
+      "id": "internal/domain/services/sourcing-\u003einternal/domain/interfaces",
+      "fromNode": "internal/domain/services/sourcing",
+      "fromSide": "right",
+      "toNode": "internal/domain/interfaces",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services/sourcing-\u003einternal/domain/model",
+      "fromNode": "internal/domain/services/sourcing",
+      "fromSide": "right",
+      "toNode": "internal/domain/model",
+      "toSide": "left"
+    },
+    {
       "id": "internal/domain/services/transform-\u003einternal/domain/model",
       "fromNode": "internal/domain/services/transform",
       "fromSide": "right",
@@ -407,13 +437,6 @@
       "fromNode": "internal/infrastructure/filesystem",
       "fromSide": "right",
       "toNode": "internal/domain/services/discovery",
-      "toSide": "left"
-    },
-    {
-      "id": "internal/infrastructure/repository-\u003einternal/domain/interfaces",
-      "fromNode": "internal/infrastructure/repository",
-      "fromSide": "right",
-      "toNode": "internal/domain/interfaces",
       "toSide": "left"
     },
     {

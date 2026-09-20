@@ -36,6 +36,7 @@ internal/
       relations/                 очередь связанных скилов
       planning/                  состав выходных файлов и изменений цели
       transform/                 переписывание ссылок, свойства Claude
+      sourcing/                  кеш и время жизни полученных источников
   infrastructure/
     filesystem/                  состояние и запись цели
     repository/                  local, Git clone, GitHub archive fallback
@@ -86,7 +87,7 @@ tools/                           нормализация отчётов и ге
 `SkipFolders`) — ничего, что зависит от того, *какой* `SourceSpec` его запросил.
 `Subpaths`/`Tags`/`Name` — параметры выбора конкретного `SourceSpec` — не хранятся
 на `Repository` и передаются в `SourceSelector.Select` явно при каждом вызове. Это
-разделение обязательно для `SourceManager` (`infrastructure/repository`): он кеширует
+разделение обязательно для `sourcing.Manager` (`domain/services/sourcing`): он кеширует
 `*Repository` по `SourceKey` (`Type`+`Path`+`Tree`), так что два `sources:` с одним
 и тем же источником, но разными `subpath`, не скачиваются повторно — один и тот же
 кешированный `Repository` не может при этом нести значения `Subpaths`/`Tags`,
@@ -130,7 +131,7 @@ tools/                           нормализация отчётов и ге
   - usage_scenario: выполняет стадии в заданном порядке; ошибки валидации
     блокируют запись во все цели, dry-run возвращает план без применения. Не
     управляет временем жизни источников — не закрывает и не кеширует их;
-    это ответственность `SourceManager`, живущего в вызывающем коде (`main`).
+    это ответственность `sourcing.Manager`, живущего в вызывающем коде (`main`).
 - **LocalSource** (Service), `infrastructure/repository`.
   - responsibility: предоставляет корень локального источника.
   - depends_on: чтение дерева.
@@ -144,15 +145,20 @@ tools/                           нормализация отчётов и ге
   - usage_scenario: сначала пробует clone, для GitHub использует archive fallback;
     регистрирует очистку временной директории через `Repository.AddCloser`
     вместо возврата отдельной функции очистки.
-- **SourceManager** (Service), `infrastructure/repository`.
+- **SourceManager** (Service), тип `Manager` в `domain/services/sourcing`.
   - responsibility: кеширует полученные `Repository` по `SourceKey`
     (`Type`+`Path`+`Tree`) и диспетчеризует по `SourceSpec.Type` к
     `LocalSource`/`RepositoryFetcher`.
-  - depends_on: `interfaces.SourceProvider` реализации, зарегистрированные по типу.
+  - depends_on: `interfaces.SourceProvider` реализации, зарегистрированные по типу
+    (никаких прямых зависимостей от `os/exec`/`net/http`/файловой системы —
+    только делегирование инфраструктурным реализациям порта).
   - usage_scenario: несколько `sources:` с одинаковым источником, но разными
-    `subpath`/`tags`, скачиваются один раз; `Close` закрывает каждый полученный
+    `subpath`/`tags`, скачиваются один раз; `Close(ctx)` закрывает каждый полученный
     `Repository` в порядке, обратном получению. Владеет временем жизни источников
-    вместо `SyncService.Run` — создаётся и закрывается в `main` (`defer sources.Close()`).
+    вместо `SyncService.Run` — создаётся и закрывается в `main` (`defer sources.Close(ctx)`).
+    Живёт в `domain/services/sourcing`, а не в `infrastructure/repository`: сам он
+    не выполняет I/O, только оркестрирует кеш поверх инъецированного порта — как и
+    `discovery`/`relations`/`planning` рядом с ним.
 - **GitCloner** (Service), `infrastructure/repository`.
   - responsibility: получает выбранную ветку или тег через Git.
   - depends_on: запуск процесса с context.
@@ -351,7 +357,7 @@ coverage собирается обязательно, целевой порог 
 | Conformance testing | godog рядом с пакетами, coverage >=80%, mutation и public reports |
 | Runtime | Одноразовый CLI; сервер, health endpoint, HTTP shutdown и порты не требуются |
 
-Имена интерфейсов задают роли. `main` связывает их с `SourceManager` (сам
+Имена интерфейсов задают роли. `main` связывает их с `sourcing.Manager` (сам
 диспетчеризующий на Local/Fetcher), Codec и Store.
 Интерфейсы не добавляются чистым функциям только ради подмены.
 `Detector.Select` отдельно выполняет выбор по subpaths, tags и name;
@@ -372,8 +378,8 @@ coverage собирается обязательно, целевой порог 
 - `StateReader` сообщает наличие, ownership, hash/version и наличие SKILL.md.
 - `Repository` сам владеет своей очисткой (`Close`, накапливает `closers` через
   `AddCloser`) вместо того, чтобы `SourceProvider.Acquire` возвращал отдельную
-  функцию очистки. `SourceManager` кеширует `*Repository` по `SourceKey` и
-  закрывает каждый в `Close()`, в порядке, обратном получению; владеет этим
+  функцию очистки. `sourcing.Manager` кеширует `*Repository` по `SourceKey` и
+  закрывает каждый в `Close(ctx)`, в порядке, обратном получению; владеет этим
   временем жизни вызывающий код (`main`), не `SyncService.Run`.
 - Сначала строятся все планы; затем выполняется применение. Общей транзакции
   между целями нет. Замена каждого скила использует staging и backup rename.
