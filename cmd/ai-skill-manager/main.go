@@ -4,6 +4,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/InsonusK/go-ai-skill-manage/internal/command"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services"
@@ -17,11 +23,6 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/logging"
 	"github.com/InsonusK/go-ai-skill-manage/internal/profiling"
 	"github.com/InsonusK/go-ai-skill-manage/internal/version"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 func main() { os.Exit(run()) }

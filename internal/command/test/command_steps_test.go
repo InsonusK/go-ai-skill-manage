@@ -5,6 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
 	"github.com/InsonusK/go-ai-skill-manage/internal/command"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services"
@@ -17,10 +22,6 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/repository"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 )
 
 func initialize(sc *godog.ScenarioContext) {

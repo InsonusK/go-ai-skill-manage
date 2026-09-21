@@ -30,7 +30,7 @@
     {
       "id": "internal/domain/interfaces",
       "type": "file",
-      "file": "internal/domain/interfaces/ports.go",
+      "file": "internal/domain/interfaces/source.go",
       "x": 640,
       "y": 0,
       "width": 280,
@@ -318,6 +318,20 @@
       "fromNode": "internal/domain/services",
       "fromSide": "right",
       "toNode": "internal/domain/services/discovery",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services-\u003einternal/domain/services/planning",
+      "fromNode": "internal/domain/services",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/planning",
+      "toSide": "left"
+    },
+    {
+      "id": "internal/domain/services-\u003einternal/domain/services/relations",
+      "fromNode": "internal/domain/services",
+      "fromSide": "right",
+      "toNode": "internal/domain/services/relations",
       "toSide": "left"
     },
     {

@@ -4,7 +4,7 @@ depends_on:
   - "[cmd/ai-skill-manager](../../cmd/ai-skill-manager/main.go)"
   - "[internal/command](../../internal/command/arguments.go)"
   - "[internal/config](../../internal/config/config.go)"
-  - "[internal/domain/interfaces](../../internal/domain/interfaces/ports.go)"
+  - "[internal/domain/interfaces](../../internal/domain/interfaces/source.go)"
   - "[internal/domain/model](../../internal/domain/model/model.go)"
   - "[internal/domain/services](../../internal/domain/services/sync.go)"
   - "[internal/domain/services/discovery](../../internal/domain/services/discovery/detector.go)"
@@ -59,7 +59,7 @@ step-определения лежат рядом с пакетом (`features/*
 | GitCloner | Service | [GitCloner.Clone / GitProcess.Run](../../internal/infrastructure/repository/git.go) — Получает ветку или тег через Git | ProcessRunner |
 | ArchiveFetcher | Service | [Archive.Fetch](../../internal/infrastructure/repository/archive.go) — Предоставляет дерево из GitHub tar.gz | HTTPClient, ограниченный файловый корень |
 | SourceManager | Service | [Manager.GetOrAdd / Lookup / Close](../../internal/domain/services/sourcing/manager.go) — Кеширует `Repository` по `SourceKey`, диспетчеризует по типу, владеет их временем жизни; не выполняет I/O сама, только делегирует зарегистрированным `SourceProvider` | LocalSource, RepositoryFetcher (по типу, через порт) |
-| RepositoryLookup | Port | [Lookup](../../internal/domain/interfaces/ports.go) — Находит уже полученный `Repository` по `ID`; реализован `Manager.Lookup` | нет |
+| RepositoryLookup | Port | [Lookup](../../internal/domain/interfaces/source.go) — Находит уже полученный `Repository` по `ID`; реализован `Manager.Lookup` | нет |
 | SkillDetector | Service | [Detector.Discover / Rooted / Find](../../internal/domain/services/discovery/detector.go) — Распознаёт расположение скила | DocumentCodec, fs.FS |
 | SourceSelector | Function | [Detector.Select](../../internal/domain/services/discovery/source.go) — Выбирает скилы источника по `SourceSpec`, резолвит scan paths (`scanPaths`) | Detector, TagExpression |
 | TagExpression | Function | [Match](../../internal/domain/services/tags/tags.go) — Вычисляет фильтр тегов | нет |
@@ -83,7 +83,7 @@ step-определения лежат рядом с пакетом (`features/*
 ### Модели, порты, composition root
 
 - [model](../../internal/domain/model/model.go): Request → Repository/Skill/Link → TargetPlan → Result; ошибки Issue/Issues. Также [SkillCatalog](../../internal/domain/model/catalog.go) (растёт через `GetOrAdd`, индексирует выходные назначения) и примитивы [OwnsPath/RelativePath](../../internal/domain/model/ownership.go).
-- [interfaces](../../internal/domain/interfaces/ports.go): SourceProvider, SourceCache, RepositoryLookup, DocumentCodec, StateReader, PlanWriter, SourceSelector. Получатель порта определяет необходимую роль. `RelationExpander`/`SyncPlanner` — не порты: у обоих ровно одна реализация в другом доменном пакете и она никогда не подменялась в тестах, поэтому `SyncService` зависит от `relations.Expander`/`planning.Planner` напрямую.
+- [interfaces](../../internal/domain/interfaces/source.go): SourceProvider, SourceCache, RepositoryLookup, DocumentCodec, StateReader, PlanWriter, SourceSelector. Получатель порта определяет необходимую роль. `RelationExpander`/`SyncPlanner` — не порты: у обоих ровно одна реализация в другом доменном пакете и она никогда не подменялась в тестах, поэтому `SyncService` зависит от `relations.Expander`/`planning.Planner` напрямую.
 - [main](../../cmd/ai-skill-manager/main.go): реальные адаптеры, constructor injection, сигналы, profiler, exit code; создаёт `sourcing.Manager` и владеет его временем жизни (`defer sources.Close(ctx)`).
 - [version](../../internal/version/version.go): build-time значение из VERSION; без отдельной бизнес-логики.
 

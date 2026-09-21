@@ -3,13 +3,14 @@ package sourcing_test
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
-	"strconv"
-	"strings"
 )
 
 // countingProvider is a fake interfaces.SourceProvider recording how many

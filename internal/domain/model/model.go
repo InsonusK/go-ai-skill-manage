@@ -92,7 +92,7 @@ const (
 )
 
 type Skill struct {
-	Name, Main, Root string      // Main/Root are repo-relative; Root is "" for FlatSkill (N/A)
+	Name, Main, Root string // Main/Root are repo-relative; Root is "" for FlatSkill (N/A)
 	Format           SkillFormat
 	Repo             *Repository
 	Document         Document

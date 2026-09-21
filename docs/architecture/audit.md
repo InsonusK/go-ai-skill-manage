@@ -63,7 +63,10 @@ Detector/Catalog и прямое поле logger в SyncService. Дополни�
 | [internal/config/test/runner_test.go](../../internal/config/test/runner_test.go) | T, Q | проверен |
 | [internal/config/validation.go](../../internal/config/validation.go) | R, I | проверен |
 | [internal/config/values.go](../../internal/config/values.go) | R, I | проверен |
-| [internal/domain/interfaces/ports.go](../../internal/domain/interfaces/ports.go) | P | проверен |
+| [internal/domain/interfaces/source.go](../../internal/domain/interfaces/source.go) | P | проверен |
+| [internal/domain/interfaces/discovery.go](../../internal/domain/interfaces/discovery.go) | P | проверен |
+| [internal/domain/interfaces/document.go](../../internal/domain/interfaces/document.go) | P | проверен |
+| [internal/domain/interfaces/state.go](../../internal/domain/interfaces/state.go) | P | проверен |
 | [internal/domain/model/model.go](../../internal/domain/model/model.go) | D, P | проверен |
 | [internal/domain/services/discovery/catalog.go](../../internal/domain/services/discovery/catalog.go) | D, P | проверен |
 | [internal/domain/services/discovery/detector.go](../../internal/domain/services/discovery/detector.go) | D, P | проверен |
