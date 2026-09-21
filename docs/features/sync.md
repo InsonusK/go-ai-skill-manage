@@ -53,7 +53,7 @@ step-определения лежат рядом с пакетом (`features/*
 | OptionResolver | Function | [Resolve](../../internal/config/resolve.go) — Вычисляет эффективный запрос | базовый путь и overrides |
 | SyncCommand | Command | [App.Execute](../../internal/command/sync.go) — Связывает команду с синхронизацией | чтение конфига, SyncService, output streams |
 | ResultFormatter | Function | [PrintResult](../../internal/command/format.go) — Представляет план в консоли | io.Writer |
-| SyncService | Orchestrator | [SyncService.Run](../../internal/domain/services/sync.go) — Координирует стадии одного запуска | SourceCache, RepositoryLookup, SourceSelector, RelationExpander, SyncPlanner, PlanWriter (порты); не управляет временем жизни источников |
+| SyncService | Orchestrator | [SyncService.Run](../../internal/domain/services/sync.go) — Координирует стадии одного запуска | SourceCache, RepositoryLookup, SourceSelector, PlanWriter (порты); RelationExpander/SyncPlanner — напрямую как relations.Expander/planning.Planner; не управляет временем жизни источников |
 | LocalSource | Service | [Local.Acquire](../../internal/infrastructure/repository/local.go) — Открывает локальное дерево, определяет `Repository.SingleFile` | os.Root / fs.FS |
 | RepositoryFetcher | Service | [Fetcher.Acquire](../../internal/infrastructure/repository/fetch.go) — Предоставляет временную копию репозитория, регистрирует очистку через `Repository.AddCloser` | Cloner, ArchiveFetcher, временная директория |
 | GitCloner | Service | [GitCloner.Clone / GitProcess.Run](../../internal/infrastructure/repository/git.go) — Получает ветку или тег через Git | ProcessRunner |
@@ -83,7 +83,7 @@ step-определения лежат рядом с пакетом (`features/*
 ### Модели, порты, composition root
 
 - [model](../../internal/domain/model/model.go): Request → Repository/Skill/Link → TargetPlan → Result; ошибки Issue/Issues. Также [SkillCatalog](../../internal/domain/model/catalog.go) (растёт через `GetOrAdd`, индексирует выходные назначения) и примитивы [OwnsPath/RelativePath](../../internal/domain/model/ownership.go).
-- [interfaces](../../internal/domain/interfaces/ports.go): SourceProvider, SourceCache, RepositoryLookup, DocumentCodec, StateReader, PlanWriter, SourceSelector, RelationExpander, SyncPlanner. Получатель порта определяет необходимую роль.
+- [interfaces](../../internal/domain/interfaces/ports.go): SourceProvider, SourceCache, RepositoryLookup, DocumentCodec, StateReader, PlanWriter, SourceSelector. Получатель порта определяет необходимую роль. `RelationExpander`/`SyncPlanner` — не порты: у обоих ровно одна реализация в другом доменном пакете и она никогда не подменялась в тестах, поэтому `SyncService` зависит от `relations.Expander`/`planning.Planner` напрямую.
 - [main](../../cmd/ai-skill-manager/main.go): реальные адаптеры, constructor injection, сигналы, profiler, exit code; создаёт `sourcing.Manager` и владеет его временем жизни (`defer sources.Close(ctx)`).
 - [version](../../internal/version/version.go): build-time значение из VERSION; без отдельной бизнес-логики.
 

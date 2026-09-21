@@ -77,10 +77,12 @@ tools/                           нормализация отчётов и ге
 
 `SkillCatalog` (набор выбранных скилов, политика конфликта и индекс выходных
 назначений) объявлен в `domain/model`, а не в `domain/services/discovery`:
-`domain/interfaces` должен ссылаться на его тип в сигнатурах портов
-`SourceSelector`/`RelationExpander`/`SyncPlanner`, а `discovery` уже зависит от
-`interfaces` (через `DocumentCodec`) — оставление `SkillCatalog` в `discovery`
-создало бы цикл `interfaces → discovery → interfaces`. Поведение (`GetOrAdd`,
+на его тип напрямую ссылаются три независимых доменных пакета —
+`domain/services/relations`, `domain/services/planning` и `domain/services`
+(`sync.go`) сам, — а `model` единственный, от которого уже зависят все три.
+Перенос `SkillCatalog` в `discovery` заставил бы `planning` импортировать
+`discovery` только ради этого типа, хотя `planner.go` сознательно не зависит
+от `discovery` вовсе (см. ниже). Поведение (`GetOrAdd`,
 `Owner`, `Destination`) — методы самого `model.SkillCatalog`, а не свободные
 функции в `discovery`: все три используют только то, что уже есть в `model`
 (`Skill.Key`, `Issue`, примитивы `OwnsPath`/`RelativePath`), без единой
@@ -243,8 +245,9 @@ tools/                           нормализация отчётов и ге
   - responsibility: вычисляет замыкание зависимостей выбранных скилов.
   - depends_on: поиск скила по пути, каталог, получение ссылок скила.
   - usage_scenario: при `add_relations` добавляет связанные скилы до исчерпания
-    очереди; защищает обход от циклов и повторной обработки. Связан с
-    `SyncService` через порт `interfaces.RelationExpander`.
+    очереди; защищает обход от циклов и повторной обработки. `SyncService`
+    держит поле `relations.Expander` напрямую, без порта — единственная
+    реализация, никогда не подменяется в тестах.
 - **OutputLayout** (Function), `domain/services/planning`.
   - responsibility: назначает выходные пути файлам синхронизации.
   - depends_on: `SkillCatalog`, `RepositoryLookup` (для содержимого внешних вложений).
@@ -274,7 +277,8 @@ tools/                           нормализация отчётов и ге
   - usage_scenario: выдаёт операции create/update/skip/remove с причинами;
     учитывает force, managed-маркеры и политику orphan; переписывает ссылки
     только когда `link-adapter` присутствует в объединённом списке адаптеров
-    цели. Связан с `SyncService` через порт `interfaces.SyncPlanner`.
+    цели. `SyncService` держит поле `planning.Planner` напрямую, без порта —
+    той же причине, что и `RelationExpander` выше.
 - **PlanApplier** (Service), `infrastructure/filesystem`.
   - responsibility: применяет подготовленные изменения к файловой системе.
   - depends_on: файловые операции цели.
@@ -370,7 +374,7 @@ coverage собирается обязательно, целевой порог 
 | Config | YAML/JSON и флаги Python-контракта вместо HTTP environment settings |
 | Logging | slog, info по умолчанию, debug через флаг; настройка до создания адаптеров |
 | Signals | SIGINT/SIGTERM отменяют context операций Git/HTTP/применения |
-| Domain ports | SourceProvider, SourceCache, RepositoryLookup, DocumentCodec, StateReader, PlanWriter, SourceSelector, RelationExpander, SyncPlanner; fs.FS для bounded source tree |
+| Domain ports | SourceProvider, SourceCache, RepositoryLookup, DocumentCodec, StateReader, PlanWriter, SourceSelector; fs.FS для bounded source tree |
 | Pure transformations | tags/transform не выполняют файловые или сетевые операции |
 | Conformance testing | godog рядом с пакетами, coverage >=80%, mutation и public reports |
 | Runtime | Одноразовый CLI; сервер, health endpoint, HTTP shutdown и порты не требуются |

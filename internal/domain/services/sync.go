@@ -5,6 +5,8 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/relations"
 	"log/slog"
 )
 
@@ -12,8 +14,8 @@ type SyncService struct {
 	Sources   interfaces.SourceCache
 	Lookup    interfaces.RepositoryLookup
 	Detector  interfaces.SourceSelector
-	Relations interfaces.RelationExpander
-	Planner   interfaces.SyncPlanner
+	Relations relations.Expander
+	Planner   planning.Planner
 	Writer    interfaces.PlanWriter
 }
 
