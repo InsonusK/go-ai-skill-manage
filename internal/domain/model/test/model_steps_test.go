@@ -2,14 +2,17 @@ package model_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
-	"github.com/cucumber/godog"
 	"io/fs"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing/fstest"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
+	"github.com/cucumber/godog"
 )
 
 // countingFS wraps fstest.MapFS, counting Open calls per path so a test can
@@ -87,6 +90,101 @@ func initialize(sc *godog.ScenarioContext) {
 			return fmt.Errorf("error=%v want contains %s", lazyErr, want)
 		}
 		return nil
+	})
+
+	var pathFiles []*model.File
+	var pathErr error
+	var pathSnapshot int
+	var dataResult []byte
+	var dataErr error
+	totalReads := func() int {
+		n := 0
+		for _, c := range lazyCounts {
+			n += c
+		}
+		return n
+	}
+	sc.Step(`^a skill "([^"]*)" rooted at "([^"]*)" main "([^"]*)" with tree$`, func(ctx context.Context, name, root, main string, d *godog.DocString) error {
+		var raw map[string]string
+		if err := json.Unmarshal([]byte(d.Content), &raw); err != nil {
+			return err
+		}
+		lazyCounts = map[string]int{}
+		files := fstest.MapFS{}
+		for p, content := range raw {
+			files[model.NestedRepoPath(root, p)] = &fstest.MapFile{Data: []byte(content)}
+		}
+		repo := &model.Repository{ID: "repo", Root: "/source", FS: countingFS{files: files, counts: lazyCounts}}
+		lazySkill = &model.Skill{Name: name, Main: main, Root: root, Format: model.AgentDirSkill, Repo: repo}
+		pathFiles, pathErr, dataResult, dataErr = nil, nil, nil, nil
+		return nil
+	})
+	sc.Step(`^I list files by path "([^"]*)"(?: again)?$`, func(ctx context.Context, p string) error {
+		pathFiles, pathErr = lazySkill.FilesByPath(p)
+		return nil
+	})
+	sc.Step(`^I find files by path "([^"]*)" matching "([^"]*)"$`, func(ctx context.Context, p, pattern string) error {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return err
+		}
+		pathFiles, pathErr = lazySkill.Find(p, re)
+		return nil
+	})
+	sc.Step(`^listed files are "([^"]*)"$`, func(ctx context.Context, want string) error {
+		if pathErr != nil {
+			return pathErr
+		}
+		var got []string
+		for _, f := range pathFiles {
+			got = append(got, f.Path)
+		}
+		return testsupport.Equal(strings.Join(got, ","), want)
+	})
+	sc.Step(`^listing files fails with "([^"]*)"$`, func(ctx context.Context, want string) error {
+		if pathErr == nil || !strings.Contains(pathErr.Error(), want) {
+			return fmt.Errorf("error=%v want contains %s", pathErr, want)
+		}
+		return nil
+	})
+	sc.Step(`^total directory reads so far are remembered$`, func(ctx context.Context) error {
+		pathSnapshot = totalReads()
+		return nil
+	})
+	sc.Step(`^no additional directories were read$`, func(ctx context.Context) error {
+		return testsupport.Equal(strconv.Itoa(totalReads()), strconv.Itoa(pathSnapshot))
+	})
+	sc.Step(`^I read file data at "([^"]*)"$`, func(ctx context.Context, path string) error {
+		files, err := lazySkill.FilesByPath("")
+		if err != nil {
+			return err
+		}
+		for _, f := range files {
+			if f.Path == path {
+				dataResult, dataErr = lazySkill.Data(f)
+				return nil
+			}
+		}
+		return fmt.Errorf("file %q not found", path)
+	})
+	sc.Step(`^I read data of the first found file$`, func(ctx context.Context) error {
+		dataResult, dataErr = pathFiles[0].Content()
+		return nil
+	})
+	sc.Step(`^the first found file's data is "([^"]*)"$`, func(ctx context.Context, want string) error {
+		if dataErr != nil {
+			return dataErr
+		}
+		return testsupport.Equal(string(dataResult), want)
+	})
+	sc.Step(`^the first listed file's data is "([^"]*)"$`, func(ctx context.Context, want string) error {
+		return testsupport.Equal(string(pathFiles[0].Data), want)
+	})
+	sc.Step(`^file data at "([^"]*)" is "([^"]*)"$`, func(ctx context.Context, path, want string) error {
+		if dataErr != nil {
+			return dataErr
+		}
+		return testsupport.Equal(string(dataResult), want)
 	})
 
 	var catalog *model.SkillCatalog
