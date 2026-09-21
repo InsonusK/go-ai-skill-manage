@@ -15,15 +15,18 @@ func BuildSkillMap(cat *model.Catalog) (*model.SkillMap, error) {
 	originals := make(map[string]map[string]string, len(cat.Skills))
 	for _, s := range cat.Skills {
 		entries = append(entries, model.SkillEntry{
-			Name: s.Name, SourceKey: s.Repo.ID, Root: s.Root, Main: s.Main, Flat: s.Flat, Dest: s.Name,
+			Name: s.Name, SourceKey: s.Repo.ID, Root: s.Root, Main: s.Main, Format: s.Format, Dest: s.Name,
 		})
-		files := make(map[string]string, len(s.Files)+1)
+		files := make(map[string]string, len(s.Files)+2)
+		files[s.Main] = path.Join(s.Name, "SKILL.md")
 		for _, f := range s.Files {
-			files[f.Path] = path.Join(s.Name, Relative(s, f.Path))
+			files[model.NestedRepoPath(s.Root, f.Path)] = path.Join(s.Name, f.Path)
 		}
-		// A link pointing at the skill's own directory (not a specific file)
-		// still resolves to its SKILL.md.
-		files[s.Root] = path.Join(s.Name, "SKILL.md")
+		if s.Format != model.FlatSkill {
+			// A link pointing at the skill's own directory (not a specific
+			// file) still resolves to its SKILL.md.
+			files[s.Root] = path.Join(s.Name, "SKILL.md")
+		}
 		originals[s.Name] = files
 	}
 	return model.NewSkillMap(entries, originals)

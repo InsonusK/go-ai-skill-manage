@@ -20,6 +20,20 @@ Feature: Discover skill definitions
    | {"a.skill.md":"---\\nname: a---b\\n---\\n"} | | invalid-name |
    | {"README.md":"ordinary"} | | |
 
+ Scenario Outline: Discovered skill format, root and nested files
+  Given a source tree
+   """
+   <files>
+   """
+  When I discover skills at "."
+  Then discovered skill "<name>" has format "<format>" root "<root>" and nested files "<nested>"
+  Examples:
+   | files | name | format | root | nested |
+   | {"one.skill.md":"---\\nname: one\\n---\\nBody"} | one | flat |  |  |
+   | {"a.skill/a.skill.md":"---\\nname: one\\n---\\nBody","a.skill/data.txt":"data"} | one | human-dir | a.skill | data.txt |
+   | {"a/SKILL.md":"---\\nname: one\\n---\\nBody","a/data.txt":"data"} | one | agent-dir | a | data.txt |
+   | {"a/SKILL.md":"---\\nname: one\\n---\\nBody","a/sub/data.txt":"data"} | one | agent-dir | a | sub/data.txt |
+
  Scenario: A flat example belongs to its ancestor skill
   Given a source tree
    """

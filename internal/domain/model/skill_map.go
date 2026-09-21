@@ -8,12 +8,12 @@ import (
 // SkillEntry is one skill's provenance and destination, decoupled from
 // fs.FS/Repository so it is constructible by hand in unit tests.
 type SkillEntry struct {
-	Name      string // output directory name (== the map key in SkillMap.entries)
-	SourceKey string // Repository.ID the skill was discovered in
-	Root      string // original root path (directory, or the flat *.skill.md file itself)
-	Main      string // original path of the skill's SKILL.md / *.skill.md
-	Flat      bool   // true for a flat *.skill.md skill (Root == Main)
-	Dest      string // output path of this skill relative to the in-memory skills root; always == Name today, kept explicit for forward-compatibility
+	Name      string      // output directory name (== the map key in SkillMap.entries)
+	SourceKey string      // Repository.ID the skill was discovered in
+	Root      string      // original root path (directory; "" for a flat *.skill.md skill)
+	Main      string      // original path of the skill's SKILL.md / *.skill.md
+	Format    SkillFormat // which of the three on-disk layouts this skill is
+	Dest      string      // output path of this skill relative to the in-memory skills root; always == Name today, kept explicit for forward-compatibility
 }
 
 type skillPath struct {
@@ -77,14 +77,14 @@ func (m *SkillMap) Entry(name string) (SkillEntry, bool) {
 // Owner returns the skill owning originalPath inside sourceKey's source, and
 // its output destination. It first tries an exact inventoried-path match,
 // then falls back to OwnsPath/RelativePath against each entry's
-// Root/Main/Flat, so callers get one answer regardless of whether the path
+// Root/Main/Format, so callers get one answer regardless of whether the path
 // was ever read as a file.
 func (m *SkillMap) Owner(sourceKey, originalPath string) (SkillEntry, string, bool) {
 	if p, ok := m.paths[OriginalKey(sourceKey, originalPath)]; ok {
 		return m.entries[p.Skill], p.Destination, true
 	}
 	for _, e := range m.entries {
-		if e.SourceKey == sourceKey && OwnsPath(e.Main, e.Root, e.Flat, originalPath) {
+		if e.SourceKey == sourceKey && OwnsPath(e.Main, e.Root, e.Format, originalPath) {
 			dest := path.Join(e.Dest, RelativePath(e.Main, e.Root, originalPath))
 			return e, dest, true
 		}

@@ -16,6 +16,7 @@ import (
 func initialize(sc *godog.ScenarioContext) {
 	var tree fstest.MapFS
 	var names []string
+	var discovered []*model.Skill
 	var failure error
 	var canceled bool
 	sc.Step(`^a source tree$`, func(ctx context.Context, d *godog.DocString) error {
@@ -51,11 +52,48 @@ func initialize(sc *godog.ScenarioContext) {
 		}
 		skills, err := (discovery.Detector{Codec: document.Codec{}}).Discover(ctx, repo, p)
 		failure = err
+		discovered = skills
 		names = []string{}
 		for _, s := range skills {
 			names = append(names, s.Name)
 		}
 		return nil
+	})
+	sc.Step(`^discovered skill "([^"]*)" has format "([^"]*)" root "([^"]*)" and nested files "([^"]*)"$`, func(ctx context.Context, name, format, root, nested string) error {
+		var found *model.Skill
+		for _, s := range discovered {
+			if s.Name == name {
+				found = s
+				break
+			}
+		}
+		if found == nil {
+			return fmt.Errorf("skill %q not found among discovered skills", name)
+		}
+		if err := testsupport.Equal(string(found.Format), format); err != nil {
+			return err
+		}
+		if err := testsupport.Equal(found.Root, root); err != nil {
+			return err
+		}
+		if err := testsupport.Equal(found.MainFile.Path, "SKILL.md"); err != nil {
+			return err
+		}
+		if len(found.MainFile.Data) == 0 {
+			return fmt.Errorf("expected MainFile.Data to be populated")
+		}
+		var paths []string
+		for _, f := range found.Files {
+			paths = append(paths, f.Path)
+			if len(f.Data) != 0 {
+				return fmt.Errorf("expected nested file %q Data to stay empty until LoadFiles runs", f.Path)
+			}
+		}
+		want := []string{}
+		if nested != "" {
+			want = strings.Split(nested, ",")
+		}
+		return testsupport.Equal(strings.Join(paths, ","), strings.Join(want, ","))
 	})
 	sc.Step(`^I select from subpath "([^"]*)" with tags "([^"]*)" and name "([^"]*)"$`, func(ctx context.Context, subpath, tagsArg, name string) error {
 		repo := &model.Repository{ID: "local", Root: "/source", FS: tree}

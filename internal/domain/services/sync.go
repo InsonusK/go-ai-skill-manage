@@ -35,6 +35,10 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 			issues = append(issues, model.Issue{Code: "discovery", File: spec.Path, Message: discoverErr.Error()})
 		}
 		for _, skill := range found {
+			if loadErr := discovery.LoadFiles(skill); loadErr != nil {
+				issues = append(issues, model.Issue{Code: "source-read", Skill: skill.Name, Message: loadErr.Error()})
+				continue
+			}
 			if addErr := catalog.Add(ctx, skill); addErr != nil {
 				issues = append(issues, model.Issue{Code: "duplicate-name", Skill: skill.Name, Message: addErr.Error()})
 			}

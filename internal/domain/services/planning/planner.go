@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/transform"
 	"path/filepath"
 	"slices"
@@ -37,46 +36,49 @@ func (p Planner) Plan(ctx context.Context, cat *model.Catalog, skills *model.Ski
 		return plan, err
 	}
 	linkAdapter := slices.Contains(target.Adapters, "link-adapter")
+	claudeAdapter := slices.Contains(target.Adapters, "claude-property-adapter")
+	rewrite := func(f model.File) ([]byte, error) {
+		if linkAdapter && len(f.Links) > 0 {
+			updated, err := transform.Rewrite(string(f.Data), f.Links, destinations)
+			if err != nil {
+				return nil, err
+			}
+			return []byte(updated), nil
+		}
+		return f.Data, nil
+	}
 	wanted := map[string]bool{}
 	for _, s := range cat.Skills {
 		if err := ctx.Err(); err != nil {
 			return plan, err
 		}
 		wanted[s.Name] = true
-		files := []model.OutputFile{}
+		mainData, err := rewrite(s.MainFile)
+		if err != nil {
+			return plan, err
+		}
+		original, _ := s.Document.Properties["name"].(string)
+		if claudeAdapter || original != s.Name {
+			doc, err := p.Codec.Decode(mainData)
+			if err != nil {
+				return plan, err
+			}
+			doc.Properties["name"] = s.Name
+			if claudeAdapter {
+				doc = transform.Claude(doc)
+			}
+			mainData, err = p.Codec.Encode(doc)
+			if err != nil {
+				return plan, err
+			}
+		}
+		files := []model.OutputFile{{Path: s.MainFile.Path, Data: mainData, Mode: s.MainFile.Mode}}
 		for _, f := range s.Files {
-			data := f.Data
-			if linkAdapter && len(f.Links) > 0 {
-				updated, err := transform.Rewrite(string(data), f.Links, destinations)
-				if err != nil {
-					return plan, err
-				}
-				data = []byte(updated)
+			data, err := rewrite(f)
+			if err != nil {
+				return plan, err
 			}
-			if f.Path == s.Main {
-				claude := false
-				for _, a := range target.Adapters {
-					if a == "claude-property-adapter" {
-						claude = true
-					}
-				}
-				original, _ := s.Document.Properties["name"].(string)
-				if claude || original != s.Name {
-					doc, err := p.Codec.Decode(data)
-					if err != nil {
-						return plan, err
-					}
-					doc.Properties["name"] = s.Name
-					if claude {
-						doc = transform.Claude(doc)
-					}
-					data, err = p.Codec.Encode(doc)
-					if err != nil {
-						return plan, err
-					}
-				}
-			}
-			files = append(files, model.OutputFile{Path: discovery.Relative(s, f.Path), Data: data, Mode: f.Mode})
+			files = append(files, model.OutputFile{Path: f.Path, Data: data, Mode: f.Mode})
 		}
 		hash := Fingerprint(append(append([]model.OutputFile{}, files...), layout.Shared...))
 		existing := state[s.Name]

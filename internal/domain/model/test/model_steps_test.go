@@ -12,13 +12,17 @@ import (
 
 func initialize(sc *godog.ScenarioContext) {
 	var ownRoot, ownMain string
-	var ownFlat bool
+	var ownFormat model.SkillFormat
 	sc.Step(`^a skill rooted at "([^"]*)" main "([^"]*)" flat "([^"]*)"$`, func(ctx context.Context, root, main, flat string) error {
-		ownRoot, ownMain, ownFlat = root, main, flat == "true"
+		ownRoot, ownMain = root, main
+		ownFormat = model.AgentDirSkill
+		if flat == "true" {
+			ownFormat = model.FlatSkill
+		}
 		return nil
 	})
 	sc.Step(`^path "([^"]*)" is owned "([^"]*)" and relative is "([^"]*)"$`, func(ctx context.Context, p, owned, relative string) error {
-		gotOwned := model.OwnsPath(ownMain, ownRoot, ownFlat, p)
+		gotOwned := model.OwnsPath(ownMain, ownRoot, ownFormat, p)
 		gotRelative := model.RelativePath(ownMain, ownRoot, p)
 		return testsupport.Equal([]any{gotOwned, gotRelative}, []any{owned == "true", relative})
 	})
@@ -38,7 +42,11 @@ func initialize(sc *godog.ScenarioContext) {
 		}
 		entries = nil
 		for _, e := range raw {
-			entries = append(entries, model.SkillEntry{Name: e.Name, SourceKey: e.Source, Root: e.Root, Main: e.Main, Flat: e.Flat, Dest: e.Name})
+			format := model.AgentDirSkill
+			if e.Flat {
+				format = model.FlatSkill
+			}
+			entries = append(entries, model.SkillEntry{Name: e.Name, SourceKey: e.Source, Root: e.Root, Main: e.Main, Format: format, Dest: e.Name})
 		}
 		return nil
 	})
@@ -77,7 +85,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I add skill "([^"]*)" from repo "([^"]*)" main "([^"]*)"$`, func(ctx context.Context, name, repo, main string) error {
-		skill := &model.Skill{Name: name, Main: main, Root: main[:strings.LastIndex(main, "/")], Repo: &model.Repository{ID: repo}}
+		skill := &model.Skill{Name: name, Main: main, Root: main[:strings.LastIndex(main, "/")], Format: model.AgentDirSkill, Repo: &model.Repository{ID: repo}}
 		catalogErr = catalog.Add(ctx, skill)
 		return nil
 	})

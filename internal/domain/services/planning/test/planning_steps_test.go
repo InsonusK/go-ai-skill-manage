@@ -61,6 +61,11 @@ func initialize(sc *godog.ScenarioContext) {
 		if err != nil {
 			return err
 		}
+		for _, s := range discovered {
+			if err := discovery.LoadFiles(s); err != nil {
+				return err
+			}
+		}
 		cat := &model.Catalog{Skills: discovered}
 		if err := (relations.Expander{Detector: detector}).Expand(ctx, cat, true, nil); err != nil {
 			return err

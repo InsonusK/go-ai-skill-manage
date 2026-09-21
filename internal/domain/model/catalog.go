@@ -37,7 +37,7 @@ func (c *Catalog) Add(ctx context.Context, s *Skill) error {
 // Owner returns the skill owning path p inside repository repoID, or nil.
 func (c *Catalog) Owner(ctx context.Context, repoID, p string) *Skill {
 	for _, s := range c.Skills {
-		if s.Repo.ID == repoID && OwnsPath(s.Main, s.Root, s.Flat, p) {
+		if s.Repo.ID == repoID && OwnsPath(s.Main, s.Root, s.Format, p) {
 			return s
 		}
 	}

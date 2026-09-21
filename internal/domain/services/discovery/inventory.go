@@ -9,34 +9,18 @@ import (
 
 func isNotExist(err error) bool { return errors.Is(err, fs.ErrNotExist) }
 
-// Files returns the immutable input bytes used by validation and output planning.
-func Files(s *model.Skill) ([]model.File, error) {
-	out := []model.File{}
-	err := fs.WalkDir(s.Repo.FS, s.Root, func(p string, e fs.DirEntry, err error) error {
+// LoadFiles reads nested-file content for a skill that has already survived
+// selection (tag/subpath filtering) -- deferred until here so a skill the
+// filters would discard never has its nested files' bytes read at all.
+func LoadFiles(s *model.Skill) error {
+	for i := range s.Files {
+		data, err := fs.ReadFile(s.Repo.FS, model.NestedRepoPath(s.Root, s.Files[i].Path))
 		if err != nil {
 			return err
 		}
-		if e.IsDir() {
-			if e.Name() == ".git" {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if e.Name() == model.Marker {
-			return nil
-		}
-		data, err := fs.ReadFile(s.Repo.FS, p)
-		if err != nil {
-			return err
-		}
-		info, err := e.Info()
-		if err != nil {
-			return err
-		}
-		out = append(out, model.File{Path: p, Data: data, Mode: info.Mode().Perm()})
-		return nil
-	})
-	return out, err
+		s.Files[i].Data = data
+	}
+	return nil
 }
 func Tags(s *model.Skill) []string {
 	raw := s.Document.Properties["tags"]
@@ -53,5 +37,3 @@ func Tags(s *model.Skill) []string {
 	}
 	return out
 }
-func Owns(s *model.Skill, p string) bool       { return model.OwnsPath(s.Main, s.Root, s.Flat, p) }
-func Relative(s *model.Skill, p string) string { return model.RelativePath(s.Main, s.Root, p) }

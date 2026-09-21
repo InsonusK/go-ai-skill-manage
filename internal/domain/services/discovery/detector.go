@@ -38,7 +38,7 @@ func (d Detector) Discover(ctx context.Context, repo *model.Repository, start st
 		}
 		if !info.IsDir() {
 			if strings.HasSuffix(p, ".skill.md") {
-				s, err := d.make(repo, p, true)
+				s, err := d.make(repo, p, "", model.FlatSkill, info.Mode().Perm(), nil)
 				if err != nil {
 					issues = append(issues, issue("invalid-name", p, err))
 				} else {
@@ -73,6 +73,11 @@ func (d Detector) Discover(ctx context.Context, repo *model.Repository, start st
 	}
 	return out, nil
 }
+
+// Rooted tests whether dir is a directory skill's root. It reads the marker
+// file's own bytes (for frontmatter/name validation) but only the *paths*
+// of every other nested file -- their content is loaded later, by
+// LoadFiles, only for skills that survive tag/subpath filtering.
 func (d Detector) Rooted(ctx context.Context, repo *model.Repository, dir string) (*model.Skill, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -108,6 +113,12 @@ func (d Detector) Rooted(ctx context.Context, repo *model.Repository, dir string
 		}
 	}
 	main := path.Join(dir, markers[0])
+	format := model.AgentDirSkill
+	if markers[0] != "SKILL.md" {
+		format = model.HumanDirSkill
+	}
+	var mainMode fs.FileMode
+	var files []model.File
 	if err := fs.WalkDir(repo.FS, dir, func(p string, e fs.DirEntry, err error) error {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -115,7 +126,18 @@ func (d Detector) Rooted(ctx context.Context, repo *model.Repository, dir string
 		if err != nil {
 			return err
 		}
-		if p == dir || p == main {
+		if e.IsDir() && e.Name() == ".git" {
+			return fs.SkipDir
+		}
+		if p == dir {
+			return nil
+		}
+		if p == main {
+			info, err := e.Info()
+			if err != nil {
+				return err
+			}
+			mainMode = info.Mode().Perm()
 			return nil
 		}
 		rel := strings.TrimPrefix(p, dir+"/")
@@ -134,13 +156,26 @@ func (d Detector) Rooted(ctx context.Context, repo *model.Repository, dir string
 		if !e.IsDir() && (e.Name() == "SKILL.md" || strings.HasSuffix(e.Name(), ".skill.md")) {
 			return fmt.Errorf("nested-skill: %s", p)
 		}
+		if e.IsDir() || e.Name() == model.Marker {
+			return nil
+		}
+		info, err := e.Info()
+		if err != nil {
+			return err
+		}
+		files = append(files, model.File{Path: rel, Mode: info.Mode().Perm()})
 		return nil
 	}); err != nil {
 		return nil, err
 	}
-	return d.make(repo, main, false)
+	return d.make(repo, main, dir, format, mainMode, files)
 }
-func (d Detector) make(repo *model.Repository, main string, flat bool) (*model.Skill, error) {
+
+// make reads the skill's own file (main), validates its frontmatter name,
+// and assembles the Skill -- MainFile carries that file's bytes; files
+// (already collected by Rooted, or nil for a flat skill) carries only paths
+// and modes, content loaded later by LoadFiles.
+func (d Detector) make(repo *model.Repository, main, root string, format model.SkillFormat, mainMode fs.FileMode, files []model.File) (*model.Skill, error) {
 	data, err := fs.ReadFile(repo.FS, main)
 	if err != nil {
 		return nil, err
@@ -153,11 +188,11 @@ func (d Detector) make(repo *model.Repository, main string, flat bool) (*model.S
 	if !ValidName(name) {
 		return nil, fmt.Errorf("invalid-name: %q must use lowercase letters, digits and single/double hyphens", name)
 	}
-	root := path.Dir(main)
-	if flat {
-		root = main
-	}
-	return &model.Skill{Name: name, Main: main, Root: root, Flat: flat, Repo: repo, Document: doc}, nil
+	return &model.Skill{
+		Name: name, Main: main, Root: root, Format: format, Repo: repo, Document: doc,
+		MainFile: model.File{Path: "SKILL.md", Data: data, Mode: mainMode},
+		Files:    files,
+	}, nil
 }
 
 // Find locates the skill owning a path without scanning unrelated siblings.
@@ -180,7 +215,7 @@ func (d Detector) Find(ctx context.Context, repo *model.Repository, p string) (*
 		}
 		if dir == "." {
 			if strings.HasSuffix(p, ".skill.md") {
-				return d.make(repo, p, true)
+				return d.make(repo, p, "", model.FlatSkill, info.Mode().Perm(), nil)
 			}
 			return nil, nil
 		}
