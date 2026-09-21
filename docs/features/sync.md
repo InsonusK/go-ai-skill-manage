@@ -42,43 +42,43 @@ depends_on:
 
 ## Модули
 
-Ссылка на реализацию ведёт к ответственному файлу; test cases — к условиям
-и ожидаемым результатам пакета. В TESTS.md того же пакета указаны реальные
-Gherkin-сценарии и проверки. Общий код тестового запуска — `tools/testsupport`.
+Ссылка на реализацию ведёт к ответственному файлу. Gherkin-сценарии и
+step-определения лежат рядом с пакетом (`features/*.feature`, `test/`).
+Общий код тестового запуска — `tools/testsupport`.
 
-| Единица | Вид | Ответственность и реализация | Зависимости | Test cases |
-| --- | --- | --- | --- | --- |
-| Arguments | Function | [Parse](../../internal/command/arguments.go) — Разбирает аргументы CLI | нет | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
-| ConfigLoader | Service | [Parse](../../internal/config/config.go) — Декодирует конфигурацию с defaults | YAML decoder | [условия](../../internal/config/usecases.md), [сценарии](../../internal/config/TESTS.md) |
-| OptionResolver | Function | [Resolve](../../internal/config/resolve.go) — Вычисляет эффективный запрос | базовый путь и overrides | [условия](../../internal/config/usecases.md), [сценарии](../../internal/config/TESTS.md) |
-| SyncCommand | Command | [App.Execute](../../internal/command/sync.go) — Связывает команду с синхронизацией | чтение конфига, SyncService, output streams | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
-| ResultFormatter | Function | [PrintResult](../../internal/command/format.go) — Представляет план в консоли | io.Writer | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
-| SyncService | Orchestrator | [SyncService.Run](../../internal/domain/services/sync.go) — Координирует стадии одного запуска | SourceCache, RepositoryLookup, SourceSelector, RelationExpander, SyncPlanner, PlanWriter (порты); не управляет временем жизни источников | [условия](../../internal/domain/services/usecases.md), [сценарии](../../internal/domain/services/TESTS.md) |
-| LocalSource | Service | [Local.Acquire](../../internal/infrastructure/repository/local.go) — Открывает локальное дерево, определяет `Repository.SingleFile` | os.Root / fs.FS | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
-| RepositoryFetcher | Service | [Fetcher.Acquire](../../internal/infrastructure/repository/fetch.go) — Предоставляет временную копию репозитория, регистрирует очистку через `Repository.AddCloser` | Cloner, ArchiveFetcher, временная директория | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
-| GitCloner | Service | [GitCloner.Clone / GitProcess.Run](../../internal/infrastructure/repository/git.go) — Получает ветку или тег через Git | ProcessRunner | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
-| ArchiveFetcher | Service | [Archive.Fetch](../../internal/infrastructure/repository/archive.go) — Предоставляет дерево из GitHub tar.gz | HTTPClient, ограниченный файловый корень | [условия](../../internal/infrastructure/repository/usecases.md), [сценарии](../../internal/infrastructure/repository/TESTS.md) |
-| SourceManager | Service | [Manager.GetOrAdd / Lookup / Close](../../internal/domain/services/sourcing/manager.go) — Кеширует `Repository` по `SourceKey`, диспетчеризует по типу, владеет их временем жизни; не выполняет I/O сама, только делегирует зарегистрированным `SourceProvider` | LocalSource, RepositoryFetcher (по типу, через порт) | [условия](../../internal/domain/services/sourcing/usecases.md), [сценарии](../../internal/domain/services/sourcing/TESTS.md) |
-| RepositoryLookup | Port | [Lookup](../../internal/domain/interfaces/ports.go) — Находит уже полученный `Repository` по `ID`; реализован `Manager.Lookup` | нет | [условия](../../internal/domain/services/sourcing/usecases.md), [сценарии](../../internal/domain/services/sourcing/TESTS.md) |
-| SkillDetector | Service | [Detector.Discover / Rooted / Find](../../internal/domain/services/discovery/detector.go) — Распознаёт расположение скила | DocumentCodec, fs.FS | [условия](../../internal/domain/services/discovery/usecases.md), [сценарии](../../internal/domain/services/discovery/TESTS.md) |
-| SourceSelector | Function | [Detector.Select](../../internal/domain/services/discovery/source.go) — Выбирает скилы источника по `SourceSpec`, резолвит scan paths (`scanPaths`) | Detector, TagExpression | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
-| TagExpression | Function | [Match](../../internal/domain/services/tags/tags.go) — Вычисляет фильтр тегов | нет | [условия](../../internal/domain/services/tags/usecases.md), [сценарии](../../internal/domain/services/tags/TESTS.md) |
-| SkillCatalog | Service | [SkillCatalog.GetOrAdd / .Owner / .Destination](../../internal/domain/model/catalog.go) — Разрешает коллизии скилов, индексирует выходные назначения файлов по мере добавления, находит владельца пути | нет | [условия](../../internal/domain/model/usecases.md), [сценарии](../../internal/domain/model/TESTS.md) |
-| FileLoader | Function | [Tags / LoadFiles](../../internal/domain/services/discovery/inventory.go) — Извлекает теги из frontmatter; догружает содержимое вложенных файлов скила, уже прошедшего отбор | fs.FS | [условия](../../internal/command/usecases.md), [сценарии](../../internal/command/TESTS.md) |
-| LinkExtractor | Function | [Extract](../../internal/domain/services/links/extract.go) — Извлекает диапазоны ссылок | нет | [условия](../../internal/domain/services/links/usecases.md), [сценарии](../../internal/domain/services/links/TESTS.md) |
-| LinkExclusion | Function | [Excluded](../../internal/domain/services/links/exclusion.go) — Определяет исключения проверки ссылки | нет | [условия](../../internal/domain/services/links/usecases.md), [сценарии](../../internal/domain/services/links/TESTS.md) |
-| LinkResolver | Function | [Resolve](../../internal/domain/services/links/resolve.go) — Определяет путь адресата | fs.FS, knownOwner predicate | [условия](../../internal/domain/services/links/usecases.md), [сценарии](../../internal/domain/services/links/TESTS.md) |
-| RelationExpander | Service | [Expander.Expand](../../internal/domain/services/relations/expand.go) — Строит замыкание связанных скилов | Detector, SkillCatalog, LinkResolver | [условия](../../internal/domain/services/relations/usecases.md), [сценарии](../../internal/domain/services/relations/TESTS.md) |
-| OutputLayout | Function | [BuildLayout](../../internal/domain/services/planning/layout.go) — Назначает выходные пути | SkillCatalog, RepositoryLookup (для внешних вложений) | [условия](../../internal/domain/services/planning/usecases.md), [сценарии](../../internal/domain/services/planning/TESTS.md) |
-| LinkRewriter | Function | [Rewrite](../../internal/domain/services/transform/links.go) — Заменяет адреса ссылок по layout | нет | [условия](../../internal/domain/services/transform/usecases.md), [сценарии](../../internal/domain/services/transform/TESTS.md) |
-| ClaudeTransformer | Function | [Claude](../../internal/domain/services/transform/claude.go) — Преобразует свойства Claude | нет | [условия](../../internal/domain/services/transform/usecases.md), [сценарии](../../internal/domain/services/transform/TESTS.md) |
-| Fingerprint | Function | [Fingerprint](../../internal/domain/services/planning/fingerprint.go) — Вычисляет отпечаток результата | готовые OutputFile | [условия](../../internal/domain/services/planning/usecases.md), [сценарии](../../internal/domain/services/planning/TESTS.md) |
-| SyncPlanner | Service | [Planner.Plan](../../internal/domain/services/planning/planner.go) — Определяет операции обновления цели | SkillCatalog, RepositoryLookup, StateReader, DocumentCodec, OutputLayout, преобразования | [условия](../../internal/domain/services/planning/usecases.md), [сценарии](../../internal/domain/services/planning/TESTS.md) |
-| PlanApplier | Service | [Store.Apply](../../internal/infrastructure/filesystem/apply.go) — Применяет готовый план | os.Root | [условия](../../internal/infrastructure/filesystem/usecases.md), [сценарии](../../internal/infrastructure/filesystem/TESTS.md) |
-| StateReader | Service | [Store.Snapshot](../../internal/infrastructure/filesystem/store.go) — Читает управляемое состояние цели | os.Root | [условия](../../internal/infrastructure/filesystem/usecases.md), [сценарии](../../internal/infrastructure/filesystem/TESTS.md) |
-| FrontmatterCodec | Service | [Codec.Decode / Encode](../../internal/infrastructure/document/codec.go) — Преобразует frontmatter в модель | YAML codec | [условия](../../internal/infrastructure/document/usecases.md), [сценарии](../../internal/infrastructure/document/TESTS.md) |
-| Logging | Function | [Init](../../internal/logging/logger.go) — Настраивает process logger | stderr writer, debug option | [условия](../../internal/logging/usecases.md), [сценарии](../../internal/logging/TESTS.md) |
-| Profiling | Function | [Start](../../internal/profiling/profile.go) — Управляет CPU profile | runtime/pprof, файл | [условия](../../internal/profiling/usecases.md), [сценарии](../../internal/profiling/TESTS.md) |
+| Единица | Вид | Ответственность и реализация | Зависимости |
+| --- | --- | --- | --- |
+| Arguments | Function | [Parse](../../internal/command/arguments.go) — Разбирает аргументы CLI | нет |
+| ConfigLoader | Service | [Parse](../../internal/config/config.go) — Декодирует конфигурацию с defaults | YAML decoder |
+| OptionResolver | Function | [Resolve](../../internal/config/resolve.go) — Вычисляет эффективный запрос | базовый путь и overrides |
+| SyncCommand | Command | [App.Execute](../../internal/command/sync.go) — Связывает команду с синхронизацией | чтение конфига, SyncService, output streams |
+| ResultFormatter | Function | [PrintResult](../../internal/command/format.go) — Представляет план в консоли | io.Writer |
+| SyncService | Orchestrator | [SyncService.Run](../../internal/domain/services/sync.go) — Координирует стадии одного запуска | SourceCache, RepositoryLookup, SourceSelector, RelationExpander, SyncPlanner, PlanWriter (порты); не управляет временем жизни источников |
+| LocalSource | Service | [Local.Acquire](../../internal/infrastructure/repository/local.go) — Открывает локальное дерево, определяет `Repository.SingleFile` | os.Root / fs.FS |
+| RepositoryFetcher | Service | [Fetcher.Acquire](../../internal/infrastructure/repository/fetch.go) — Предоставляет временную копию репозитория, регистрирует очистку через `Repository.AddCloser` | Cloner, ArchiveFetcher, временная директория |
+| GitCloner | Service | [GitCloner.Clone / GitProcess.Run](../../internal/infrastructure/repository/git.go) — Получает ветку или тег через Git | ProcessRunner |
+| ArchiveFetcher | Service | [Archive.Fetch](../../internal/infrastructure/repository/archive.go) — Предоставляет дерево из GitHub tar.gz | HTTPClient, ограниченный файловый корень |
+| SourceManager | Service | [Manager.GetOrAdd / Lookup / Close](../../internal/domain/services/sourcing/manager.go) — Кеширует `Repository` по `SourceKey`, диспетчеризует по типу, владеет их временем жизни; не выполняет I/O сама, только делегирует зарегистрированным `SourceProvider` | LocalSource, RepositoryFetcher (по типу, через порт) |
+| RepositoryLookup | Port | [Lookup](../../internal/domain/interfaces/ports.go) — Находит уже полученный `Repository` по `ID`; реализован `Manager.Lookup` | нет |
+| SkillDetector | Service | [Detector.Discover / Rooted / Find](../../internal/domain/services/discovery/detector.go) — Распознаёт расположение скила | DocumentCodec, fs.FS |
+| SourceSelector | Function | [Detector.Select](../../internal/domain/services/discovery/source.go) — Выбирает скилы источника по `SourceSpec`, резолвит scan paths (`scanPaths`) | Detector, TagExpression |
+| TagExpression | Function | [Match](../../internal/domain/services/tags/tags.go) — Вычисляет фильтр тегов | нет |
+| SkillCatalog | Service | [SkillCatalog.GetOrAdd / .Owner / .Destination](../../internal/domain/model/catalog.go) — Разрешает коллизии скилов, индексирует выходные назначения файлов по мере добавления, находит владельца пути | нет |
+| FileLoader | Function | [Tags / LoadFiles](../../internal/domain/services/discovery/inventory.go) — Извлекает теги из frontmatter; догружает содержимое вложенных файлов скила, уже прошедшего отбор | fs.FS |
+| LinkExtractor | Function | [Extract](../../internal/domain/services/links/extract.go) — Извлекает диапазоны ссылок | нет |
+| LinkExclusion | Function | [Excluded](../../internal/domain/services/links/exclusion.go) — Определяет исключения проверки ссылки | нет |
+| LinkResolver | Function | [Resolve](../../internal/domain/services/links/resolve.go) — Определяет путь адресата | fs.FS, knownOwner predicate |
+| RelationExpander | Service | [Expander.Expand](../../internal/domain/services/relations/expand.go) — Строит замыкание связанных скилов | Detector, SkillCatalog, LinkResolver |
+| OutputLayout | Function | [BuildLayout](../../internal/domain/services/planning/layout.go) — Назначает выходные пути | SkillCatalog, RepositoryLookup (для внешних вложений) |
+| LinkRewriter | Function | [Rewrite](../../internal/domain/services/transform/links.go) — Заменяет адреса ссылок по layout | нет |
+| ClaudeTransformer | Function | [Claude](../../internal/domain/services/transform/claude.go) — Преобразует свойства Claude | нет |
+| Fingerprint | Function | [Fingerprint](../../internal/domain/services/planning/fingerprint.go) — Вычисляет отпечаток результата | готовые OutputFile |
+| SyncPlanner | Service | [Planner.Plan](../../internal/domain/services/planning/planner.go) — Определяет операции обновления цели | SkillCatalog, RepositoryLookup, StateReader, DocumentCodec, OutputLayout, преобразования |
+| PlanApplier | Service | [Store.Apply](../../internal/infrastructure/filesystem/apply.go) — Применяет готовый план | os.Root |
+| StateReader | Service | [Store.Snapshot](../../internal/infrastructure/filesystem/store.go) — Читает управляемое состояние цели | os.Root |
+| FrontmatterCodec | Service | [Codec.Decode / Encode](../../internal/infrastructure/document/codec.go) — Преобразует frontmatter в модель | YAML codec |
+| Logging | Function | [Init](../../internal/logging/logger.go) — Настраивает process logger | stderr writer, debug option |
+| Profiling | Function | [Start](../../internal/profiling/profile.go) — Управляет CPU profile | runtime/pprof, файл |
 
 ### Модели, порты, composition root
 

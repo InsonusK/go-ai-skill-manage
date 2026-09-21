@@ -16,7 +16,7 @@ HTTP-адаптер заменён командой CLI по запросу по
 | A: adapters | Файловые, Git/HTTP и YAML детали сосредоточены в infrastructure; тесты используют временные каталоги, fake Runner, локальный HTTP |
 | L: logging | `solution-go-app-logging`: единственная настройка slog.SetDefault в logging.Init; debug выключен; logger не хранится в доменном сервисе |
 | T: tests | `solution-go-conformance-testing`: godog, один TestFeatures на пакет, features рядом, context у шагов, ожидаемые данные в сценариях |
-| Q: assertions | `no-test-theater`: проверяются файлы/байты/состояние/ошибки/вызовы; TESTS.md связывает сценарии с реализацией |
+| Q: assertions | `no-test-theater`: проверяются файлы/байты/состояние/ошибки/вызовы |
 | U: tools | Четыре стандартные Make-цели; coverage всегда; нормализованные JSON, native reports, public; исключены tools/gen/test/сторонние примеры |
 
 Архитектурный Gherkin-сценарий разбирает Go AST: проверяет импорты всего
@@ -50,14 +50,12 @@ Detector/Catalog и прямое поле logger в SyncService. Дополни�
 | [cmd/ai-skill-manager/main.go](../../cmd/ai-skill-manager/main.go) | R, C, L | проверен |
 | [internal/command/arguments.go](../../internal/command/arguments.go) | I, R | проверен |
 | [internal/command/configuration.go](../../internal/command/configuration.go) | I, R | проверен |
-| [internal/command/doc.go](../../internal/command/doc.go) | I, R | проверен |
 | [internal/command/format.go](../../internal/command/format.go) | I, R | проверен |
 | [internal/command/sync.go](../../internal/command/sync.go) | I, R | проверен |
 | [internal/command/test/arguments_steps_test.go](../../internal/command/test/arguments_steps_test.go) | T, Q | проверен |
 | [internal/command/test/command_steps_test.go](../../internal/command/test/command_steps_test.go) | T, Q | проверен |
 | [internal/command/test/runner_test.go](../../internal/command/test/runner_test.go) | T, Q | проверен |
 | [internal/config/config.go](../../internal/config/config.go) | R, I | проверен |
-| [internal/config/doc.go](../../internal/config/doc.go) | R, I | проверен |
 | [internal/config/resolve.go](../../internal/config/resolve.go) | R, I | проверен |
 | [internal/config/source.go](../../internal/config/source.go) | R, I | проверен |
 | [internal/config/targets.go](../../internal/config/targets.go) | R, I | проверен |
@@ -69,25 +67,20 @@ Detector/Catalog и прямое поле logger в SyncService. Дополни�
 | [internal/domain/model/model.go](../../internal/domain/model/model.go) | D, P | проверен |
 | [internal/domain/services/discovery/catalog.go](../../internal/domain/services/discovery/catalog.go) | D, P | проверен |
 | [internal/domain/services/discovery/detector.go](../../internal/domain/services/discovery/detector.go) | D, P | проверен |
-| [internal/domain/services/discovery/doc.go](../../internal/domain/services/discovery/doc.go) | D, P | проверен |
 | [internal/domain/services/discovery/inventory.go](../../internal/domain/services/discovery/inventory.go) | D, P | проверен |
 | [internal/domain/services/discovery/source.go](../../internal/domain/services/discovery/source.go) | D, P | проверен |
 | [internal/domain/services/discovery/test/discovery_steps_test.go](../../internal/domain/services/discovery/test/discovery_steps_test.go) | T, Q | проверен |
 | [internal/domain/services/discovery/test/runner_test.go](../../internal/domain/services/discovery/test/runner_test.go) | T, Q | проверен |
-| [internal/domain/services/doc.go](../../internal/domain/services/doc.go) | D, P | проверен |
-| [internal/domain/services/links/doc.go](../../internal/domain/services/links/doc.go) | D, P | проверен |
 | [internal/domain/services/links/exclusion.go](../../internal/domain/services/links/exclusion.go) | D, P | проверен |
 | [internal/domain/services/links/extract.go](../../internal/domain/services/links/extract.go) | D, P | проверен |
 | [internal/domain/services/links/resolve.go](../../internal/domain/services/links/resolve.go) | D, P | проверен |
 | [internal/domain/services/links/test/links_steps_test.go](../../internal/domain/services/links/test/links_steps_test.go) | T, Q | проверен |
 | [internal/domain/services/links/test/runner_test.go](../../internal/domain/services/links/test/runner_test.go) | T, Q | проверен |
-| [internal/domain/services/planning/doc.go](../../internal/domain/services/planning/doc.go) | D, P | проверен |
 | [internal/domain/services/planning/fingerprint.go](../../internal/domain/services/planning/fingerprint.go) | D, P | проверен |
 | [internal/domain/services/planning/layout.go](../../internal/domain/services/planning/layout.go) | D, P | проверен |
 | [internal/domain/services/planning/planner.go](../../internal/domain/services/planning/planner.go) | D, P | проверен |
 | [internal/domain/services/planning/test/planning_steps_test.go](../../internal/domain/services/planning/test/planning_steps_test.go) | T, Q | проверен |
 | [internal/domain/services/planning/test/runner_test.go](../../internal/domain/services/planning/test/runner_test.go) | T, Q | проверен |
-| [internal/domain/services/relations/doc.go](../../internal/domain/services/relations/doc.go) | D, P | проверен |
 | [internal/domain/services/relations/expand.go](../../internal/domain/services/relations/expand.go) | D, P | проверен |
 | [internal/domain/services/relations/test/relations_steps_test.go](../../internal/domain/services/relations/test/relations_steps_test.go) | T, Q | проверен |
 | [internal/domain/services/relations/test/runner_test.go](../../internal/domain/services/relations/test/runner_test.go) | T, Q | проверен |
@@ -99,21 +92,17 @@ Detector/Catalog и прямое поле logger в SyncService. Дополни�
 | [internal/domain/services/test/runner_test.go](../../internal/domain/services/test/runner_test.go) | T, Q | проверен |
 | [internal/domain/services/test/sync_steps_test.go](../../internal/domain/services/test/sync_steps_test.go) | T, Q | проверен |
 | [internal/domain/services/transform/claude.go](../../internal/domain/services/transform/claude.go) | D, P | проверен |
-| [internal/domain/services/transform/doc.go](../../internal/domain/services/transform/doc.go) | D, P | проверен |
 | [internal/domain/services/transform/links.go](../../internal/domain/services/transform/links.go) | D, P | проверен |
 | [internal/domain/services/transform/test/runner_test.go](../../internal/domain/services/transform/test/runner_test.go) | T, Q | проверен |
 | [internal/domain/services/transform/test/transform_steps_test.go](../../internal/domain/services/transform/test/transform_steps_test.go) | T, Q | проверен |
 | [internal/infrastructure/document/codec.go](../../internal/infrastructure/document/codec.go) | A, P | проверен |
-| [internal/infrastructure/document/doc.go](../../internal/infrastructure/document/doc.go) | A, P | проверен |
 | [internal/infrastructure/document/test/document_steps_test.go](../../internal/infrastructure/document/test/document_steps_test.go) | T, Q | проверен |
 | [internal/infrastructure/document/test/runner_test.go](../../internal/infrastructure/document/test/runner_test.go) | T, Q | проверен |
 | [internal/infrastructure/filesystem/apply.go](../../internal/infrastructure/filesystem/apply.go) | A, P | проверен |
-| [internal/infrastructure/filesystem/doc.go](../../internal/infrastructure/filesystem/doc.go) | A, P | проверен |
 | [internal/infrastructure/filesystem/store.go](../../internal/infrastructure/filesystem/store.go) | A, P | проверен |
 | [internal/infrastructure/filesystem/test/filesystem_steps_test.go](../../internal/infrastructure/filesystem/test/filesystem_steps_test.go) | T, Q | проверен |
 | [internal/infrastructure/filesystem/test/runner_test.go](../../internal/infrastructure/filesystem/test/runner_test.go) | T, Q | проверен |
 | [internal/infrastructure/repository/archive.go](../../internal/infrastructure/repository/archive.go) | A, P | проверен |
-| [internal/infrastructure/repository/doc.go](../../internal/infrastructure/repository/doc.go) | A, P | проверен |
 | [internal/infrastructure/repository/fetch.go](../../internal/infrastructure/repository/fetch.go) | A, P | проверен |
 | [internal/infrastructure/repository/git.go](../../internal/infrastructure/repository/git.go) | A, P | проверен |
 | [internal/infrastructure/repository/local.go](../../internal/infrastructure/repository/local.go) | A, P | проверен |
