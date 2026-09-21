@@ -76,15 +76,21 @@ tools/                           нормализация отчётов и ге
 скила, файла и ссылки. CLI определяет их представление и exit code.
 Глобальное изменяемое состояние не используется для настроек, очередей или кешей.
 
-`Catalog` (набор выбранных скилов и политика конфликта) объявлен в `domain/model`,
-а не в `domain/services/discovery`: `domain/interfaces` должен ссылаться на его тип
-в сигнатурах портов `SourceSelector`/`RelationExpander`/`SyncPlanner`, а `discovery`
-уже зависит от `interfaces` (через `DocumentCodec`) — оставление `Catalog` в `discovery`
-создало бы цикл `interfaces → discovery → interfaces`. Поведение (`Add`, `Owner`) —
-методы самого `model.Catalog`, а не свободные функции в `discovery`: обе операции
-используют только то, что уже есть в `model` (`Skill.Key`, `Issue`, примитив
-`OwnsPath`), без единой зависимости на `discovery` — держать их отдельно от типа,
-которым они управляют, не давало ничего, кроме лишнего косвенного вызова.
+`SkillCatalog` (набор выбранных скилов, политика конфликта и индекс выходных
+назначений) объявлен в `domain/model`, а не в `domain/services/discovery`:
+`domain/interfaces` должен ссылаться на его тип в сигнатурах портов
+`SourceSelector`/`RelationExpander`/`SyncPlanner`, а `discovery` уже зависит от
+`interfaces` (через `DocumentCodec`) — оставление `SkillCatalog` в `discovery`
+создало бы цикл `interfaces → discovery → interfaces`. Поведение (`GetOrAdd`,
+`Owner`, `Destination`) — методы самого `model.SkillCatalog`, а не свободные
+функции в `discovery`: все три используют только то, что уже есть в `model`
+(`Skill.Key`, `Issue`, примитивы `OwnsPath`/`RelativePath`), без единой
+зависимости на `discovery` — держать их отдельно от типа, которым они
+управляют, не давало ничего, кроме лишнего косвенного вызова. `GetOrAdd`
+индексирует выходные назначения (главный файл, вложенные файлы, алиас корня
+для directory-скила) сразу при добавлении, так что назначения не требуют
+отдельного построения после того, как `RelationExpander` перестаёт расширять
+каталог.
 
 `Repository` хранит только идентичность источника (`ID`, `Root`, `FS`, `SingleFile`,
 `SkipFolders`) — ничего, что зависит от того, *какой* `SourceSpec` его запросил.
@@ -156,12 +162,17 @@ tools/                           нормализация отчётов и ге
     (никаких прямых зависимостей от `os/exec`/`net/http`/файловой системы —
     только делегирование инфраструктурным реализациям порта).
   - usage_scenario: несколько `sources:` с одинаковым источником, но разными
-    `subpath`/`tags`, скачиваются один раз; `Close(ctx)` закрывает каждый полученный
-    `Repository` в порядке, обратном получению. Владеет временем жизни источников
-    вместо `SyncService.Run` — создаётся и закрывается в `main` (`defer sources.Close(ctx)`).
-    Живёт в `domain/services/sourcing`, а не в `infrastructure/repository`: сам он
-    не выполняет I/O, только оркестрирует кеш поверх инъецированного порта — как и
-    `discovery`/`relations`/`planning` рядом с ним.
+    `subpath`/`tags`, скачиваются один раз через `GetOrAdd`; `Close(ctx)` закрывает
+    каждый полученный `Repository` в порядке, обратном получению. Владеет временем
+    жизни источников вместо `SyncService.Run` — создаётся и закрывается в `main`
+    (`defer sources.Close(ctx)`). Живёт в `domain/services/sourcing`, а не в
+    `infrastructure/repository`: сам он не выполняет I/O, только оркестрирует кеш
+    поверх инъецированного порта — как и `discovery`/`relations`/`planning` рядом
+    с ним. Метод называется `GetOrAdd`, а не `Acquire`: `SkillCatalog` использует
+    то же имя для «вставить или вернуть существующее», и это единственный из портов
+    источника, у которого вообще есть кеш — `Local`/`Fetcher` остаются на `Acquire`
+    (`interfaces.SourceProvider`), а `Manager` реализует отдельный порт
+    `interfaces.SourceCache`, которым типизирован `SyncService.Sources`.
 - **GitCloner** (Service), `infrastructure/repository`.
   - responsibility: получает выбранную ветку или тег через Git.
   - depends_on: запуск процесса с context.
@@ -184,18 +195,26 @@ tools/                           нормализация отчётов и ге
   - depends_on: нет.
   - usage_scenario: фильтрует кандидатов по `!`, `&`, `|`, скобкам,
     иерархическим тегам и поддерживаемым исходной реализацией wildcard-правилам.
-- **SkillCatalog** (Service), `Catalog.Add`/`Catalog.Owner` в `domain/model`.
-  - responsibility: разрешает коллизии имён в наборе найденных скилов; находит
-    скил, владеющий путём внутри своего репозитория.
+- **SkillCatalog** (Service), `SkillCatalog.GetOrAdd`/`.Owner`/`.Destination` в `domain/model`.
+  - responsibility: разрешает коллизии имён в наборе найденных скилов; индексирует
+    выходное назначение каждого файла скила по мере добавления; находит скил,
+    владеющий путём внутри своего репозитория, или готовое выходное назначение
+    для исходного пути.
   - depends_on: нет внешних зависимостей.
-  - usage_scenario: `Add` объединяет кандидатов с учётом выбранной политики
-    конфликта, повтор того же скила не создаёт дубль; `Owner` используется
-    `RelationExpander` при раскрытии связей.
-- **FileInventory** (Service), `domain/services/discovery`.
-  - responsibility: определяет собственные файлы скила.
+  - usage_scenario: `GetOrAdd` объединяет кандидатов с учётом выбранной политики
+    конфликта (повтор того же скила не создаёт дубль; `last_wins` переиндексирует
+    назначения под новый источник), индексируя главный файл, вложенные файлы и,
+    для directory-скила, алиас корня на `SKILL.md`; `Owner` и `Destination`
+    используются `RelationExpander` и `OutputLayout` соответственно.
+- **FileLoader** (Function), `domain/services/discovery` (`inventory.go`).
+  - responsibility: извлекает теги скила из frontmatter; догружает содержимое
+    вложенных файлов скила, уже прошедшего отбор по тегам/subpath.
   - depends_on: чтение дерева.
-  - usage_scenario: возвращает относительные пути и типы файлов для анализа,
-    копирования и вычисления отпечатка содержимого.
+  - usage_scenario: `Tags` используется `SourceSelector.Select` для фильтрации
+    кандидатов; `LoadFiles` вызывается только для скилов, которые останутся в
+    `SkillCatalog` (из `SyncService.Run` после `Select`, и из `RelationExpander`
+    после того, как связанный скил найден `Detector.Find`) — так вложённые байты
+    отброшенного тегами кандидата никогда не читаются.
 - **RepositoryLookup** (Port), `domain/interfaces`, реализация — `Manager.Lookup`
   в `domain/services/sourcing`.
   - responsibility: находит уже полученный `Repository` по его `ID`, без нового
@@ -204,15 +223,8 @@ tools/                           нормализация отчётов и ге
     репозиториям).
   - usage_scenario: `OutputLayout` знает только `repoID` (из `Link.Target`) и
     вызывает `Lookup`, чтобы прочитать содержимое внешнего вложения — того же
-    `sourcing.Manager`, что уже используется как `SourceProvider`, без отдельного
+    `sourcing.Manager`, что уже используется как `SourceCache`, без отдельного
     реестра. `SyncService.Lookup` указывает на тот же экземпляр, что и `Sources`.
-- **SkillMap** (Function), тип `domain/model`, построение `domain/services/discovery`.
-  - responsibility: итоговый реестр «имя скила → источник → исходный путь →
-    выходной путь», построенный один раз.
-  - depends_on: `Catalog`.
-  - usage_scenario: `discovery.BuildSkillMap` вызывается один раз после
-    `RelationExpander.Expand`; `OutputLayout` переиспользует один и тот же
-    `SkillMap` для каждой цели вместо повторного обхода каталога.
 - **LinkExtractor** (Function), `domain/services/links`.
   - responsibility: извлекает ссылки с позициями в исходном тексте.
   - depends_on: нет.
@@ -236,10 +248,10 @@ tools/                           нормализация отчётов и ге
     `SyncService` через порт `interfaces.RelationExpander`.
 - **OutputLayout** (Function), `domain/services/planning`.
   - responsibility: назначает выходные пути файлам синхронизации.
-  - depends_on: `Catalog`, `SkillMap`, `RepositoryLookup` (для содержимого внешних вложений).
+  - depends_on: `SkillCatalog`, `RepositoryLookup` (для содержимого внешних вложений).
   - usage_scenario: отображает входные скилы в `{name}/SKILL.md`, назначает пути
     вложениям и внешним файлам, сообщает о коллизиях выходных путей. Читает
-    готовые назначения из `SkillMap.Destinations()` вместо повторного обхода
+    готовые назначения из `SkillCatalog.Destinations()` вместо повторного обхода
     каталога на каждую цель.
 - **LinkRewriter** (Function), `domain/services/transform`.
   - responsibility: заменяет адреса разрешённых ссылок на выходные пути.
@@ -258,7 +270,7 @@ tools/                           нормализация отчётов и ге
     позволяет обнаружить изменение файла, имени, внешнего вложения или адаптера.
 - **SyncPlanner** (Service), `domain/services/planning`.
   - responsibility: определяет набор изменений каждой цели.
-  - depends_on: `Catalog`, `SkillMap`, `RepositoryLookup`, чтение состояния цели,
+  - depends_on: `SkillCatalog`, `RepositoryLookup`, чтение состояния цели,
     подготовка выходных документов.
   - usage_scenario: выдаёт операции create/update/skip/remove с причинами;
     учитывает force, managed-маркеры и политику orphan; переписывает ссылки
@@ -359,7 +371,7 @@ coverage собирается обязательно, целевой порог 
 | Config | YAML/JSON и флаги Python-контракта вместо HTTP environment settings |
 | Logging | slog, info по умолчанию, debug через флаг; настройка до создания адаптеров |
 | Signals | SIGINT/SIGTERM отменяют context операций Git/HTTP/применения |
-| Domain ports | SourceProvider, DocumentCodec, StateReader, PlanWriter, SourceSelector, RelationExpander, SyncPlanner; fs.FS для bounded source tree |
+| Domain ports | SourceProvider, SourceCache, RepositoryLookup, DocumentCodec, StateReader, PlanWriter, SourceSelector, RelationExpander, SyncPlanner; fs.FS для bounded source tree |
 | Pure transformations | tags/transform не выполняют файловые или сетевые операции |
 | Conformance testing | godog рядом с пакетами, coverage >=80%, mutation и public reports |
 | Runtime | Одноразовый CLI; сервер, health endpoint, HTTP shutdown и порты не требуются |
@@ -375,21 +387,21 @@ coverage собирается обязательно, целевой порог 
 - `Repository.FS` ограничен корнем источника; внутренние пути используют `/`.
 - `Skill.Key` и `Link.Target` включают идентификатор репозитория, поэтому
   одинаковые относительные пути разных источников не смешиваются.
-- `SkillMap` строится один раз за запуск, сразу после `RelationExpander.Expand`,
-  и переиспользуется без изменений для каждой цели; `OutputLayout` расширяет свою
-  копию `SkillMap.Destinations()` путями внешних вложений конкретной цели, не
-  трогая общий `SkillMap`.
+- `SkillCatalog` индексирует выходные назначения инкрементально, в самом
+  `GetOrAdd` — отдельного шага построения после `RelationExpander.Expand` не
+  требуется; `OutputLayout` расширяет свою копию `SkillCatalog.Destinations()`
+  путями внешних вложений конкретной цели, не трогая общий каталог.
 - `Skill.Files` содержит snapshot входных байтов; план хранит готовые выходные
   байты. PlanApplier не вычисляет бизнес-правила и не читает исходный каталог.
 - `StateReader` сообщает наличие, ownership, hash/version и наличие SKILL.md.
 - `Repository` сам владеет своей очисткой (`Close`, накапливает `closers` через
   `AddCloser`) вместо того, чтобы `SourceProvider.Acquire` возвращал отдельную
-  функцию очистки. `sourcing.Manager` кеширует `*Repository` по `SourceKey` и
-  закрывает каждый в `Close(ctx)`, в порядке, обратном получению; владеет этим
-  временем жизни вызывающий код (`main`), не `SyncService.Run`. Тот же экземпляр
-  реализует `RepositoryLookup.Lookup` (поиск по `Repository.ID` вместо повторного
-  `Acquire` по `SourceKey`) — отдельного реестра вроде `SourceMap` для этого
-  больше не требуется.
+  функцию очистки. `sourcing.Manager` кеширует `*Repository` по `SourceKey` (через
+  `GetOrAdd`) и закрывает каждый в `Close(ctx)`, в порядке, обратном получению;
+  владеет этим временем жизни вызывающий код (`main`), не `SyncService.Run`. Тот
+  же экземпляр реализует `RepositoryLookup.Lookup` (поиск по `Repository.ID`
+  вместо повторного `GetOrAdd` по `SourceKey`) — отдельного реестра вроде
+  `SourceMap` для этого больше не требуется.
 - Сначала строятся все планы; затем выполняется применение. Общей транзакции
   между целями нет. Замена каждого скила использует staging и backup rename.
 
@@ -405,6 +417,6 @@ coverage собирается обязательно, целевой порог 
 - [Совместимость и осознанные отличия](compatibility.md).
 - [Проверка архитектуры по файлам](audit.md).
 - [Диаграммы потока данных sync](diagrams.md) — Mermaid-схемы порядка вызовов
-  и контрактов RepositoryLookup/SkillMap, дополняющие автогенерируемый граф пакетов.
+  и контрактов RepositoryLookup/SkillCatalog, дополняющие автогенерируемый граф пакетов.
 - Генератор диаграмм включён в репозиторий, внешняя установка не требуется.
 - Пользовательский `ai-skills.yaml` и исходная Python-реализация сохранены.

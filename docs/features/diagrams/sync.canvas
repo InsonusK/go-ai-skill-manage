@@ -363,13 +363,6 @@
       "toSide": "left"
     },
     {
-      "id": "internal/domain/services/planning-\u003einternal/domain/services/discovery",
-      "fromNode": "internal/domain/services/planning",
-      "fromSide": "right",
-      "toNode": "internal/domain/services/discovery",
-      "toSide": "left"
-    },
-    {
       "id": "internal/domain/services/planning-\u003einternal/domain/services/transform",
       "fromNode": "internal/domain/services/planning",
       "fromSide": "right",
