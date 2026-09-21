@@ -8,7 +8,7 @@
                 - input: a skill rooted at "<root>" main "<main>" flat "<flat>"; значения и таблицы в сценарии
                 - output: результат OwnsPath и RelativePath
                 - expected_result: ``path "<path>" is owned "<owned>" and relative is "<relative>"``
-    - SkillCatalog.GetOrAdd, SkillCatalog.Owner, SkillCatalog.Destination
+    - SkillCatalog.GetOrAdd, SkillCatalog.Owner, SkillCatalog.Destination, SkillCatalog.Destinations
         - Contract
             - WHEN_Re-adding_the_same_skill_is_a_no-op_THEN_declared_result
                 - description: [Re-adding the same skill is a no-op](features/catalog.feature)
@@ -40,3 +40,13 @@
                 - input: a catalog with conflict policy "last_wins"; I add skill "a" из двух разных repo с тем же main
                 - output: старый индекс destination снят, новый проиндексирован под новым repoID
                 - expected_result: ``catalog destination of "other" path "a/SKILL.md" is "a" at "a/SKILL.md"``
+            - WHEN_The_directory_root_alias_is_actually_indexed_not_only_fallback-resolved_THEN_declared_result
+                - description: [The directory root alias is actually indexed, not only fallback-resolved](features/catalog.feature)
+                - input: a catalog with conflict policy "error"; I add skill "guide" from repo "repo" main "a/SKILL.md" with files "notes.md"
+                - output: `Destinations()` содержит запись для корня скила, а не только `Destination`'s OwnsPath/RelativePath fallback
+                - expected_result: ``catalog destinations map has "repo" "a" pointing to "guide/SKILL.md"``
+            - WHEN_last_wins_removes_the_old_skills_indexed_root_alias_too_THEN_declared_result
+                - description: [last_wins removes the old skill's indexed root alias too](features/catalog.feature)
+                - input: a catalog with conflict policy "last_wins"; I add skill "a" из двух разных repo с тем же main
+                - output: `deindex` снимает и запись главного файла, и алиас корня старого скила из `dest`
+                - expected_result: ``catalog destinations map has no entry for "repo" "a"``

@@ -60,6 +60,20 @@ func initialize(sc *godog.ScenarioContext) {
 		}
 		return nil
 	})
+	sc.Step(`^catalog destinations map has "([^"]*)" "([^"]*)" pointing to "([^"]*)"$`, func(ctx context.Context, repo, p, dest string) error {
+		all := catalog.Destinations()
+		got, ok := all[model.OriginalKey(repo, p)]
+		if !ok {
+			return fmt.Errorf("destinations map missing entry for %s %s", repo, p)
+		}
+		return testsupport.Equal(got, dest)
+	})
+	sc.Step(`^catalog destinations map has no entry for "([^"]*)" "([^"]*)"$`, func(ctx context.Context, repo, p string) error {
+		if _, ok := catalog.Destinations()[model.OriginalKey(repo, p)]; ok {
+			return fmt.Errorf("expected no destinations map entry for %s %s", repo, p)
+		}
+		return nil
+	})
 	sc.Step(`^catalog error contains "([^"]*)"$`, func(ctx context.Context, want string) error {
 		if want == "" {
 			return catalogErr

@@ -12,5 +12,7 @@
 | [Owner finds the skill owning a path inside its root](features/catalog.feature) | `SkillCatalog.Owner` | ``catalog owner of "repo" path "a/guide.md" is "a"`` | passed |
 | [GetOrAdd indexes a skill's own and nested file destinations](features/catalog.feature) | `SkillCatalog.GetOrAdd, SkillCatalog.Destination` | ``catalog destination of "repo" path "a/notes.md" is "guide" at "guide/notes.md"`` | passed |
 | [last_wins re-indexes destinations onto the newer skill's source](features/catalog.feature) | `SkillCatalog.GetOrAdd, SkillCatalog.Destination` | ``catalog destination of "other" path "a/SKILL.md" is "a" at "a/SKILL.md"`` | passed |
+| [The directory root alias is actually indexed, not only fallback-resolved](features/catalog.feature) | `SkillCatalog.GetOrAdd, SkillCatalog.Destinations` | ``catalog destinations map has "repo" "a" pointing to "guide/SKILL.md"`` | passed |
+| [last_wins removes the old skill's indexed root alias too](features/catalog.feature) | `SkillCatalog.GetOrAdd, SkillCatalog.Destinations` | ``catalog destinations map has no entry for "repo" "a"`` | passed |
 
 [Условия вызовов](usecases.md) · [Step definitions](test/) · [Общие правила запуска](../../../docs/testing.md)
