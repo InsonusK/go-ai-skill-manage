@@ -14,12 +14,12 @@ type Expander struct{ Detector discovery.Detector }
 func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalog, add bool, skip []string) error {
 	processed := map[string]bool{}
 	var issues model.Issues
-	scan := func(s *model.Skill, f *model.File, repoPath string) {
+	scan := func(s *model.Skill, f *model.File, repoPath string, data []byte) {
 		if !strings.HasSuffix(strings.ToLower(f.Path), ".md") {
 			return
 		}
-		for _, link := range links.Extract(string(f.Data)) {
-			if links.Excluded(string(f.Data), f.Path, link, skip) {
+		for _, link := range links.Extract(string(data)) {
+			if links.Excluded(string(data), f.Path, link, skip) {
 				continue
 			}
 			resolved, err := links.Resolve(s.Repo, repoPath, link.Path, func(p string) bool { return cat.Owner(ctx, s.Repo.ID, p) != nil })
@@ -29,8 +29,6 @@ func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalog, add bool,
 				if err == nil && candidate != nil {
 					if !add {
 						err = model.Problem("unselected-skill", candidate.Name)
-					} else if lerr := discovery.LoadFiles(candidate); lerr != nil {
-						err = lerr
 					} else {
 						err = cat.GetOrAdd(ctx, candidate)
 					}
@@ -58,9 +56,18 @@ func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalog, add bool,
 			continue
 		}
 		processed[s.Key()] = true
-		scan(s, &s.MainFile, s.Main)
+		scan(s, &s.MainFile, s.Main, s.MainFile.Data)
 		for fi := range s.Files {
-			scan(s, &s.Files[fi], model.NestedRepoPath(s.Root, s.Files[fi].Path))
+			f := &s.Files[fi]
+			if !strings.HasSuffix(strings.ToLower(f.Path), ".md") {
+				continue
+			}
+			data, err := s.FileData(fi)
+			if err != nil {
+				issues = append(issues, model.Issue{Code: "source-read", Skill: s.Name, File: f.Path, Message: err.Error()})
+				continue
+			}
+			scan(s, f, model.NestedRepoPath(s.Root, f.Path), data)
 		}
 	}
 	if len(issues) > 0 {

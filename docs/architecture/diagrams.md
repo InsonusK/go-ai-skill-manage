@@ -14,8 +14,8 @@ sequenceDiagram
     participant Sync as SyncService
     participant Mgr as sourcing.Manager<br/>(SourceCache + RepositoryLookup)
     participant Det as SourceSelector<br/>(discovery.Detector)
-    participant Load as discovery.LoadFiles
     participant Cat as SkillCatalog
+    participant Sk as *model.Skill
     participant Rel as RelationExpander
     participant Plan as SyncPlanner<br/>(planning.Planner)
     participant Writer as PlanWriter
@@ -31,19 +31,24 @@ sequenceDiagram
             Mgr-->>Sync: repo, err (провайдер вызван, добавлен в кеш)
         end
         Sync->>Det: Select(repo, spec)
-        Det-->>Sync: []*Skill (MainFile.Data заполнен;<br/>Files -- только пути вложенных файлов)
+        Det-->>Sync: []*Skill (MainFile.Data заполнен;<br/>Files -- только пути вложенных файлов, Data ещё nil)
         loop каждый найденный skill
-            Sync->>Load: LoadFiles(skill)
-            Load-->>Sync: err (или Files[i].Data заполнен)
             Sync->>Cat: cat.GetOrAdd(ctx, skill)
         end
     end
     Sync->>Rel: Expand(cat, addRelations, skipFolders)
-    Rel->>Load: LoadFiles(candidate) для каждого связанного скила
-    Rel->>Cat: cat.GetOrAdd(ctx, candidate)
+    loop каждый .md-файл (главный сразу; вложенные -- только с расширением .md)
+        Rel->>Sk: FileData(i)
+        Sk-->>Rel: []byte (читает и кеширует при первом обращении, иначе отдаёт кеш)
+    end
+    Rel->>Cat: cat.GetOrAdd(ctx, candidate) для каждого связанного скила
     Rel-->>Sync: err (или доращённый SkillCatalog, назначения уже проиндексированы)
     loop каждый target из req.Targets
         Sync->>Plan: Plan(cat, s.Lookup, req, target)
+        loop каждый вложенный файл каждого skill
+            Plan->>Sk: FileData(i)
+            Sk-->>Plan: []byte (кеш переиспользуется между целями и после RelationExpander)
+        end
         opt внешнее вложение (repoID не среди уже назначенных путей)
             Plan->>Mgr: Lookup(ctx, repoID)
             Mgr-->>Plan: *Repository, ok
@@ -87,7 +92,7 @@ flowchart TD
     B["2. Скачать не-local source в temp dir"] --> C
     C["3. Закешировать источник в SourceManager"] --> D
     D["4. Для каждого source: SourceSelector.Select<br/>по subpath/tags, flat-skill vs dir-skill"] --> E
-    E["5. Догрузить содержимое вложенных файлов,<br/>добавить найденные скилы в SkillCatalog"] --> F
+    E["5. Добавить найденные скилы в SkillCatalog,<br/>раскрыть связи (вложенные файлы читаются лениво)"] --> F
     F["6. Применить target.default.adapters"] --> G
     G["7. Для каждого target≠default:<br/>копия + свои adapters"] --> H
     H["8. Записать каждый target в target.path"]
@@ -96,7 +101,7 @@ flowchart TD
     B -.->|"sourcing.Manager.GetOrAdd (deduped by SourceKey)<br/>repository.Local / repository.Fetcher"| B1[/"model.Repository"/]
     C -.->|"sourcing.Manager (cache by SourceKey);<br/>later looked up by ID via Lookup"| C1[/"model.Repository (cached)"/]
     D -.->|"discovery.Detector.Select (MainFile read;<br/>nested Files -- paths only)"| D1[/"[]model.Skill"/]
-    E -.->|"discovery.LoadFiles<br/>relations.Expander.Expand<br/>SkillCatalog.GetOrAdd (indexes destinations)"| E1[/"model.SkillCatalog"/]
+    E -.->|"SkillCatalog.GetOrAdd (indexes destinations)<br/>relations.Expander.Expand<br/>(model.Skill.FileData lazily loads/caches each nested file)"| E1[/"model.SkillCatalog"/]
     F -.->|"planning.Planner.Plan<br/>для target default"| F1[/"model.TargetPlan"/]
     G -.->|"planning.Planner.Plan<br/>для остальных target, тот же SkillCatalog"| G1[/"[]model.TargetPlan"/]
     H -.->|"filesystem.Store.Apply"| H1[/"файлы на диске"/]
@@ -149,6 +154,7 @@ classDiagram
         +SkillFormat Format
         +File MainFile
         +[]File Files
+        +FileData(i int) []byte, error
     }
     SkillCatalog --> Skill : Skills
     Manager ..|> RepositoryLookup : implements
@@ -158,7 +164,8 @@ classDiagram
 | Реестр | Кто пишет | Кто читает | Когда строится |
 | --- | --- | --- | --- |
 | `sourcing.Manager` (`domain/services/sourcing`) | `main` создаёт; `GetOrAdd` кеширует по `SourceKey` | `SyncService.Run` (порт `SourceCache`), `OutputLayout` (порт `RepositoryLookup`, поиск по `Repository.ID` для содержимого внешних вложений) | один раз на процесс; переживает несколько `Run`, если бы они были |
-| `SkillCatalog` | `SyncService.Run` (в цикле acquire, после `discovery.LoadFiles`), `RelationExpander.Expand` (добавляет связанные скилы, тоже после `LoadFiles`) — оба через `GetOrAdd` | `RelationExpander.Expand` (`Owner`), `OutputLayout`/`SyncPlanner.Plan` (`Destination`/`Destinations`) | растёт по мере обнаружения и раскрытия связей; каждый `GetOrAdd` сразу индексирует назначения добавленного скила — отдельного шага построения нет |
+| `SkillCatalog` | `SyncService.Run` (в цикле acquire), `RelationExpander.Expand` (добавляет связанные скилы) — оба через `GetOrAdd` | `RelationExpander.Expand` (`Owner`), `OutputLayout`/`SyncPlanner.Plan` (`Destination`/`Destinations`) | растёт по мере обнаружения и раскрытия связей; каждый `GetOrAdd` сразу индексирует назначения добавленного скила — отдельного шага построения нет |
+| `Skill.Files[i].Data` (кеш внутри самого `*Skill`, не отдельный реестр) | `Skill.FileData(i)` — читает из `Repository.FS` и кеширует в `Files[i].Data` при первом обращении | `RelationExpander.Expand` (только `.md`-файлы, при раскрытии ссылок), `SyncPlanner.Plan` (все вложенные файлы, при подготовке `OutputFile`) | лениво, при первом реальном обращении к байтам конкретного файла — `MainFile.Data` в это разделение не входит, читается сразу `Detector.makeSkill`-ом |
 
 `SkillCatalog.Destination` сначала ищет точное совпадение среди
 проиндексированных `GetOrAdd`-ом путей, а при отсутствии — резолвит через

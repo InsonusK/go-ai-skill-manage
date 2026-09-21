@@ -6,8 +6,23 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
+	"io/fs"
+	"strconv"
 	"strings"
+	"testing/fstest"
 )
+
+// countingFS wraps fstest.MapFS, counting Open calls per path so a test can
+// prove a lazy loader reads a file at most once even across repeat calls.
+type countingFS struct {
+	files  fstest.MapFS
+	counts map[string]int
+}
+
+func (f countingFS) Open(name string) (fs.File, error) {
+	f.counts[name]++
+	return f.files.Open(name)
+}
 
 func initialize(sc *godog.ScenarioContext) {
 	var ownRoot, ownMain string
@@ -24,6 +39,54 @@ func initialize(sc *godog.ScenarioContext) {
 		gotOwned := model.OwnsPath(ownMain, ownRoot, ownFormat, p)
 		gotRelative := model.RelativePath(ownMain, ownRoot, p)
 		return testsupport.Equal([]any{gotOwned, gotRelative}, []any{owned == "true", relative})
+	})
+
+	var lazySkill *model.Skill
+	var lazyIndex map[string]int
+	var lazyCounts map[string]int
+	var lazyData []byte
+	var lazyErr error
+	sc.Step(`^a skill "([^"]*)" rooted at "([^"]*)" main "([^"]*)" with nested file "([^"]*)" containing "([^"]*)"$`, func(ctx context.Context, name, root, main, path, content string) error {
+		lazyCounts = map[string]int{}
+		files := fstest.MapFS{model.NestedRepoPath(root, path): &fstest.MapFile{Data: []byte(content)}}
+		repo := &model.Repository{ID: "repo", Root: "/source", FS: countingFS{files: files, counts: lazyCounts}}
+		lazySkill = &model.Skill{Name: name, Main: main, Root: root, Format: model.AgentDirSkill, Repo: repo, Files: []model.File{{Path: path}}}
+		lazyIndex = map[string]int{path: 0}
+		lazyData, lazyErr = nil, nil
+		return nil
+	})
+	sc.Step(`^a skill "([^"]*)" rooted at "([^"]*)" main "([^"]*)" with a missing nested file "([^"]*)"$`, func(ctx context.Context, name, root, main, path string) error {
+		lazyCounts = map[string]int{}
+		repo := &model.Repository{ID: "repo", Root: "/source", FS: countingFS{files: fstest.MapFS{}, counts: lazyCounts}}
+		lazySkill = &model.Skill{Name: name, Main: main, Root: root, Format: model.AgentDirSkill, Repo: repo, Files: []model.File{{Path: path}}}
+		lazyIndex = map[string]int{path: 0}
+		lazyData, lazyErr = nil, nil
+		return nil
+	})
+	sc.Step(`^nested file "([^"]*)" data is not yet loaded$`, func(ctx context.Context, path string) error {
+		if lazySkill.Files[lazyIndex[path]].Data != nil {
+			return fmt.Errorf("expected %q Data to be nil before FileData runs", path)
+		}
+		return nil
+	})
+	sc.Step(`^I read nested file "([^"]*)" data(?: again)?$`, func(ctx context.Context, path string) error {
+		lazyData, lazyErr = lazySkill.FileData(lazyIndex[path])
+		return nil
+	})
+	sc.Step(`^nested file "([^"]*)" data is "([^"]*)"$`, func(ctx context.Context, path, want string) error {
+		if lazyErr != nil {
+			return lazyErr
+		}
+		return testsupport.Equal(string(lazyData), want)
+	})
+	sc.Step(`^nested file "([^"]*)" was read "([^"]*)" times?$`, func(ctx context.Context, path, want string) error {
+		return testsupport.Equal(strconv.Itoa(lazyCounts[model.NestedRepoPath(lazySkill.Root, path)]), want)
+	})
+	sc.Step(`^reading nested file data fails with "([^"]*)"$`, func(ctx context.Context, want string) error {
+		if lazyErr == nil || !strings.Contains(lazyErr.Error(), want) {
+			return fmt.Errorf("error=%v want contains %s", lazyErr, want)
+		}
+		return nil
 	})
 
 	var catalog *model.SkillCatalog

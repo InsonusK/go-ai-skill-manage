@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"testing/fstest"
+
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/relations"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/document"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
-	"strings"
-	"testing/fstest"
 )
 
 func initialize(sc *godog.ScenarioContext) {
@@ -39,14 +40,9 @@ func initialize(sc *godog.ScenarioContext) {
 	sc.Step(`^I expand from "([^"]*)"$`, func(ctx context.Context, start string) error {
 		detector := discovery.Detector{Codec: document.Codec{}}
 		repo := &model.Repository{ID: "repo", Root: "/source", FS: tree}
-		skills, err := detector.Discover(ctx, repo, start)
+		skills, err := detector.DiscoverByPath(ctx, repo, start)
 		if err != nil {
 			return err
-		}
-		for _, s := range skills {
-			if err := discovery.LoadFiles(s); err != nil {
-				return err
-			}
 		}
 		cat := &model.SkillCatalog{Skills: skills}
 		failure = (relations.Expander{Detector: detector}).Expand(ctx, cat, enabled, []string{"examples"})

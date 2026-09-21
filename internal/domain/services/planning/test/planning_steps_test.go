@@ -3,6 +3,9 @@ package planning_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
+	"testing/fstest"
+
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
@@ -10,8 +13,6 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/document"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
-	"strings"
-	"testing/fstest"
 )
 
 type stateReader map[string]model.Managed
@@ -57,14 +58,9 @@ func initialize(sc *godog.ScenarioContext) {
 	runPlan := func(ctx context.Context, adapters []string) error {
 		detector := discovery.Detector{Codec: document.Codec{}}
 		repo := &model.Repository{ID: "repo", Root: "/source", FS: tree}
-		discovered, err := detector.Discover(ctx, repo, ".")
+		discovered, err := detector.DiscoverByPath(ctx, repo, ".")
 		if err != nil {
 			return err
-		}
-		for _, s := range discovered {
-			if err := discovery.LoadFiles(s); err != nil {
-				return err
-			}
 		}
 		cat := &model.SkillCatalog{Skills: discovered}
 		if err := (relations.Expander{Detector: detector}).Expand(ctx, cat, true, nil); err != nil {

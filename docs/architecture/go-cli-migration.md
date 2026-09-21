@@ -207,15 +207,25 @@ tools/                           нормализация отчётов и ге
     назначения под новый источник), индексируя главный файл, вложенные файлы и,
     для directory-скила, алиас корня на `SKILL.md`; `Owner` и `Destination`
     используются `RelationExpander` и `OutputLayout` соответственно.
-- **FileLoader** (Function), `domain/services/discovery` (`inventory.go`).
-  - responsibility: извлекает теги скила из frontmatter; догружает содержимое
-    вложенных файлов скила, уже прошедшего отбор по тегам/subpath.
-  - depends_on: чтение дерева.
-  - usage_scenario: `Tags` используется `SourceSelector.Select` для фильтрации
-    кандидатов; `LoadFiles` вызывается только для скилов, которые останутся в
-    `SkillCatalog` (из `SyncService.Run` после `Select`, и из `RelationExpander`
-    после того, как связанный скил найден `Detector.Find`) — так вложённые байты
-    отброшенного тегами кандидата никогда не читаются.
+- **TagExtractor** (Function), `domain/services/discovery` (`inventory.go`).
+  - responsibility: извлекает теги скила из frontmatter.
+  - depends_on: нет.
+  - usage_scenario: используется `SourceSelector.Select` для фильтрации кандидатов
+    по тегам, до того как что-либо из содержимого вложенных файлов читается.
+- **Skill.FileData** (Method), `domain/model` (`skill.go`).
+  - responsibility: лениво читает и кеширует содержимое i-го вложенного файла
+    скила при первом реальном обращении к его байтам.
+  - depends_on: чтение дерева (через `Skill.Repo.FS`).
+  - usage_scenario: вызывается `RelationExpander` (только для `.md`-файлов, при
+    раскрытии ссылок) и `SyncPlanner.Plan` (для всех вложенных файлов, при
+    подготовке `OutputFile`) — оба раза лениво, только для файла, который
+    реально понадобился, а не для всех вложенных файлов скила разом. Результат
+    кешируется в `Skill.Files[i].Data`, так что повторный вызов (второй target
+    того же `Plan`, либо чтение после `RelationExpander` уже прочитало файл)
+    не читает диск повторно. `MainFile.Data`, в отличие от вложенных файлов,
+    остаётся вне этой ленивой схемы — читается сразу `Detector.makeSkill`,
+    потому что имя скила (нужное уже для фильтрации по тегам) берётся из его
+    frontmatter.
 - **RepositoryLookup** (Port), `domain/interfaces`, реализация — `Manager.Lookup`
   в `domain/services/sourcing`.
   - responsibility: находит уже полученный `Repository` по его `ID`, без нового
@@ -394,8 +404,10 @@ coverage собирается обязательно, целевой порог 
   `GetOrAdd` — отдельного шага построения после `RelationExpander.Expand` не
   требуется; `OutputLayout` расширяет свою копию `SkillCatalog.Destinations()`
   путями внешних вложений конкретной цели, не трогая общий каталог.
-- `Skill.Files` содержит snapshot входных байтов; план хранит готовые выходные
-  байты. PlanApplier не вычисляет бизнес-правила и не читает исходный каталог.
+- `Skill.Files` содержит пути вложенных файлов; их байты читаются лениво и
+  кешируются через `Skill.FileData` при первом реальном обращении (`MainFile`
+  — исключение, читается сразу). План хранит уже готовые выходные байты;
+  PlanApplier не вычисляет бизнес-правила и не читает исходный каталог.
 - `StateReader` сообщает наличие, ownership, hash/version и наличие SKILL.md.
 - `Repository` сам владеет своей очисткой (`Close`, накапливает `closers` через
   `AddCloser`) вместо того, чтобы `SourceProvider.Acquire` возвращал отдельную

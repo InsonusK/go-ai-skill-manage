@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/relations"
 	"log/slog"
@@ -37,10 +36,6 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 			issues = append(issues, model.Issue{Code: "discovery", File: spec.Path, Message: discoverErr.Error()})
 		}
 		for _, skill := range found {
-			if loadErr := discovery.LoadFiles(skill); loadErr != nil {
-				issues = append(issues, model.Issue{Code: "source-read", Skill: skill.Name, Message: loadErr.Error()})
-				continue
-			}
 			if addErr := catalog.GetOrAdd(ctx, skill); addErr != nil {
 				issues = append(issues, model.Issue{Code: "duplicate-name", Skill: skill.Name, Message: addErr.Error()})
 			}

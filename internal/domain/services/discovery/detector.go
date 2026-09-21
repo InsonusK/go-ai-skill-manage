@@ -3,12 +3,13 @@ package discovery
 import (
 	"context"
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"io/fs"
 	"path"
 	"regexp"
 	"strings"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 )
 
 var namePattern = regexp.MustCompile(`^[a-z0-9]+(-{1,2}[a-z0-9]+)*$`)
@@ -17,7 +18,7 @@ func ValidName(name string) bool { return namePattern.MatchString(name) }
 
 type Detector struct{ Codec interfaces.DocumentCodec }
 
-func (d Detector) Discover(ctx context.Context, repo *model.Repository, start string) ([]*model.Skill, error) {
+func (d Detector) DiscoverByPath(ctx context.Context, repo *model.Repository, start string) ([]*model.Skill, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -38,7 +39,7 @@ func (d Detector) Discover(ctx context.Context, repo *model.Repository, start st
 		}
 		if !info.IsDir() {
 			if strings.HasSuffix(p, ".skill.md") {
-				s, err := d.make(repo, p, "", model.FlatSkill, info.Mode().Perm(), nil)
+				s, err := d.makeSkill(repo, p, "", model.FlatSkill, info.Mode().Perm(), nil)
 				if err != nil {
 					issues = append(issues, issue("invalid-name", p, err))
 				} else {
@@ -76,8 +77,8 @@ func (d Detector) Discover(ctx context.Context, repo *model.Repository, start st
 
 // Rooted tests whether dir is a directory skill's root. It reads the marker
 // file's own bytes (for frontmatter/name validation) but only the *paths*
-// of every other nested file -- their content is loaded later, by
-// LoadFiles, only for skills that survive tag/subpath filtering.
+// of every other nested file -- their content is loaded lazily later, by
+// Skill.FileData, only when a caller actually needs a specific file's bytes.
 func (d Detector) Rooted(ctx context.Context, repo *model.Repository, dir string) (*model.Skill, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -168,14 +169,14 @@ func (d Detector) Rooted(ctx context.Context, repo *model.Repository, dir string
 	}); err != nil {
 		return nil, err
 	}
-	return d.make(repo, main, dir, format, mainMode, files)
+	return d.makeSkill(repo, main, dir, format, mainMode, files)
 }
 
-// make reads the skill's own file (main), validates its frontmatter name,
+// makeSkill reads the skill's own file (main), validates its frontmatter name,
 // and assembles the Skill -- MainFile carries that file's bytes; files
 // (already collected by Rooted, or nil for a flat skill) carries only paths
-// and modes, content loaded later by LoadFiles.
-func (d Detector) make(repo *model.Repository, main, root string, format model.SkillFormat, mainMode fs.FileMode, files []model.File) (*model.Skill, error) {
+// and modes, content loaded lazily later by Skill.FileData.
+func (d Detector) makeSkill(repo *model.Repository, main, root string, format model.SkillFormat, mainMode fs.FileMode, files []model.File) (*model.Skill, error) {
 	data, err := fs.ReadFile(repo.FS, main)
 	if err != nil {
 		return nil, err
@@ -215,7 +216,7 @@ func (d Detector) Find(ctx context.Context, repo *model.Repository, p string) (*
 		}
 		if dir == "." {
 			if strings.HasSuffix(p, ".skill.md") {
-				return d.make(repo, p, "", model.FlatSkill, info.Mode().Perm(), nil)
+				return d.makeSkill(repo, p, "", model.FlatSkill, info.Mode().Perm(), nil)
 			}
 			return nil, nil
 		}

@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"testing/fstest"
+
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/document"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
-	"strings"
-	"testing/fstest"
 )
 
 func initialize(sc *godog.ScenarioContext) {
@@ -50,7 +51,7 @@ func initialize(sc *godog.ScenarioContext) {
 			ctx, cancel = context.WithCancel(ctx)
 			cancel()
 		}
-		skills, err := (discovery.Detector{Codec: document.Codec{}}).Discover(ctx, repo, p)
+		skills, err := (discovery.Detector{Codec: document.Codec{}}).DiscoverByPath(ctx, repo, p)
 		failure = err
 		discovered = skills
 		names = []string{}
@@ -86,7 +87,7 @@ func initialize(sc *godog.ScenarioContext) {
 		for _, f := range found.Files {
 			paths = append(paths, f.Path)
 			if len(f.Data) != 0 {
-				return fmt.Errorf("expected nested file %q Data to stay empty until LoadFiles runs", f.Path)
+				return fmt.Errorf("expected nested file %q Data to stay empty until FileData runs", f.Path)
 			}
 		}
 		want := []string{}

@@ -69,39 +69,6 @@ type Document struct {
 	Body           string
 	HasFrontmatter bool
 }
-type File struct {
-	Path  string
-	Data  []byte
-	Mode  fs.FileMode
-	Links []Link
-}
-
-// SkillFormat names which of the three on-disk skill layouts a Skill was
-// found in.
-type SkillFormat string
-
-const (
-	// FlatSkill is a single "{name}.skill.md" file with no directory.
-	FlatSkill SkillFormat = "flat"
-	// HumanDirSkill is a "{name}.skill/" directory whose marker file is
-	// "{name}.skill.md".
-	HumanDirSkill SkillFormat = "human-dir"
-	// AgentDirSkill is a "{name}.skill/" directory whose marker file is
-	// "SKILL.md".
-	AgentDirSkill SkillFormat = "agent-dir"
-)
-
-type Skill struct {
-	Name, Main, Root string // Main/Root are repo-relative; Root is "" for FlatSkill (N/A)
-	Format           SkillFormat
-	Repo             *Repository
-	Document         Document
-	MainFile         File   // the skill's own file; Path is always "SKILL.md", Data always populated
-	Files            []File // nested files only (never the main file); Path is skill-relative
-}
-
-func (s *Skill) Key() string { return s.Repo.ID + "\x00" + s.Main }
-
 type Link struct {
 	Start, End                        int
 	Raw, Text, Path, Fragment, Format string

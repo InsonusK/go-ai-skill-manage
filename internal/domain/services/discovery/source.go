@@ -3,11 +3,12 @@ package discovery
 import (
 	"context"
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/tags"
 	"io/fs"
 	"path/filepath"
 	"strings"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/tags"
 )
 
 // scanPaths resolves the roots to scan for one source's selection: a single
@@ -53,7 +54,7 @@ func (d Detector) Select(ctx context.Context, repo *model.Repository, spec model
 		return nil, err
 	}
 	for _, p := range paths {
-		found, err := d.Discover(ctx, repo, p)
+		found, err := d.DiscoverByPath(ctx, repo, p)
 		if err != nil {
 			if list, ok := err.(model.Issues); ok {
 				issues = append(issues, list...)

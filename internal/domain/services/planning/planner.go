@@ -37,15 +37,15 @@ func (p Planner) Plan(ctx context.Context, cat *model.SkillCatalog, sources inte
 	}
 	linkAdapter := slices.Contains(target.Adapters, "link-adapter")
 	claudeAdapter := slices.Contains(target.Adapters, "claude-property-adapter")
-	rewrite := func(f model.File) ([]byte, error) {
+	rewrite := func(f model.File, data []byte) ([]byte, error) {
 		if linkAdapter && len(f.Links) > 0 {
-			updated, err := transform.Rewrite(string(f.Data), f.Links, destinations)
+			updated, err := transform.Rewrite(string(data), f.Links, destinations)
 			if err != nil {
 				return nil, err
 			}
 			return []byte(updated), nil
 		}
-		return f.Data, nil
+		return data, nil
 	}
 	wanted := map[string]bool{}
 	for _, s := range cat.Skills {
@@ -53,7 +53,7 @@ func (p Planner) Plan(ctx context.Context, cat *model.SkillCatalog, sources inte
 			return plan, err
 		}
 		wanted[s.Name] = true
-		mainData, err := rewrite(s.MainFile)
+		mainData, err := rewrite(s.MainFile, s.MainFile.Data)
 		if err != nil {
 			return plan, err
 		}
@@ -73,8 +73,13 @@ func (p Planner) Plan(ctx context.Context, cat *model.SkillCatalog, sources inte
 			}
 		}
 		files := []model.OutputFile{{Path: s.MainFile.Path, Data: mainData, Mode: s.MainFile.Mode}}
-		for _, f := range s.Files {
-			data, err := rewrite(f)
+		for i := range s.Files {
+			raw, err := s.FileData(i)
+			if err != nil {
+				return plan, err
+			}
+			f := s.Files[i]
+			data, err := rewrite(f, raw)
 			if err != nil {
 				return plan, err
 			}
