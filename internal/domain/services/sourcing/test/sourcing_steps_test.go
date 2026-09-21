@@ -46,28 +46,28 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I acquire "([^"]*)" source "([^"]*)" twice$`, func(ctx context.Context, typ, path string) error {
-		a, err := manager.Acquire(ctx, model.SourceSpec{Type: typ, Path: path}, model.AcquisitionOptions{})
+		a, err := manager.GetOrAdd(ctx, model.SourceSpec{Type: typ, Path: path}, model.AcquisitionOptions{})
 		if err != nil {
 			failure = err
 			return nil
 		}
-		b, err := manager.Acquire(ctx, model.SourceSpec{Type: typ, Path: path}, model.AcquisitionOptions{})
+		b, err := manager.GetOrAdd(ctx, model.SourceSpec{Type: typ, Path: path}, model.AcquisitionOptions{})
 		failure = err
 		repos = []*model.Repository{a, b}
 		return nil
 	})
 	sc.Step(`^I acquire "([^"]*)" source "([^"]*)" and "([^"]*)" source "([^"]*)"$`, func(ctx context.Context, t1, p1, t2, p2 string) error {
-		_, err := manager.Acquire(ctx, model.SourceSpec{Type: t1, Path: p1}, model.AcquisitionOptions{})
+		_, err := manager.GetOrAdd(ctx, model.SourceSpec{Type: t1, Path: p1}, model.AcquisitionOptions{})
 		if err != nil {
 			failure = err
 			return nil
 		}
-		_, err = manager.Acquire(ctx, model.SourceSpec{Type: t2, Path: p2}, model.AcquisitionOptions{})
+		_, err = manager.GetOrAdd(ctx, model.SourceSpec{Type: t2, Path: p2}, model.AcquisitionOptions{})
 		failure = err
 		return nil
 	})
 	sc.Step(`^I acquire "([^"]*)" source "([^"]*)"$`, func(ctx context.Context, typ, path string) error {
-		_, failure = manager.Acquire(ctx, model.SourceSpec{Type: typ, Path: path}, model.AcquisitionOptions{})
+		_, failure = manager.GetOrAdd(ctx, model.SourceSpec{Type: typ, Path: path}, model.AcquisitionOptions{})
 		return nil
 	})
 	sc.Step(`^the provider was called "([^"]*)" times$`, func(ctx context.Context, want string) error {

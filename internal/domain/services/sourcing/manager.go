@@ -16,6 +16,7 @@ import (
 // per-source cleanup funcs themselves. Manager only ever calls the
 // interfaces.SourceProvider port it was given -- the actual filesystem/Git/
 // HTTP work happens in whichever infrastructure adapters are injected.
+// Manager itself satisfies interfaces.SourceCache.
 type Manager struct {
 	providers map[string]interfaces.SourceProvider
 	repos     map[model.SourceKey]*model.Repository
@@ -28,10 +29,10 @@ func NewManager(providers map[string]interfaces.SourceProvider) *Manager {
 	return &Manager{providers: providers, repos: map[model.SourceKey]*model.Repository{}}
 }
 
-// Acquire returns the cached Repository for s's identity, fetching it via
+// GetOrAdd returns the cached Repository for s's identity, fetching it via
 // the registered provider for s.Type only on the first call for that
-// identity. Manager itself satisfies interfaces.SourceProvider.
-func (m *Manager) Acquire(ctx context.Context, s model.SourceSpec, options model.AcquisitionOptions) (*model.Repository, error) {
+// identity.
+func (m *Manager) GetOrAdd(ctx context.Context, s model.SourceSpec, options model.AcquisitionOptions) (*model.Repository, error) {
 	key := s.Key()
 	if repo, ok := m.repos[key]; ok {
 		return repo, nil
