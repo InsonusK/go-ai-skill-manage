@@ -1,7 +1,6 @@
 // Package model defines transport-independent synchronization data,
-// including the Catalog and SkillMap/SkillEntry registries and the
-// OwnsPath/RelativePath ownership primitives they share. Zero outward
-// dependencies.
+// including the SkillCatalog registry and the OwnsPath/RelativePath
+// ownership primitives it shares with it. Zero outward dependencies.
 package model
 
 import (

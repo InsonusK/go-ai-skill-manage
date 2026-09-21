@@ -11,7 +11,7 @@ import (
 
 type Expander struct{ Detector discovery.Detector }
 
-func (e Expander) Expand(ctx context.Context, cat *model.Catalog, add bool, skip []string) error {
+func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalog, add bool, skip []string) error {
 	processed := map[string]bool{}
 	var issues model.Issues
 	scan := func(s *model.Skill, f *model.File, repoPath string) {
@@ -32,7 +32,7 @@ func (e Expander) Expand(ctx context.Context, cat *model.Catalog, add bool, skip
 					} else if lerr := discovery.LoadFiles(candidate); lerr != nil {
 						err = lerr
 					} else {
-						err = cat.Add(ctx, candidate)
+						err = cat.GetOrAdd(ctx, candidate)
 					}
 				}
 			}

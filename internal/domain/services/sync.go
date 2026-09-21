@@ -22,7 +22,7 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 	result.DryRun = req.DryRun
 	result.Skills = []string{}
 	result.Plans = []model.TargetPlan{}
-	catalog := &model.Catalog{Conflict: req.Conflict}
+	catalog := &model.SkillCatalog{Conflict: req.Conflict}
 	var issues model.Issues
 	for _, spec := range req.Sources {
 		slog.DebugContext(ctx, "acquiring source", "type", spec.Type, "path", spec.Path)
@@ -39,7 +39,7 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 				issues = append(issues, model.Issue{Code: "source-read", Skill: skill.Name, Message: loadErr.Error()})
 				continue
 			}
-			if addErr := catalog.Add(ctx, skill); addErr != nil {
+			if addErr := catalog.GetOrAdd(ctx, skill); addErr != nil {
 				issues = append(issues, model.Issue{Code: "duplicate-name", Skill: skill.Name, Message: addErr.Error()})
 			}
 		}
@@ -54,12 +54,8 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 	for _, skill := range catalog.Skills {
 		result.Skills = append(result.Skills, skill.Name)
 	}
-	skills, err := discovery.BuildSkillMap(catalog)
-	if err != nil {
-		return result, err
-	}
 	for _, target := range req.Targets {
-		plan, planErr := s.Planner.Plan(ctx, catalog, skills, s.Lookup, req, target)
+		plan, planErr := s.Planner.Plan(ctx, catalog, s.Lookup, req, target)
 		if planErr != nil {
 			return result, planErr
 		}

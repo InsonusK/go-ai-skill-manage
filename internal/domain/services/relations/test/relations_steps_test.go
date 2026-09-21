@@ -48,7 +48,7 @@ func initialize(sc *godog.ScenarioContext) {
 				return err
 			}
 		}
-		cat := &model.Catalog{Skills: skills}
+		cat := &model.SkillCatalog{Skills: skills}
 		failure = (relations.Expander{Detector: detector}).Expand(ctx, cat, enabled, []string{"examples"})
 		names = []string{}
 		for _, s := range cat.Skills {

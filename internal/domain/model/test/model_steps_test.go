@@ -2,7 +2,6 @@ package model_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
@@ -27,66 +26,38 @@ func initialize(sc *godog.ScenarioContext) {
 		return testsupport.Equal([]any{gotOwned, gotRelative}, []any{owned == "true", relative})
 	})
 
-	type entryJSON struct {
-		Name, Source, Root, Main string
-		Flat                     bool
-	}
-	var entries []model.SkillEntry
-	var originals map[string]map[string]string
-	var skillMap *model.SkillMap
-	var buildErr error
-	sc.Step(`^skill entries$`, func(ctx context.Context, d *godog.DocString) error {
-		var raw []entryJSON
-		if err := json.Unmarshal([]byte(d.Content), &raw); err != nil {
-			return err
-		}
-		entries = nil
-		for _, e := range raw {
-			format := model.AgentDirSkill
-			if e.Flat {
-				format = model.FlatSkill
-			}
-			entries = append(entries, model.SkillEntry{Name: e.Name, SourceKey: e.Source, Root: e.Root, Main: e.Main, Format: format, Dest: e.Name})
-		}
-		return nil
-	})
-	sc.Step(`^skill file destinations$`, func(ctx context.Context, d *godog.DocString) error {
-		return json.Unmarshal([]byte(d.Content), &originals)
-	})
-	sc.Step(`^I build the skill map$`, func(ctx context.Context) error {
-		skillMap, buildErr = model.NewSkillMap(entries, originals)
-		return nil
-	})
-	sc.Step(`^owner of "([^"]*)" path "([^"]*)" is skill "([^"]*)" at "([^"]*)"$`, func(ctx context.Context, source, p, name, dest string) error {
-		entry, got, ok := skillMap.Owner(source, p)
-		if !ok {
-			return fmt.Errorf("owner not found for %s %s", source, p)
-		}
-		return testsupport.Equal([]any{entry.Name, got}, []any{name, dest})
-	})
-	sc.Step(`^owner of "([^"]*)" path "([^"]*)" is not found$`, func(ctx context.Context, source, p string) error {
-		if _, _, ok := skillMap.Owner(source, p); ok {
-			return fmt.Errorf("expected no owner for %s %s", source, p)
-		}
-		return nil
-	})
-	sc.Step(`^building the skill map fails with "([^"]*)"$`, func(ctx context.Context, contains string) error {
-		if buildErr == nil || !strings.Contains(buildErr.Error(), contains) {
-			return fmt.Errorf("error=%v want contains %s", buildErr, contains)
-		}
-		return nil
-	})
-
-	var catalog *model.Catalog
+	var catalog *model.SkillCatalog
 	var catalogErr error
 	sc.Step(`^a catalog with conflict policy "([^"]*)"$`, func(ctx context.Context, policy string) error {
-		catalog = &model.Catalog{Conflict: policy}
+		catalog = &model.SkillCatalog{Conflict: policy}
 		catalogErr = nil
 		return nil
 	})
 	sc.Step(`^I add skill "([^"]*)" from repo "([^"]*)" main "([^"]*)"$`, func(ctx context.Context, name, repo, main string) error {
 		skill := &model.Skill{Name: name, Main: main, Root: main[:strings.LastIndex(main, "/")], Format: model.AgentDirSkill, Repo: &model.Repository{ID: repo}}
-		catalogErr = catalog.Add(ctx, skill)
+		catalogErr = catalog.GetOrAdd(ctx, skill)
+		return nil
+	})
+	sc.Step(`^I add skill "([^"]*)" from repo "([^"]*)" main "([^"]*)" with files "([^"]*)"$`, func(ctx context.Context, name, repo, main, filesArg string) error {
+		var files []model.File
+		for _, p := range strings.Split(filesArg, ",") {
+			files = append(files, model.File{Path: p})
+		}
+		skill := &model.Skill{Name: name, Main: main, Root: main[:strings.LastIndex(main, "/")], Format: model.AgentDirSkill, Repo: &model.Repository{ID: repo}, Files: files}
+		catalogErr = catalog.GetOrAdd(ctx, skill)
+		return nil
+	})
+	sc.Step(`^catalog destination of "([^"]*)" path "([^"]*)" is "([^"]*)" at "([^"]*)"$`, func(ctx context.Context, repo, p, name, dest string) error {
+		gotName, gotDest, ok := catalog.Destination(repo, p)
+		if !ok {
+			return fmt.Errorf("destination not found for %s %s", repo, p)
+		}
+		return testsupport.Equal([]any{gotName, gotDest}, []any{name, dest})
+	})
+	sc.Step(`^catalog destination of "([^"]*)" path "([^"]*)" is not found$`, func(ctx context.Context, repo, p string) error {
+		if _, _, ok := catalog.Destination(repo, p); ok {
+			return fmt.Errorf("expected no destination for %s %s", repo, p)
+		}
 		return nil
 	})
 	sc.Step(`^catalog error contains "([^"]*)"$`, func(ctx context.Context, want string) error {

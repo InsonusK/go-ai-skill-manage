@@ -66,12 +66,8 @@ func initialize(sc *godog.ScenarioContext) {
 				return err
 			}
 		}
-		cat := &model.Catalog{Skills: discovered}
+		cat := &model.SkillCatalog{Skills: discovered}
 		if err := (relations.Expander{Detector: detector}).Expand(ctx, cat, true, nil); err != nil {
-			return err
-		}
-		skillMap, err := discovery.BuildSkillMap(cat)
-		if err != nil {
 			return err
 		}
 		sources := repoLookup{repo: repo}
@@ -79,7 +75,7 @@ func initialize(sc *godog.ScenarioContext) {
 		planner := planning.Planner{State: reader, Codec: document.Codec{}}
 		req := model.Request{Base: "/project", Force: force, RemoveOrphans: true}
 		target := model.Target{Name: "default", Path: "/project/out", Adapters: adapters}
-		first, err := planner.Plan(ctx, cat, skillMap, sources, req, target)
+		first, err := planner.Plan(ctx, cat, sources, req, target)
 		if err != nil {
 			return err
 		}
@@ -95,7 +91,7 @@ func initialize(sc *godog.ScenarioContext) {
 		if state == "orphan" || state == "unmanaged" {
 			reader["old"] = model.Managed{Exists: true, Managed: state == "orphan"}
 		}
-		plan, err = planner.Plan(ctx, cat, skillMap, sources, req, target)
+		plan, err = planner.Plan(ctx, cat, sources, req, target)
 		return err
 	}
 	sc.Step(`^I plan a sync$`, func(ctx context.Context) error {

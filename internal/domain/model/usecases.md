@@ -8,19 +8,7 @@
                 - input: a skill rooted at "<root>" main "<main>" flat "<flat>"; значения и таблицы в сценарии
                 - output: результат OwnsPath и RelativePath
                 - expected_result: ``path "<path>" is owned "<owned>" and relative is "<relative>"``
-    - NewSkillMap, SkillMap.Owner
-        - Contract
-            - WHEN_Build_a_skill_map_and_resolve_ownership_THEN_declared_result
-                - description: [Build a skill map and resolve ownership](features/skillmap.feature)
-                - input: skill entries; skill file destinations; I build the skill map
-                - output: результат SkillMap.Owner для точного совпадения и для fallback через OwnsPath/RelativePath
-                - expected_result: ``owner of "repo" path "a/guide.md" is skill "a" at "a/guide.md"``
-            - WHEN_Colliding_destinations_across_skills_are_rejected_THEN_declared_result
-                - description: [Colliding destinations across skills are rejected](features/skillmap.feature)
-                - input: skill entries; skill file destinations с одинаковым destination у двух разных скилов; I build the skill map
-                - output: ошибка NewSkillMap
-                - expected_result: ``building the skill map fails with "output-collision"``
-    - Catalog.Add, Catalog.Owner
+    - SkillCatalog.GetOrAdd, SkillCatalog.Owner, SkillCatalog.Destination
         - Contract
             - WHEN_Re-adding_the_same_skill_is_a_no-op_THEN_declared_result
                 - description: [Re-adding the same skill is a no-op](features/catalog.feature)
@@ -30,7 +18,7 @@
             - WHEN_Duplicate_name_from_a_different_source_errors_by_default_THEN_declared_result
                 - description: [Duplicate name from a different source errors by default](features/catalog.feature)
                 - input: a catalog with conflict policy "error"; I add skill "a" из двух разных repo
-                - output: ошибка Add
+                - output: ошибка GetOrAdd
                 - expected_result: ``catalog error contains "duplicate-name"``
             - WHEN_last_wins_replaces_the_earlier_skill_with_the_same_name_THEN_declared_result
                 - description: [last_wins replaces the earlier skill with the same name](features/catalog.feature)
@@ -40,5 +28,15 @@
             - WHEN_Owner_finds_the_skill_owning_a_path_inside_its_root_THEN_declared_result
                 - description: [Owner finds the skill owning a path inside its root](features/catalog.feature)
                 - input: a catalog with conflict policy "error"; I add skill "a" from repo "repo" main "a/SKILL.md"
-                - output: результат Catalog.Owner по repoID и пути
+                - output: результат SkillCatalog.Owner по repoID и пути
                 - expected_result: ``catalog owner of "repo" path "a/guide.md" is "a"``
+            - WHEN_GetOrAdd_indexes_a_skills_own_and_nested_file_destinations_THEN_declared_result
+                - description: [GetOrAdd indexes a skill's own and nested file destinations](features/catalog.feature)
+                - input: a catalog with conflict policy "error"; I add skill "guide" from repo "repo" main "a/SKILL.md" with files "notes.md"
+                - output: результат SkillCatalog.Destination для главного файла, вложенного файла, корня-алиаса и отсутствующего пути
+                - expected_result: ``catalog destination of "repo" path "a/notes.md" is "guide" at "guide/notes.md"``
+            - WHEN_last_wins_re-indexes_destinations_onto_the_newer_skills_source_THEN_declared_result
+                - description: [last_wins re-indexes destinations onto the newer skill's source](features/catalog.feature)
+                - input: a catalog with conflict policy "last_wins"; I add skill "a" из двух разных repo с тем же main
+                - output: старый индекс destination снят, новый проиндексирован под новым repoID
+                - expected_result: ``catalog destination of "other" path "a/SKILL.md" is "a" at "a/SKILL.md"``

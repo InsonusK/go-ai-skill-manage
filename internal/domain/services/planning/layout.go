@@ -16,8 +16,8 @@ type Layout struct {
 	Shared []model.OutputFile
 }
 
-func BuildLayout(ctx context.Context, cat *model.Catalog, skills *model.SkillMap, sources interfaces.RepositoryLookup) (Layout, error) {
-	layout := Layout{Paths: skills.Destinations(), Shared: []model.OutputFile{}}
+func BuildLayout(ctx context.Context, cat *model.SkillCatalog, sources interfaces.RepositoryLookup) (Layout, error) {
+	layout := Layout{Paths: cat.Destinations(), Shared: []model.OutputFile{}}
 	external := map[string]bool{}
 	scan := func(f *model.File) {
 		for _, l := range f.Links {
@@ -25,7 +25,7 @@ func BuildLayout(ctx context.Context, cat *model.Catalog, skills *model.SkillMap
 				continue
 			}
 			repoID, p, _ := strings.Cut(l.Target, "\x00")
-			if _, dest, ok := skills.Owner(repoID, p); ok {
+			if _, dest, ok := cat.Destination(repoID, p); ok {
 				layout.Paths[l.Target] = dest
 			} else {
 				external[l.Target] = true

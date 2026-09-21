@@ -31,8 +31,8 @@ type SourceSelector interface {
 	Select(context.Context, *model.Repository, model.SourceSpec) ([]*model.Skill, error)
 }
 type RelationExpander interface {
-	Expand(context.Context, *model.Catalog, bool, []string) error
+	Expand(context.Context, *model.SkillCatalog, bool, []string) error
 }
 type SyncPlanner interface {
-	Plan(context.Context, *model.Catalog, *model.SkillMap, RepositoryLookup, model.Request, model.Target) (model.TargetPlan, error)
+	Plan(context.Context, *model.SkillCatalog, RepositoryLookup, model.Request, model.Target) (model.TargetPlan, error)
 }
