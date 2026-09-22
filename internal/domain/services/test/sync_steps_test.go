@@ -3,6 +3,10 @@ package services_test
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+	"testing/fstest"
+
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services"
@@ -13,9 +17,6 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/document"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
-	"strconv"
-	"strings"
-	"testing/fstest"
 )
 
 // source is a fake interfaces.SourceProvider, wrapped in a real
@@ -51,7 +52,7 @@ func (w writer) Apply(context.Context, model.TargetPlan) error { *w.calls++; ret
 // discovery.Detector field.
 type failingDetector struct{ message string }
 
-func (d failingDetector) Select(context.Context, *sourcing.SkillCatalog, model.SourceSpec) ([]*model.Skill, error) {
+func (d failingDetector) Select(context.Context, *sourcing.SkillCatalog, model.SourceSpec) ([]*model.SkillImpl, error) {
 	return nil, fmt.Errorf("%s", d.message)
 }
 

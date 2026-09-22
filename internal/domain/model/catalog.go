@@ -12,7 +12,7 @@ import (
 // indexed incrementally as skills are added, so no separate finalization
 // pass is needed once relation expansion stops growing it.
 type SkillCatalog struct {
-	Skills   []*Skill
+	Skills   []*SkillImpl
 	Conflict string
 	dest     map[string]catalogDest
 }
@@ -29,7 +29,7 @@ func OriginalKey(repoID, path string) string { return repoID + "\x00" + path }
 
 // GetOrAdd resolves name collisions while growing the catalog, per
 // c.Conflict, and indexes the skill's canonical output destinations.
-func (c *SkillCatalog) GetOrAdd(ctx context.Context, s *Skill) error {
+func (c *SkillCatalog) GetOrAdd(ctx context.Context, s *SkillImpl) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (c *SkillCatalog) GetOrAdd(ctx context.Context, s *Skill) error {
 // index registers every original path s owns against its output
 // destination: the main file, every nested file, and -- for a directory
 // skill -- the root itself (a link to the directory resolves to SKILL.md).
-func (c *SkillCatalog) index(s *Skill) {
+func (c *SkillCatalog) index(s *SkillImpl) {
 	if c.dest == nil {
 		c.dest = map[string]catalogDest{}
 	}
@@ -72,7 +72,7 @@ func (c *SkillCatalog) index(s *Skill) {
 	}
 }
 
-func (c *SkillCatalog) deindex(s *Skill) {
+func (c *SkillCatalog) deindex(s *SkillImpl) {
 	del := func(original string) { delete(c.dest, OriginalKey(s.Repo.ID, original)) }
 	del(s.MainFilePath)
 	for _, f := range s.Files {
@@ -84,7 +84,7 @@ func (c *SkillCatalog) deindex(s *Skill) {
 }
 
 // Owner returns the skill owning path p inside repository repoID, or nil.
-func (c *SkillCatalog) Owner(ctx context.Context, repoID, p string) *Skill {
+func (c *SkillCatalog) Owner(ctx context.Context, repoID, p string) *SkillImpl {
 	for _, s := range c.Skills {
 		if s.Repo.ID == repoID && OwnsPath(s.MainFilePath, s.SkillDirPath, s.Format, p) {
 			return s

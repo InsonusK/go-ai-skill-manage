@@ -16,9 +16,9 @@ import (
 // it. Select never acquires a Repository itself; its own job is only
 // filtering catalog's results by spec's tags and applying an optional
 // single-skill name override.
-func (d Detector) Select(ctx context.Context, catalog *sourcing.SkillCatalog, spec model.SourceSpec) ([]*model.Skill, error) {
+func (d Detector) Select(ctx context.Context, catalog *sourcing.SkillCatalog, spec model.SourceSpec) ([]*model.SkillImpl, error) {
 	var issues model.Issues
-	selected := []*model.Skill{}
+	selected := []*model.SkillImpl{}
 	seen := map[string]bool{}
 	// Compile invalid filters even if discovery produces no candidates.
 	if _, err := tags.Match(nil, spec.Tags); err != nil {

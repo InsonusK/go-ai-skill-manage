@@ -6,20 +6,6 @@ import (
 	"strings"
 )
 
-type File struct {
-	Path  string
-	Data  []byte
-	Mode  fs.FileMode
-	Links []Link
-
-	skill *Skill // owning skill, for Content() to resolve Repo/Root; set by
-	// FilesByPath/Find. Left nil for a File built outside this package
-	// (discovery.Rooted's MainFile/s.Files construction) -- harmless for
-	// MainFile (Data is always already populated, so Content() never needs
-	// to resolve it), and patched on demand by the deprecated Skill.Data
-	// for s.Files.
-}
-
 // SkillFormat names which of the three on-disk skill layouts a Skill was
 // found in.
 type SkillFormat string
@@ -35,7 +21,7 @@ const (
 	AgentDirSkill SkillFormat = "agent-dir"
 )
 
-type Skill struct {
+type SkillImpl struct {
 	// FlatSkill (a bare {name}.skill.md file, no directory): Main = "a.skill.md", Root = "". Nothing to walk into — FilesByPath returns immediately for a flat skill.
 	// AgentDirSkill (a {name}.skill/ or arbitrary directory whose marker is literally SKILL.md): Main = "a/SKILL.md", Root = "a".
 	// HumanDirSkill (a {name}.skill/ directory whose marker is {name}.skill.md, not SKILL.md): Main = "a.skill/a.skill.md", Root = "a.skill".
@@ -43,13 +29,13 @@ type Skill struct {
 	Format                           SkillFormat
 	Repo                             *Repository
 	Document                         Document
-	MainFile                         File   // the skill's own file; Path is always "SKILL.md", Data always populated
-	Files                            []File // nested files only (never the main file); Path is skill-relative
+	MainFile                         FileImpl   // the skill's own file; Path is always "SKILL.md", Data always populated
+	Files                            []FileImpl // nested files only (never the main file); Path is skill-relative
 
-	scanned map[string][]*File // FilesByPath cache, keyed by the requested p
+	scanned map[string][]*FileImpl // FilesByPath cache, keyed by the requested p
 }
 
-func (s *Skill) Key() string { return s.Repo.ID + "\x00" + s.MainFilePath }
+func (s *SkillImpl) Key() string { return s.Repo.ID + "\x00" + s.MainFilePath }
 
 // FileData returns the content of the skill's i-th nested file, reading it
 // from the source repository and caching the result on first access --
@@ -57,7 +43,7 @@ func (s *Skill) Key() string { return s.Repo.ID + "\x00" + s.MainFilePath }
 // being scanned, or a target's plan needs its final output bytes) instead
 // of loading every nested file of every skill regardless of whether
 // anything ever consumes it.
-func (s *Skill) FileData(i int) ([]byte, error) {
+func (s *SkillImpl) FileData(i int) ([]byte, error) {
 	return s.Data(&s.Files[i])
 }
 
@@ -76,7 +62,7 @@ func (s *Skill) FileData(i int) ([]byte, error) {
 // -- loading Data through one does not populate the other. Callers should
 // pick one granularity for a given skill rather than mixing scopes.
 // A FlatSkill has no subtree and returns immediately for any p.
-func (s *Skill) FilesByPath(p string) ([]*File, error) {
+func (s *SkillImpl) FilesByPath(p string) ([]*FileImpl, error) {
 	if cached, ok := s.scanned[p]; ok {
 		return cached, nil
 	}
@@ -87,7 +73,7 @@ func (s *Skill) FilesByPath(p string) ([]*File, error) {
 	if p != "" {
 		start = NestedRepoPath(s.SkillDirPath, p)
 	}
-	var files []*File
+	var files []*FileImpl
 	err := fs.WalkDir(s.Repo.FS, start, func(cur string, e fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -109,11 +95,11 @@ func (s *Skill) FilesByPath(p string) ([]*File, error) {
 		if err != nil {
 			return err
 		}
-		files = append(files, &File{Path: rel, Mode: info.Mode().Perm(), skill: s})
+		files = append(files, &FileImpl{Path: rel, Mode: info.Mode().Perm(), skill: s})
 		return nil
 	})
 	if s.scanned == nil {
-		s.scanned = map[string][]*File{}
+		s.scanned = map[string][]*FileImpl{}
 	}
 	s.scanned[p] = files
 	return files, err
@@ -123,33 +109,18 @@ func (s *Skill) FilesByPath(p string) ([]*File, error) {
 // matches re -- the same *File pointers FilesByPath(p) caches, so loading
 // Data through a Find result is visible through a later FilesByPath(p)
 // call with the same p too.
-func (s *Skill) Find(p string, re *regexp.Regexp) ([]*File, error) {
+func (s *SkillImpl) Find(p string, re *regexp.Regexp) ([]*FileImpl, error) {
 	files, err := s.FilesByPath(p)
 	if err != nil {
 		return nil, err
 	}
-	var out []*File
+	var out []*FileImpl
 	for _, f := range files {
 		if re.MatchString(f.Path) {
 			out = append(out, f)
 		}
 	}
 	return out, nil
-}
-
-// Content returns f's own content, reading it from its owning skill's
-// source repository and caching the result on f.Data. f must have been
-// obtained from a Skill's FilesByPath/Find (or be that skill's own
-// MainFile) -- a File with no owning skill wired in will panic.
-func (f *File) Content() ([]byte, error) {
-	if f.Data == nil {
-		data, err := fs.ReadFile(f.skill.Repo.FS, NestedRepoPath(f.skill.SkillDirPath, f.Path))
-		if err != nil {
-			return nil, err
-		}
-		f.Data = data
-	}
-	return f.Data, nil
 }
 
 // Data returns f's content, same as f.Content().
@@ -160,7 +131,7 @@ func (f *File) Content() ([]byte, error) {
 // receiver before delegating. Once discovery constructs Files with the
 // back-reference set (or s.Files is retired in favor of FilesByPath), call
 // f.Content() directly and remove this method.
-func (s *Skill) Data(f *File) ([]byte, error) {
+func (s *SkillImpl) Data(f *FileImpl) ([]byte, error) {
 	if f.skill == nil {
 		f.skill = s
 	}

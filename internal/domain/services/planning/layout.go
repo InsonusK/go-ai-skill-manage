@@ -3,12 +3,13 @@ package planning
 import (
 	"context"
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"io/fs"
 	"path"
 	"sort"
 	"strings"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 )
 
 type Layout struct {
@@ -19,7 +20,7 @@ type Layout struct {
 func BuildLayout(ctx context.Context, cat *model.SkillCatalog, sources interfaces.RepositoryLookup) (Layout, error) {
 	layout := Layout{Paths: cat.Destinations(), Shared: []model.OutputFile{}}
 	external := map[string]bool{}
-	scan := func(f *model.File) {
+	scan := func(f *model.FileImpl) {
 		for _, l := range f.Links {
 			if _, ok := layout.Paths[l.Target]; ok {
 				continue

@@ -29,7 +29,7 @@ func (p selectProvider) Acquire(context.Context, model.SourceKey, model.Acquisit
 func initialize(sc *godog.ScenarioContext) {
 	var tree fstest.MapFS
 	var names []string
-	var discovered []*model.Skill
+	var discovered []*model.SkillImpl
 	var failure error
 	var canceled bool
 	sc.Step(`^a source tree$`, func(ctx context.Context, d *godog.DocString) error {
@@ -73,7 +73,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^discovered skill "([^"]*)" has format "([^"]*)" root "([^"]*)" and nested files "([^"]*)"$`, func(ctx context.Context, name, format, root, nested string) error {
-		var found *model.Skill
+		var found *model.SkillImpl
 		for _, s := range discovered {
 			if s.Name == name {
 				found = s

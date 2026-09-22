@@ -63,12 +63,6 @@ func (r *Repository) Close() error {
 // AddCloser registers a cleanup function to run on Close, in call order.
 func (r *Repository) AddCloser(c func() error) { r.closers = append(r.closers, c) }
 
-type Document struct {
-	Properties     map[string]any
-	Metadata       map[string]any
-	Body           string
-	HasFrontmatter bool
-}
 type Link struct {
 	Start, End                        int
 	Raw, Text, Path, Fragment, Format string

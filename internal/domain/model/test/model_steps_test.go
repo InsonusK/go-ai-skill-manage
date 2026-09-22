@@ -44,7 +44,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return testsupport.Equal([]any{gotOwned, gotRelative}, []any{owned == "true", relative})
 	})
 
-	var lazySkill *model.Skill
+	var lazySkill *model.SkillImpl
 	var lazyIndex map[string]int
 	var lazyCounts map[string]int
 	var lazyData []byte
@@ -53,7 +53,7 @@ func initialize(sc *godog.ScenarioContext) {
 		lazyCounts = map[string]int{}
 		files := fstest.MapFS{model.NestedRepoPath(skillDirPath, nestedFilePath): &fstest.MapFile{Data: []byte(content)}}
 		repo := &model.Repository{ID: "repo", Root: "/source", FS: countingFS{files: files, counts: lazyCounts}}
-		lazySkill = &model.Skill{Name: name, MainFilePath: mainFilePath, SkillDirPath: skillDirPath, Format: model.AgentDirSkill, Repo: repo, Files: []model.File{{Path: nestedFilePath}}}
+		lazySkill = &model.SkillImpl{Name: name, MainFilePath: mainFilePath, SkillDirPath: skillDirPath, Format: model.AgentDirSkill, Repo: repo, Files: []model.FileImpl{{Path: nestedFilePath}}}
 		lazyIndex = map[string]int{nestedFilePath: 0}
 		lazyData, lazyErr = nil, nil
 		return nil
@@ -61,7 +61,7 @@ func initialize(sc *godog.ScenarioContext) {
 	sc.Step(`^a skill "([^"]*)" rooted at "([^"]*)" main "([^"]*)" with a missing nested file "([^"]*)"$`, func(ctx context.Context, name, skillDirPath, mainFilePath, nestedFilePath string) error {
 		lazyCounts = map[string]int{}
 		repo := &model.Repository{ID: "repo", Root: "/source", FS: countingFS{files: fstest.MapFS{}, counts: lazyCounts}}
-		lazySkill = &model.Skill{Name: name, MainFilePath: mainFilePath, SkillDirPath: skillDirPath, Format: model.AgentDirSkill, Repo: repo, Files: []model.File{{Path: nestedFilePath}}}
+		lazySkill = &model.SkillImpl{Name: name, MainFilePath: mainFilePath, SkillDirPath: skillDirPath, Format: model.AgentDirSkill, Repo: repo, Files: []model.FileImpl{{Path: nestedFilePath}}}
 		lazyIndex = map[string]int{nestedFilePath: 0}
 		lazyData, lazyErr = nil, nil
 		return nil
@@ -92,7 +92,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 
-	var pathFiles []*model.File
+	var pathFiles []*model.FileImpl
 	var pathErr error
 	var pathSnapshot int
 	var dataResult []byte
@@ -115,7 +115,7 @@ func initialize(sc *godog.ScenarioContext) {
 			files[model.NestedRepoPath(root, p)] = &fstest.MapFile{Data: []byte(content)}
 		}
 		repo := &model.Repository{ID: "repo", Root: "/source", FS: countingFS{files: files, counts: lazyCounts}}
-		lazySkill = &model.Skill{Name: name, MainFilePath: main, SkillDirPath: root, Format: model.AgentDirSkill, Repo: repo}
+		lazySkill = &model.SkillImpl{Name: name, MainFilePath: main, SkillDirPath: root, Format: model.AgentDirSkill, Repo: repo}
 		pathFiles, pathErr, dataResult, dataErr = nil, nil, nil, nil
 		return nil
 	})
@@ -195,16 +195,16 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I add skill "([^"]*)" from repo "([^"]*)" main "([^"]*)"$`, func(ctx context.Context, name, repo, main string) error {
-		skill := &model.Skill{Name: name, MainFilePath: main, SkillDirPath: main[:strings.LastIndex(main, "/")], Format: model.AgentDirSkill, Repo: &model.Repository{ID: repo}}
+		skill := &model.SkillImpl{Name: name, MainFilePath: main, SkillDirPath: main[:strings.LastIndex(main, "/")], Format: model.AgentDirSkill, Repo: &model.Repository{ID: repo}}
 		catalogErr = catalog.GetOrAdd(ctx, skill)
 		return nil
 	})
 	sc.Step(`^I add skill "([^"]*)" from repo "([^"]*)" main "([^"]*)" with files "([^"]*)"$`, func(ctx context.Context, name, repo, main, filesArg string) error {
-		var files []model.File
+		var files []model.FileImpl
 		for _, p := range strings.Split(filesArg, ",") {
-			files = append(files, model.File{Path: p})
+			files = append(files, model.FileImpl{Path: p})
 		}
-		skill := &model.Skill{Name: name, MainFilePath: main, SkillDirPath: main[:strings.LastIndex(main, "/")], Format: model.AgentDirSkill, Repo: &model.Repository{ID: repo}, Files: files}
+		skill := &model.SkillImpl{Name: name, MainFilePath: main, SkillDirPath: main[:strings.LastIndex(main, "/")], Format: model.AgentDirSkill, Repo: &model.Repository{ID: repo}, Files: files}
 		catalogErr = catalog.GetOrAdd(ctx, skill)
 		return nil
 	})

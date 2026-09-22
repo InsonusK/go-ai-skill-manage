@@ -18,11 +18,11 @@ func ValidName(name string) bool { return namePattern.MatchString(name) }
 
 type Detector struct{ Codec interfaces.DocumentCodec }
 
-func (d Detector) DiscoverByPath(ctx context.Context, repo *model.Repository, start string) ([]*model.Skill, error) {
+func (d Detector) DiscoverByPath(ctx context.Context, repo *model.Repository, start string) ([]*model.SkillImpl, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	out := []*model.Skill{}
+	out := []*model.SkillImpl{}
 	var issues model.Issues
 	var scan func(string)
 	scan = func(p string) {
@@ -79,7 +79,7 @@ func (d Detector) DiscoverByPath(ctx context.Context, repo *model.Repository, st
 // file's own bytes (for frontmatter/name validation) but only the *paths*
 // of every other nested file -- their content is loaded lazily later, by
 // Skill.FileData, only when a caller actually needs a specific file's bytes.
-func (d Detector) Rooted(ctx context.Context, repo *model.Repository, dir string) (*model.Skill, error) {
+func (d Detector) Rooted(ctx context.Context, repo *model.Repository, dir string) (*model.SkillImpl, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (d Detector) Rooted(ctx context.Context, repo *model.Repository, dir string
 		format = model.HumanDirSkill
 	}
 	var mainMode fs.FileMode
-	var files []model.File
+	var files []model.FileImpl
 	if err := fs.WalkDir(repo.FS, dir, func(p string, e fs.DirEntry, err error) error {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -164,7 +164,7 @@ func (d Detector) Rooted(ctx context.Context, repo *model.Repository, dir string
 		if err != nil {
 			return err
 		}
-		files = append(files, model.File{Path: rel, Mode: info.Mode().Perm()})
+		files = append(files, model.FileImpl{Path: rel, Mode: info.Mode().Perm()})
 		return nil
 	}); err != nil {
 		return nil, err
@@ -176,7 +176,7 @@ func (d Detector) Rooted(ctx context.Context, repo *model.Repository, dir string
 // and assembles the Skill -- MainFile carries that file's bytes; files
 // (already collected by Rooted, or nil for a flat skill) carries only paths
 // and modes, content loaded lazily later by Skill.FileData.
-func (d Detector) makeSkill(repo *model.Repository, main, root string, format model.SkillFormat, mainMode fs.FileMode, files []model.File) (*model.Skill, error) {
+func (d Detector) makeSkill(repo *model.Repository, main, root string, format model.SkillFormat, mainMode fs.FileMode, files []model.FileImpl) (*model.SkillImpl, error) {
 	data, err := fs.ReadFile(repo.FS, main)
 	if err != nil {
 		return nil, err
@@ -189,15 +189,15 @@ func (d Detector) makeSkill(repo *model.Repository, main, root string, format mo
 	if !ValidName(name) {
 		return nil, fmt.Errorf("invalid-name: %q must use lowercase letters, digits and single/double hyphens", name)
 	}
-	return &model.Skill{
+	return &model.SkillImpl{
 		Name: name, MainFilePath: main, SkillDirPath: root, Format: format, Repo: repo, Document: doc,
-		MainFile: model.File{Path: "SKILL.md", Data: data, Mode: mainMode},
+		MainFile: model.FileImpl{Path: "SKILL.md", Data: data, Mode: mainMode},
 		Files:    files,
 	}, nil
 }
 
 // Find locates the skill owning a path without scanning unrelated siblings.
-func (d Detector) Find(ctx context.Context, repo *model.Repository, p string) (*model.Skill, error) {
+func (d Detector) Find(ctx context.Context, repo *model.Repository, p string) (*model.SkillImpl, error) {
 	info, err := fs.Stat(repo.FS, p)
 	if err != nil {
 		return nil, err

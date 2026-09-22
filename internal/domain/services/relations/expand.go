@@ -15,7 +15,7 @@ type Expander struct{ Detector discovery.Detector }
 func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalog, add bool, skip []string) error {
 	processed := map[string]bool{}
 	var issues model.Issues
-	scan := func(s *model.Skill, f *model.File, repoPath string, data []byte) {
+	scan := func(s *model.SkillImpl, f *model.FileImpl, repoPath string, data []byte) {
 		if !strings.HasSuffix(strings.ToLower(f.Path), ".md") {
 			return
 		}
@@ -25,7 +25,7 @@ func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalog, add bool,
 			}
 			resolved, err := links.Resolve(s.Repo, repoPath, link.Path, func(p string) bool { return cat.Owner(ctx, s.Repo.ID, p) != nil })
 			if err == nil && cat.Owner(ctx, s.Repo.ID, resolved) == nil {
-				var candidate *model.Skill
+				var candidate *model.SkillImpl
 				candidate, err = e.Detector.Find(ctx, s.Repo, resolved)
 				if err == nil && candidate != nil {
 					if !add {

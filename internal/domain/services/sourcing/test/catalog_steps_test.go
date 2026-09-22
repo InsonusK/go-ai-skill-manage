@@ -47,7 +47,7 @@ func catalogSteps(sc *godog.ScenarioContext) {
 	var catalog *sourcing.SkillCatalog
 	var acquireCalls int
 	var openCounts map[string]int
-	var found []*model.Skill
+	var found []*model.SkillImpl
 	var failure error
 	var openSnapshot int
 

@@ -42,7 +42,7 @@ var DefaultSkipFolders = []string{"examples"}
 type SkillCatalog struct {
 	Manager     *Manager
 	Codec       interfaces.DocumentCodec
-	Skills      []*model.Skill
+	Skills      []*model.SkillImpl
 	Conflict    string
 	SkipFolders []string
 
@@ -53,7 +53,7 @@ type SkillCatalog struct {
 	// reuses the already-built, already-validated *Skill instead of
 	// re-reading and re-walking it. Kept in sync with Skills by
 	// remember/forget (add's last_wins path forgets the replaced skill).
-	bySource map[string]*model.Skill
+	bySource map[string]*model.SkillImpl
 }
 
 // GetOrAddByPath fetches key's Repository via Manager (lazily, cached by
@@ -67,7 +67,7 @@ type SkillCatalog struct {
 // nested-skill, exempting c.SkipFolders), and adds every valid one to the
 // catalog, deduping by name per c.Conflict. Returns every valid skill
 // found; invalid candidates are collected into the returned model.Issues.
-func (c *SkillCatalog) GetOrAddByPath(ctx context.Context, key model.SourceKey, start string) ([]*model.Skill, error) {
+func (c *SkillCatalog) GetOrAddByPath(ctx context.Context, key model.SourceKey, start string) ([]*model.SkillImpl, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (c *SkillCatalog) GetOrAddByPath(ctx context.Context, key model.SourceKey, 
 	if err != nil {
 		return nil, err
 	}
-	out := []*model.Skill{}
+	out := []*model.SkillImpl{}
 	var issues model.Issues
 	var scan func(string)
 	scan = func(p string) {
@@ -150,7 +150,7 @@ func (c *SkillCatalog) GetOrAddByPath(ctx context.Context, key model.SourceKey, 
 // the old, eager []model.File field discovery.Rooted used to populate --
 // since planning.Plan and relations.Expander still read it, not
 // FilesByPath, and are out of scope for this step.
-func (c *SkillCatalog) accept(skill *model.Skill, out *[]*model.Skill, issues *model.Issues) {
+func (c *SkillCatalog) accept(skill *model.SkillImpl, out *[]*model.SkillImpl, issues *model.Issues) {
 	files, err := skill.FilesByPath("")
 	if err != nil {
 		*issues = append(*issues, model.Issue{Code: "source-read", Skill: skill.Name, File: skill.MainFilePath, Message: err.Error()})
@@ -160,7 +160,7 @@ func (c *SkillCatalog) accept(skill *model.Skill, out *[]*model.Skill, issues *m
 		*issues = append(*issues, model.Issue{Code: "nested-skill", Skill: skill.Name, File: nested, Message: fmt.Sprintf("nested-skill: %s", nested)})
 		return
 	}
-	skill.Files = make([]model.File, len(files))
+	skill.Files = make([]model.FileImpl, len(files))
 	for i, f := range files {
 		skill.Files[i] = *f
 	}
@@ -182,7 +182,7 @@ func (c *SkillCatalog) accept(skill *model.Skill, out *[]*model.Skill, issues *m
 // if none is found. A marker under skipFolders is deliberately not
 // flagged -- that folder is still part of the owning skill and copied
 // along with it (see DefaultSkipFolders), not a validation failure.
-func nestedSkillPath(files []*model.File, skipFolders []string) string {
+func nestedSkillPath(files []*model.FileImpl, skipFolders []string) string {
 	for _, f := range files {
 		name := f.Path
 		if idx := strings.LastIndex(name, "/"); idx >= 0 {
@@ -209,9 +209,9 @@ func nestedSkillPath(files []*model.File, skipFolders []string) string {
 // remember indexes s into bySource under its Main path and (for a
 // directory skill) its Root, so a later GetOrAddByPath visiting either
 // path again reuses s instead of re-resolving it.
-func (c *SkillCatalog) remember(s *model.Skill) {
+func (c *SkillCatalog) remember(s *model.SkillImpl) {
 	if c.bySource == nil {
-		c.bySource = map[string]*model.Skill{}
+		c.bySource = map[string]*model.SkillImpl{}
 	}
 	c.bySource[model.OriginalKey(s.Repo.ID, s.MainFilePath)] = s
 	if s.Format != model.FlatSkill {
@@ -222,7 +222,7 @@ func (c *SkillCatalog) remember(s *model.Skill) {
 // forget removes s's bySource entries -- called when last_wins replaces s
 // with a different skill, so a stale, no-longer-cataloged *Skill can never
 // be returned by a later GetOrAddByPath call.
-func (c *SkillCatalog) forget(s *model.Skill) {
+func (c *SkillCatalog) forget(s *model.SkillImpl) {
 	delete(c.bySource, model.OriginalKey(s.Repo.ID, s.MainFilePath))
 	if s.Format != model.FlatSkill {
 		delete(c.bySource, model.OriginalKey(s.Repo.ID, s.SkillDirPath))
@@ -235,7 +235,7 @@ func (c *SkillCatalog) forget(s *model.Skill) {
 // (a pure lister) and nested-skill detection is accept's own job over its
 // result (nestedSkillPath), both triggered by accept once the Skill
 // exists.
-func (c *SkillCatalog) rooted(repo *model.Repository, dir string) (*model.Skill, error) {
+func (c *SkillCatalog) rooted(repo *model.Repository, dir string) (*model.SkillImpl, error) {
 	entries, err := fs.ReadDir(repo.FS, dir)
 	if err != nil {
 		return nil, err
@@ -281,7 +281,7 @@ func (c *SkillCatalog) rooted(repo *model.Repository, dir string) (*model.Skill,
 // makeSkill reads the skill's own file, validates its frontmatter name,
 // and assembles the Skill -- MainFile carries the file's bytes; nested
 // files are left untouched here, handled lazily by Skill.FilesByPath.
-func (c *SkillCatalog) makeSkill(repo *model.Repository, main, root string, format model.SkillFormat, mainMode fs.FileMode) (*model.Skill, error) {
+func (c *SkillCatalog) makeSkill(repo *model.Repository, main, root string, format model.SkillFormat, mainMode fs.FileMode) (*model.SkillImpl, error) {
 	data, err := fs.ReadFile(repo.FS, main)
 	if err != nil {
 		return nil, err
@@ -294,16 +294,16 @@ func (c *SkillCatalog) makeSkill(repo *model.Repository, main, root string, form
 	if !validName(name) {
 		return nil, fmt.Errorf("invalid-name: %q must use lowercase letters, digits and single/double hyphens", name)
 	}
-	return &model.Skill{
+	return &model.SkillImpl{
 		Name: name, MainFilePath: main, SkillDirPath: root, Format: format, Repo: repo, Document: doc,
-		MainFile: model.File{Path: "SKILL.md", Data: data, Mode: mainMode},
+		MainFile: model.FileImpl{Path: "SKILL.md", Data: data, Mode: mainMode},
 	}, nil
 }
 
 // add resolves name collisions while growing the catalog, per c.Conflict
 // -- same policy as the earlier model.SkillCatalog.GetOrAdd, minus a
 // precomputed destination index (Destination scans instead).
-func (c *SkillCatalog) add(s *model.Skill) error {
+func (c *SkillCatalog) add(s *model.SkillImpl) error {
 	for i, old := range c.Skills {
 		if old.Name != s.Name {
 			continue
@@ -347,7 +347,7 @@ func normalizePath(repo *model.Repository, start string) (string, error) {
 }
 
 // Owner returns the skill owning path p inside repository repoID, or nil.
-func (c *SkillCatalog) Owner(ctx context.Context, repoID, p string) *model.Skill {
+func (c *SkillCatalog) Owner(ctx context.Context, repoID, p string) *model.SkillImpl {
 	for _, s := range c.Skills {
 		if s.Repo.ID == repoID && model.OwnsPath(s.MainFilePath, s.SkillDirPath, s.Format, p) {
 			return s

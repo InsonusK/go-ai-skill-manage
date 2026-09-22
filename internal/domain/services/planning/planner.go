@@ -3,12 +3,13 @@ package planning
 import (
 	"context"
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/transform"
 	"path/filepath"
 	"slices"
 	"sort"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/transform"
 )
 
 type Planner struct {
@@ -37,7 +38,7 @@ func (p Planner) Plan(ctx context.Context, cat *model.SkillCatalog, sources inte
 	}
 	linkAdapter := slices.Contains(target.Adapters, "link-adapter")
 	claudeAdapter := slices.Contains(target.Adapters, "claude-property-adapter")
-	rewrite := func(f model.File, data []byte) ([]byte, error) {
+	rewrite := func(f model.FileImpl, data []byte) ([]byte, error) {
 		if linkAdapter && len(f.Links) > 0 {
 			updated, err := transform.Rewrite(string(data), f.Links, destinations)
 			if err != nil {

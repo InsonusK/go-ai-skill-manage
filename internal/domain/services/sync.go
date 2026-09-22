@@ -2,12 +2,13 @@ package services
 
 import (
 	"context"
+	"log/slog"
+
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/relations"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
-	"log/slog"
 )
 
 // SourceSelector selects the skills one source contributes: it resolves
@@ -18,7 +19,7 @@ import (
 // sourcing already imports interfaces (for SourceProvider/DocumentCodec),
 // so interfaces importing sourcing back would cycle.
 type SourceSelector interface {
-	Select(ctx context.Context, catalog *sourcing.SkillCatalog, spec model.SourceSpec) ([]*model.Skill, error)
+	Select(ctx context.Context, catalog *sourcing.SkillCatalog, spec model.SourceSpec) ([]*model.SkillImpl, error)
 }
 
 type SyncService struct {
