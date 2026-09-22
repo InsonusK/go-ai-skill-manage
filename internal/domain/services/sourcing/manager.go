@@ -23,18 +23,21 @@ type Manager struct {
 	providers map[string]interfaces.SourceProvider
 	repos     map[model.SourceKey]*model.Repository
 	order     []model.SourceKey
+	tempDir   string
 }
 
 // NewManager returns a Manager dispatching by SourceKey.Type to the given
-// providers (e.g. "local", "github").
-func NewManager(providers map[string]interfaces.SourceProvider) *Manager {
-	return &Manager{providers: providers, repos: map[model.SourceKey]*model.Repository{}}
+// providers (e.g. "local", "github"), using tempDir for every acquisition's
+// AcquisitionOptions.TempDir -- callers don't thread that through every
+// GetOrAdd call themselves.
+func NewManager(providers map[string]interfaces.SourceProvider, tempDir string) *Manager {
+	return &Manager{providers: providers, repos: map[model.SourceKey]*model.Repository{}, tempDir: tempDir}
 }
 
 // GetOrAdd returns the cached Repository for key, fetching it via the
 // registered provider for key.Type only on the first call for that
 // identity.
-func (m *Manager) GetOrAdd(ctx context.Context, key model.SourceKey, options model.AcquisitionOptions) (*model.Repository, error) {
+func (m *Manager) GetOrAdd(ctx context.Context, key model.SourceKey) (*model.Repository, error) {
 	if repo, ok := m.repos[key]; ok {
 		return repo, nil
 	}
@@ -42,7 +45,7 @@ func (m *Manager) GetOrAdd(ctx context.Context, key model.SourceKey, options mod
 	if !ok {
 		return nil, fmt.Errorf("unknown source type %q", key.Type)
 	}
-	repo, err := provider.Acquire(ctx, key, options)
+	repo, err := provider.Acquire(ctx, key, model.AcquisitionOptions{TempDir: m.tempDir})
 	if err != nil {
 		return nil, err
 	}

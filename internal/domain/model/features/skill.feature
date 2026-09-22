@@ -2,6 +2,7 @@ Feature: Lazily load a skill's nested file content
  Scenario: FileData reads a nested file once and caches it
   Given a skill "guide" rooted at "a" main "a/SKILL.md" with nested file "notes.md" containing "hello"
   Then nested file "notes.md" data is not yet loaded
+  Then nested file "notes.md" was read "0" time
   When I read nested file "notes.md" data
   Then nested file "notes.md" data is "hello"
   And nested file "notes.md" was read "1" time
@@ -56,15 +57,15 @@ Feature: Lazily load a skill's nested file content
   When I read file data at "docs/intro.md"
   Then file data at "docs/intro.md" is "intro"
 
- Scenario: A nested skill marker inside the scoped subtree fails FilesByPath
+ Scenario: FilesByPath lists a nested skill marker file like any other file
   Given a skill "guide" rooted at "a" main "a/SKILL.md" with tree
    """
    {"docs/intro.md":"intro","examples/SKILL.md":"---\nname: nested\n---\n"}
    """
   When I list files by path "examples"
-  Then listing files fails with "nested-skill"
+  Then listed files are "examples/SKILL.md"
 
- Scenario: A nested skill marker outside the scoped subtree is not seen
+ Scenario: A file outside the scoped subtree is not seen
   Given a skill "guide" rooted at "a" main "a/SKILL.md" with tree
    """
    {"docs/intro.md":"intro","examples/SKILL.md":"---\nname: nested\n---\n"}

@@ -16,13 +16,14 @@ Feature: SkillCatalog finds, validates and caches skills by path
    | {"a.skill.md":"---\\nname: Bad Name\\n---\\n"} | | invalid-name |
    | {"README.md":"ordinary"} | | |
 
- Scenario: Known gap -- SkipFolders isn't threaded through yet, so an "examples" folder is not exempt from nested-skill
+ Scenario: SkipFolders exempts a folder from nested-skill
   Given a source tree
    """
    {"a/SKILL.md":"---\nname: one\n---\n","a/examples/b/SKILL.md":"---\nname: example\n---\n"}
    """
+  And skip folders are "examples"
   When I get or add skills at "."
-  Then found names are "" and catalog error contains "nested-skill"
+  Then found names are "one" and catalog error contains ""
 
  Scenario: Recursive discovery finds multiple skills and does not search inside a found skill's own directory
   Given a source tree

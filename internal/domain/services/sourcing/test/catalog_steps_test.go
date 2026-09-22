@@ -56,7 +56,7 @@ func catalogSteps(sc *godog.ScenarioContext) {
 		openCounts = map[string]int{}
 		provider := catalogProvider{calls: &acquireCalls, fs: catalogTreeFS{files: tree, counts: openCounts}}
 		return &sourcing.SkillCatalog{
-			Manager:  sourcing.NewManager(map[string]interfaces.SourceProvider{"local": provider}),
+			Manager:  sourcing.NewManager(map[string]interfaces.SourceProvider{"local": provider}, ""),
 			Codec:    document.Codec{},
 			Conflict: "error",
 		}
@@ -79,8 +79,15 @@ func catalogSteps(sc *godog.ScenarioContext) {
 		catalog.Conflict = policy
 		return nil
 	})
+	sc.Step(`^skip folders are "([^"]*)"$`, func(ctx context.Context, folders string) error {
+		catalog.SkipFolders = nil
+		if folders != "" {
+			catalog.SkipFolders = strings.Split(folders, ",")
+		}
+		return nil
+	})
 	sc.Step(`^I get or add skills at "([^"]*)"$`, func(ctx context.Context, p string) error {
-		skills, err := catalog.GetOrAddByPath(ctx, model.SourceKey{Type: "local", Path: "repo"}, p, model.AcquisitionOptions{})
+		skills, err := catalog.GetOrAddByPath(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
 		found = skills
 		failure = err
 		return nil
@@ -141,7 +148,7 @@ func catalogSteps(sc *godog.ScenarioContext) {
 	sc.Step(`^catalog skill "([^"]*)" belongs to root "([^"]*)"$`, func(ctx context.Context, name, root string) error {
 		for _, s := range catalog.Skills {
 			if s.Name == name {
-				return testsupport.Equal(s.Root, root)
+				return testsupport.Equal(s.SkillDirPath, root)
 			}
 		}
 		return fmt.Errorf("skill %q not found in catalog", name)

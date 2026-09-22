@@ -6,13 +6,26 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/relations"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"log/slog"
 )
 
+// SourceSelector selects the skills one source contributes: it resolves
+// spec's configured subpaths through catalog (validating/adding each via
+// GetOrAddByPath) and filters the result by spec's tags/name --
+// implemented by discovery.Detector. Lives here rather than in
+// interfaces because its signature needs *sourcing.SkillCatalog, and
+// sourcing already imports interfaces (for SourceProvider/DocumentCodec),
+// so interfaces importing sourcing back would cycle.
+type SourceSelector interface {
+	Select(ctx context.Context, catalog *sourcing.SkillCatalog, spec model.SourceSpec) ([]*model.Skill, error)
+}
+
 type SyncService struct {
-	Sources   interfaces.SourceCache
+	Sources   *sourcing.Manager
+	Codec     interfaces.DocumentCodec
 	Lookup    interfaces.RepositoryLookup
-	Detector  interfaces.SourceSelector
+	Detector  SourceSelector
 	Relations relations.Expander
 	Planner   planning.Planner
 	Writer    interfaces.PlanWriter
@@ -27,11 +40,8 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 	var issues model.Issues
 	for _, spec := range req.Sources {
 		slog.DebugContext(ctx, "acquiring source", "type", spec.Type, "path", spec.Path)
-		repo, acquireErr := s.Sources.GetOrAdd(ctx, spec.Key(), model.AcquisitionOptions{TempDir: req.TempDir})
-		if acquireErr != nil {
-			return result, acquireErr
-		}
-		found, discoverErr := s.Detector.Select(ctx, repo, spec)
+		skillCatalog := &sourcing.SkillCatalog{Manager: s.Sources, Codec: s.Codec, Conflict: req.Conflict, SkipFolders: sourcing.DefaultSkipFolders}
+		found, discoverErr := s.Detector.Select(ctx, skillCatalog, spec)
 		if discoverErr != nil {
 			issues = append(issues, model.Issue{Code: "discovery", File: spec.Path, Message: discoverErr.Error()})
 		}

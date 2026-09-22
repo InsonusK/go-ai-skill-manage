@@ -3,10 +3,11 @@ package relations
 import (
 	"context"
 	"errors"
+	"strings"
+
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
-	"strings"
 )
 
 type Expander struct{ Detector discovery.Detector }
@@ -56,7 +57,7 @@ func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalog, add bool,
 			continue
 		}
 		processed[s.Key()] = true
-		scan(s, &s.MainFile, s.Main, s.MainFile.Data)
+		scan(s, &s.MainFile, s.MainFilePath, s.MainFile.Data)
 		for fi := range s.Files {
 			f := &s.Files[fi]
 			if !strings.HasSuffix(strings.ToLower(f.Path), ".md") {
@@ -67,7 +68,7 @@ func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalog, add bool,
 				issues = append(issues, model.Issue{Code: "source-read", Skill: s.Name, File: f.Path, Message: err.Error()})
 				continue
 			}
-			scan(s, f, model.NestedRepoPath(s.Root, f.Path), data)
+			scan(s, f, model.NestedRepoPath(s.SkillDirPath, f.Path), data)
 		}
 	}
 	if len(issues) > 0 {

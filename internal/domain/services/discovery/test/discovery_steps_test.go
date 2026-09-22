@@ -7,12 +7,24 @@ import (
 	"strings"
 	"testing/fstest"
 
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/document"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
 )
+
+// selectProvider is a fake interfaces.SourceProvider returning a fixed
+// Repository, wrapping it in a real sourcing.Manager so Select's own
+// sourcing.SkillCatalog.Manager.GetOrAdd/GetOrAddByPath calls resolve
+// against the scenario's configured tree.
+type selectProvider struct{ repo *model.Repository }
+
+func (p selectProvider) Acquire(context.Context, model.SourceKey, model.AcquisitionOptions) (*model.Repository, error) {
+	return p.repo, nil
+}
 
 func initialize(sc *godog.ScenarioContext) {
 	var tree fstest.MapFS
@@ -74,7 +86,7 @@ func initialize(sc *godog.ScenarioContext) {
 		if err := testsupport.Equal(string(found.Format), format); err != nil {
 			return err
 		}
-		if err := testsupport.Equal(found.Root, root); err != nil {
+		if err := testsupport.Equal(found.SkillDirPath, root); err != nil {
 			return err
 		}
 		if err := testsupport.Equal(found.MainFile.Path, "SKILL.md"); err != nil {
@@ -98,14 +110,19 @@ func initialize(sc *godog.ScenarioContext) {
 	})
 	sc.Step(`^I select from subpath "([^"]*)" with tags "([^"]*)" and name "([^"]*)"$`, func(ctx context.Context, subpath, tagsArg, name string) error {
 		repo := &model.Repository{ID: "local", Root: "/source", FS: tree}
-		spec := model.SourceSpec{Name: name}
+		spec := model.SourceSpec{Type: "local", Name: name}
 		if subpath != "" {
 			spec.Subpaths = []string{subpath}
 		}
 		if tagsArg != "" {
 			spec.Tags = []string{tagsArg}
 		}
-		skills, err := (discovery.Detector{Codec: document.Codec{}}).Select(ctx, repo, spec)
+		catalog := &sourcing.SkillCatalog{
+			Manager:  sourcing.NewManager(map[string]interfaces.SourceProvider{"local": selectProvider{repo: repo}}, ""),
+			Codec:    document.Codec{},
+			Conflict: "error",
+		}
+		skills, err := (discovery.Detector{Codec: document.Codec{}}).Select(ctx, catalog, spec)
 		failure = err
 		names = []string{}
 		for _, s := range skills {
@@ -115,8 +132,13 @@ func initialize(sc *godog.ScenarioContext) {
 	})
 	sc.Step(`^I select the single file "([^"]*)" with subpath "([^"]*)"$`, func(ctx context.Context, file, subpath string) error {
 		repo := &model.Repository{ID: "local", Root: "/source", FS: tree, SingleFile: file}
-		spec := model.SourceSpec{Subpaths: []string{subpath}}
-		skills, err := (discovery.Detector{Codec: document.Codec{}}).Select(ctx, repo, spec)
+		spec := model.SourceSpec{Type: "local", Subpaths: []string{subpath}}
+		catalog := &sourcing.SkillCatalog{
+			Manager:  sourcing.NewManager(map[string]interfaces.SourceProvider{"local": selectProvider{repo: repo}}, ""),
+			Codec:    document.Codec{},
+			Conflict: "error",
+		}
+		skills, err := (discovery.Detector{Codec: document.Codec{}}).Select(ctx, catalog, spec)
 		failure = err
 		names = []string{}
 		for _, s := range skills {

@@ -46,7 +46,7 @@ func (c *SkillCatalog) GetOrAdd(ctx context.Context, s *Skill) error {
 			c.index(s)
 			return nil
 		}
-		return Issue{Code: "duplicate-name", Skill: s.Name, File: s.Main, Message: fmt.Sprintf("also defined at %s", old.Main)}
+		return Issue{Code: "duplicate-name", Skill: s.Name, File: s.MainFilePath, Message: fmt.Sprintf("also defined at %s", old.MainFilePath)}
 	}
 	c.Skills = append(c.Skills, s)
 	c.index(s)
@@ -63,30 +63,30 @@ func (c *SkillCatalog) index(s *Skill) {
 	set := func(original, dest string) {
 		c.dest[OriginalKey(s.Repo.ID, original)] = catalogDest{name: s.Name, path: dest}
 	}
-	set(s.Main, path.Join(s.Name, "SKILL.md"))
+	set(s.MainFilePath, path.Join(s.Name, "SKILL.md"))
 	for _, f := range s.Files {
-		set(NestedRepoPath(s.Root, f.Path), path.Join(s.Name, f.Path))
+		set(NestedRepoPath(s.SkillDirPath, f.Path), path.Join(s.Name, f.Path))
 	}
 	if s.Format != FlatSkill {
-		set(s.Root, path.Join(s.Name, "SKILL.md"))
+		set(s.SkillDirPath, path.Join(s.Name, "SKILL.md"))
 	}
 }
 
 func (c *SkillCatalog) deindex(s *Skill) {
 	del := func(original string) { delete(c.dest, OriginalKey(s.Repo.ID, original)) }
-	del(s.Main)
+	del(s.MainFilePath)
 	for _, f := range s.Files {
-		del(NestedRepoPath(s.Root, f.Path))
+		del(NestedRepoPath(s.SkillDirPath, f.Path))
 	}
 	if s.Format != FlatSkill {
-		del(s.Root)
+		del(s.SkillDirPath)
 	}
 }
 
 // Owner returns the skill owning path p inside repository repoID, or nil.
 func (c *SkillCatalog) Owner(ctx context.Context, repoID, p string) *Skill {
 	for _, s := range c.Skills {
-		if s.Repo.ID == repoID && OwnsPath(s.Main, s.Root, s.Format, p) {
+		if s.Repo.ID == repoID && OwnsPath(s.MainFilePath, s.SkillDirPath, s.Format, p) {
 			return s
 		}
 	}
@@ -103,8 +103,8 @@ func (c *SkillCatalog) Destination(repoID, originalPath string) (name, dest stri
 		return d.name, d.path, true
 	}
 	for _, s := range c.Skills {
-		if s.Repo.ID == repoID && OwnsPath(s.Main, s.Root, s.Format, originalPath) {
-			return s.Name, path.Join(s.Name, RelativePath(s.Main, s.Root, originalPath)), true
+		if s.Repo.ID == repoID && OwnsPath(s.MainFilePath, s.SkillDirPath, s.Format, originalPath) {
+			return s.Name, path.Join(s.Name, RelativePath(s.MainFilePath, s.SkillDirPath, originalPath)), true
 		}
 	}
 	return "", "", false

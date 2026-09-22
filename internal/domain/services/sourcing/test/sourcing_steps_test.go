@@ -44,32 +44,32 @@ func initialize(sc *godog.ScenarioContext) {
 		failure = nil
 		manager = sourcing.NewManager(map[string]interfaces.SourceProvider{
 			"local": countingProvider{calls: &calls, closed: &closedOrder},
-		})
+		}, "")
 		return nil
 	})
 	sc.Step(`^I acquire "([^"]*)" source "([^"]*)" twice$`, func(ctx context.Context, typ, path string) error {
-		a, err := manager.GetOrAdd(ctx, model.SourceKey{Type: typ, Path: path}, model.AcquisitionOptions{})
+		a, err := manager.GetOrAdd(ctx, model.SourceKey{Type: typ, Path: path})
 		if err != nil {
 			failure = err
 			return nil
 		}
-		b, err := manager.GetOrAdd(ctx, model.SourceKey{Type: typ, Path: path}, model.AcquisitionOptions{})
+		b, err := manager.GetOrAdd(ctx, model.SourceKey{Type: typ, Path: path})
 		failure = err
 		repos = []*model.Repository{a, b}
 		return nil
 	})
 	sc.Step(`^I acquire "([^"]*)" source "([^"]*)" and "([^"]*)" source "([^"]*)"$`, func(ctx context.Context, t1, p1, t2, p2 string) error {
-		_, err := manager.GetOrAdd(ctx, model.SourceKey{Type: t1, Path: p1}, model.AcquisitionOptions{})
+		_, err := manager.GetOrAdd(ctx, model.SourceKey{Type: t1, Path: p1})
 		if err != nil {
 			failure = err
 			return nil
 		}
-		_, err = manager.GetOrAdd(ctx, model.SourceKey{Type: t2, Path: p2}, model.AcquisitionOptions{})
+		_, err = manager.GetOrAdd(ctx, model.SourceKey{Type: t2, Path: p2})
 		failure = err
 		return nil
 	})
 	sc.Step(`^I acquire "([^"]*)" source "([^"]*)"$`, func(ctx context.Context, typ, path string) error {
-		_, failure = manager.GetOrAdd(ctx, model.SourceKey{Type: typ, Path: path}, model.AcquisitionOptions{})
+		_, failure = manager.GetOrAdd(ctx, model.SourceKey{Type: typ, Path: path})
 		return nil
 	})
 	sc.Step(`^the provider was called "([^"]*)" times$`, func(ctx context.Context, want string) error {

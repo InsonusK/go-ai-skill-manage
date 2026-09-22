@@ -23,7 +23,7 @@ func (a App) Execute(ctx context.Context, opts Options, cwd string) int {
 		fmt.Fprintln(a.Out, a.Version)
 		return 0
 	}
-	req, err := a.request(opts, cwd)
+	req, err := a.Request(opts, cwd)
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
 		return 1

@@ -31,10 +31,11 @@ func (Local) Acquire(ctx context.Context, key model.SourceKey, _ model.Acquisiti
 	if err != nil {
 		return nil, err
 	}
-	// TODO(discovery step 3): SkipFolders used to come from SourceSpec here
-	// (repo.SkipFolders = s.SkipFolders); SourceProvider now only gets a
-	// SourceKey, so it's never set. See interfaces.SourceProvider's doc
-	// comment for the full note.
+	// Repository.SkipFolders is deliberately never set: SourceProvider only
+	// gets a SourceKey (identity), not SourceSpec.SkipFolders. The main
+	// discovery pipeline threads SkipFolders explicitly instead; only
+	// relations.Expander (still on the old discovery.Rooted path) is left
+	// affected by that. See interfaces.SourceProvider's doc comment.
 	repo := &model.Repository{ID: "local:" + rootPath, Root: rootPath, FS: root.FS(), SingleFile: singleFile}
 	repo.AddCloser(root.Close)
 	return repo, nil

@@ -53,6 +53,18 @@ func run() (code int) {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	// Resolved here (rather than left to Execute alone) so its TempDir is
+	// known before the Manager -- which needs it at construction -- is
+	// built below. Execute resolves it again itself; a config file read/
+	// parse is cheap, and this keeps Execute's own contract unchanged. A
+	// resolution failure here is silently ignored -- Execute reports it
+	// properly, once, when it resolves the request itself.
+	var tempDir string
+	if !opts.Help && !opts.Version {
+		if req, reqErr := (command.App{ReadFile: os.ReadFile, Err: os.Stderr}).Request(opts, cwd); reqErr == nil {
+			tempDir = req.TempDir
+		}
+	}
 	codec := document.Codec{}
 	store := filesystem.Store{}
 	detector := discovery.Detector{Codec: codec}
@@ -62,7 +74,7 @@ func run() (code int) {
 			Git:     repository.GitCloner{Runner: repository.GitProcess{}},
 			Archive: repository.Archive{Client: &http.Client{Timeout: 60 * time.Second}},
 		},
-	})
+	}, tempDir)
 	defer func() {
 		if err := sources.Close(ctx); err != nil {
 			logger.Error("close sources", "error", err)
@@ -70,7 +82,7 @@ func run() (code int) {
 		}
 	}()
 	service := &services.SyncService{
-		Sources: sources, Lookup: sources, Detector: detector, Relations: relations.Expander{Detector: detector},
+		Sources: sources, Codec: codec, Lookup: sources, Detector: detector, Relations: relations.Expander{Detector: detector},
 		Planner: planning.Planner{State: store, Codec: codec}, Writer: store,
 	}
 	app := command.App{Sync: service, ReadFile: os.ReadFile, Out: os.Stdout, Err: os.Stderr, Version: version.Version}

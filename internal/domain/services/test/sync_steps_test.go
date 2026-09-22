@@ -3,11 +3,13 @@ package services_test
 import (
 	"context"
 	"fmt"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/relations"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/document"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
@@ -16,25 +18,18 @@ import (
 	"testing/fstest"
 )
 
-// source is a fake SourceProvider: acquisition/cleanup lifetime is no longer
-// SyncService.Run's concern (it moved to repository.SourceManager, tested in
-// its own package), so this fake only needs to hand back a fixed repo and
-// record the acquisition options it received.
+// source is a fake interfaces.SourceProvider, wrapped in a real
+// sourcing.Manager so SyncService.Sources/Lookup and Detector's own
+// SkillCatalog.Manager all share one cache, matching main.go's wiring: it
+// hands back a fixed repo and records the acquisition options it received.
 type source struct {
 	repo    *model.Repository
 	tempDir *string
 }
 
-func (s source) GetOrAdd(_ context.Context, _ model.SourceKey, options model.AcquisitionOptions) (*model.Repository, error) {
+func (s source) Acquire(_ context.Context, _ model.SourceKey, options model.AcquisitionOptions) (*model.Repository, error) {
 	*s.tempDir = options.TempDir
 	return s.repo, nil
-}
-
-func (s source) Lookup(_ context.Context, id string) (*model.Repository, bool) {
-	if s.repo != nil && s.repo.ID == id {
-		return s.repo, true
-	}
-	return nil, false
 }
 
 type state struct{ fail bool }
@@ -52,11 +47,11 @@ func (w writer) Apply(context.Context, model.TargetPlan) error { *w.calls++; ret
 
 // failingDetector proves SyncService.Run surfaces a discovery-stage error
 // without needing real markdown parsing -- only possible to fake now that
-// Detector is a port (interfaces.SourceSelector) rather than a concrete
+// Detector is a port (services.SourceSelector) rather than a concrete
 // discovery.Detector field.
 type failingDetector struct{ message string }
 
-func (d failingDetector) Select(context.Context, *model.Repository, model.SourceSpec) ([]*model.Skill, error) {
+func (d failingDetector) Select(context.Context, *sourcing.SkillCatalog, model.SourceSpec) ([]*model.Skill, error) {
 	return nil, fmt.Errorf("%s", d.message)
 }
 
@@ -101,8 +96,8 @@ func initialize(sc *godog.ScenarioContext) {
 	})
 	sc.Step(`^I synchronize$`, func(ctx context.Context) error {
 		detector := discovery.Detector{Codec: document.Codec{}}
-		src := source{repo, &acquiredTempDir}
-		service := services.SyncService{Sources: src, Lookup: src, Detector: detector, Relations: relations.Expander{Detector: detector}, Planner: planning.Planner{State: state{fail}, Codec: document.Codec{}}, Writer: writer{&calls}}
+		manager := sourcing.NewManager(map[string]interfaces.SourceProvider{"local": source{repo, &acquiredTempDir}}, request.TempDir)
+		service := services.SyncService{Sources: manager, Codec: document.Codec{}, Lookup: manager, Detector: detector, Relations: relations.Expander{Detector: detector}, Planner: planning.Planner{State: state{fail}, Codec: document.Codec{}}, Writer: writer{&calls}}
 		if detectorFailure != "" {
 			service.Detector = failingDetector{message: detectorFailure}
 		}

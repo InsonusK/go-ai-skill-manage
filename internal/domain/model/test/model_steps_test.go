@@ -49,20 +49,20 @@ func initialize(sc *godog.ScenarioContext) {
 	var lazyCounts map[string]int
 	var lazyData []byte
 	var lazyErr error
-	sc.Step(`^a skill "([^"]*)" rooted at "([^"]*)" main "([^"]*)" with nested file "([^"]*)" containing "([^"]*)"$`, func(ctx context.Context, name, root, main, path, content string) error {
+	sc.Step(`^a skill "([^"]*)" rooted at "([^"]*)" main "([^"]*)" with nested file "([^"]*)" containing "([^"]*)"$`, func(ctx context.Context, name, skillDirPath, mainFilePath, nestedFilePath, content string) error {
 		lazyCounts = map[string]int{}
-		files := fstest.MapFS{model.NestedRepoPath(root, path): &fstest.MapFile{Data: []byte(content)}}
+		files := fstest.MapFS{model.NestedRepoPath(skillDirPath, nestedFilePath): &fstest.MapFile{Data: []byte(content)}}
 		repo := &model.Repository{ID: "repo", Root: "/source", FS: countingFS{files: files, counts: lazyCounts}}
-		lazySkill = &model.Skill{Name: name, Main: main, Root: root, Format: model.AgentDirSkill, Repo: repo, Files: []model.File{{Path: path}}}
-		lazyIndex = map[string]int{path: 0}
+		lazySkill = &model.Skill{Name: name, MainFilePath: mainFilePath, SkillDirPath: skillDirPath, Format: model.AgentDirSkill, Repo: repo, Files: []model.File{{Path: nestedFilePath}}}
+		lazyIndex = map[string]int{nestedFilePath: 0}
 		lazyData, lazyErr = nil, nil
 		return nil
 	})
-	sc.Step(`^a skill "([^"]*)" rooted at "([^"]*)" main "([^"]*)" with a missing nested file "([^"]*)"$`, func(ctx context.Context, name, root, main, path string) error {
+	sc.Step(`^a skill "([^"]*)" rooted at "([^"]*)" main "([^"]*)" with a missing nested file "([^"]*)"$`, func(ctx context.Context, name, skillDirPath, mainFilePath, nestedFilePath string) error {
 		lazyCounts = map[string]int{}
 		repo := &model.Repository{ID: "repo", Root: "/source", FS: countingFS{files: fstest.MapFS{}, counts: lazyCounts}}
-		lazySkill = &model.Skill{Name: name, Main: main, Root: root, Format: model.AgentDirSkill, Repo: repo, Files: []model.File{{Path: path}}}
-		lazyIndex = map[string]int{path: 0}
+		lazySkill = &model.Skill{Name: name, MainFilePath: mainFilePath, SkillDirPath: skillDirPath, Format: model.AgentDirSkill, Repo: repo, Files: []model.File{{Path: nestedFilePath}}}
+		lazyIndex = map[string]int{nestedFilePath: 0}
 		lazyData, lazyErr = nil, nil
 		return nil
 	})
@@ -83,7 +83,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return testsupport.Equal(string(lazyData), want)
 	})
 	sc.Step(`^nested file "([^"]*)" was read "([^"]*)" times?$`, func(ctx context.Context, path, want string) error {
-		return testsupport.Equal(strconv.Itoa(lazyCounts[model.NestedRepoPath(lazySkill.Root, path)]), want)
+		return testsupport.Equal(strconv.Itoa(lazyCounts[model.NestedRepoPath(lazySkill.SkillDirPath, path)]), want)
 	})
 	sc.Step(`^reading nested file data fails with "([^"]*)"$`, func(ctx context.Context, want string) error {
 		if lazyErr == nil || !strings.Contains(lazyErr.Error(), want) {
@@ -115,7 +115,7 @@ func initialize(sc *godog.ScenarioContext) {
 			files[model.NestedRepoPath(root, p)] = &fstest.MapFile{Data: []byte(content)}
 		}
 		repo := &model.Repository{ID: "repo", Root: "/source", FS: countingFS{files: files, counts: lazyCounts}}
-		lazySkill = &model.Skill{Name: name, Main: main, Root: root, Format: model.AgentDirSkill, Repo: repo}
+		lazySkill = &model.Skill{Name: name, MainFilePath: main, SkillDirPath: root, Format: model.AgentDirSkill, Repo: repo}
 		pathFiles, pathErr, dataResult, dataErr = nil, nil, nil, nil
 		return nil
 	})
@@ -195,7 +195,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I add skill "([^"]*)" from repo "([^"]*)" main "([^"]*)"$`, func(ctx context.Context, name, repo, main string) error {
-		skill := &model.Skill{Name: name, Main: main, Root: main[:strings.LastIndex(main, "/")], Format: model.AgentDirSkill, Repo: &model.Repository{ID: repo}}
+		skill := &model.Skill{Name: name, MainFilePath: main, SkillDirPath: main[:strings.LastIndex(main, "/")], Format: model.AgentDirSkill, Repo: &model.Repository{ID: repo}}
 		catalogErr = catalog.GetOrAdd(ctx, skill)
 		return nil
 	})
@@ -204,7 +204,7 @@ func initialize(sc *godog.ScenarioContext) {
 		for _, p := range strings.Split(filesArg, ",") {
 			files = append(files, model.File{Path: p})
 		}
-		skill := &model.Skill{Name: name, Main: main, Root: main[:strings.LastIndex(main, "/")], Format: model.AgentDirSkill, Repo: &model.Repository{ID: repo}, Files: files}
+		skill := &model.Skill{Name: name, MainFilePath: main, SkillDirPath: main[:strings.LastIndex(main, "/")], Format: model.AgentDirSkill, Repo: &model.Repository{ID: repo}, Files: files}
 		catalogErr = catalog.GetOrAdd(ctx, skill)
 		return nil
 	})

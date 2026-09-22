@@ -7,13 +7,16 @@
 // SourceProvider, DocumentCodec and PlanWriter are genuine domain/
 // infrastructure boundary ports: their sole implementation lives in
 // internal/infrastructure/*, so the domain would otherwise have to import
-// it directly. SourceCache, RepositoryLookup and SourceSelector are kept as
-// ports even though their only implementation is itself a domain service
-// (sourcing.Manager, discovery.Detector respectively), because they are
-// realized by exactly one type but consumed by more than one unrelated
-// domain package (SourceCache/RepositoryLookup by both domain/services and
-// domain/services/planning) and are substituted with fakes in those
-// packages' own orchestration tests.
+// it directly. RepositoryLookup is kept as a port even though its only
+// implementation is itself a domain service (sourcing.Manager), because it
+// is realized by exactly one type but consumed by more than one unrelated
+// domain package (domain/services and domain/services/planning) and is
+// substituted with a fake in those packages' own orchestration tests.
+// (services.SourceSelector, the discovery-selection port, and the former
+// SourceCache -- narrowed to the concrete *sourcing.Manager once it had
+// exactly one consumer -- live in internal/domain/services instead, since
+// their signatures need sourcing.SkillCatalog/*sourcing.Manager and
+// sourcing already imports this package.)
 package interfaces
 
 import (
@@ -27,23 +30,17 @@ import (
 // are a SourceSpec's selection concern, applied later by whoever selects
 // skills, not by acquisition.
 //
-// TODO(discovery step 3): SourceSpec.SkipFolders used to flow through here
-// into Repository.SkipFolders (set by Local.Acquire), and
-// discovery.Rooted's still-active deep walk reads it from there (e.g. to
-// keep an "examples" folder's nested flat-skills from tripping
-// nested-skill). That path is now unreachable -- Repository.SkipFolders is
-// never set -- until discovery is redesigned to thread SkipFolders through
-// some other way (most likely as an explicit parameter, not a Repository
-// field). Known, accepted regression until then, not silently dropped.
+// discovery.Rooted's deep walk still reads Repository.SkipFolders, which
+// is never set here (SourceSpec.SkipFolders has no way to reach a
+// Repository acquired via SourceProvider/Manager). That no longer affects
+// the main discovery pipeline: services.SourceSelector's implementation
+// threads SourceSpec.SkipFolders as an explicit parameter into
+// sourcing.SkillCatalog.GetOrAddByPath/model.Skill.FilesByPath instead of
+// relying on this field. It still affects relations.Expander, which still
+// resolves link targets via discovery.Detector.Find/Rooted -- a separate,
+// still-unscheduled gap, not fixed here.
 type SourceProvider interface {
 	Acquire(context.Context, model.SourceKey, model.AcquisitionOptions) (*model.Repository, error)
-}
-
-// SourceCache is the caching front the domain depends on for source
-// acquisition -- implemented by *sourcing.Manager. Same SourceKey-only
-// note as SourceProvider applies.
-type SourceCache interface {
-	GetOrAdd(context.Context, model.SourceKey, model.AcquisitionOptions) (*model.Repository, error)
 }
 
 // RepositoryLookup finds an already-acquired Repository by its ID, without

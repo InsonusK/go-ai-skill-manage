@@ -190,7 +190,7 @@ func (d Detector) makeSkill(repo *model.Repository, main, root string, format mo
 		return nil, fmt.Errorf("invalid-name: %q must use lowercase letters, digits and single/double hyphens", name)
 	}
 	return &model.Skill{
-		Name: name, Main: main, Root: root, Format: format, Repo: repo, Document: doc,
+		Name: name, MainFilePath: main, SkillDirPath: root, Format: format, Repo: repo, Document: doc,
 		MainFile: model.File{Path: "SKILL.md", Data: data, Mode: mainMode},
 		Files:    files,
 	}, nil

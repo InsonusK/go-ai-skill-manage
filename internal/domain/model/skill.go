@@ -1,7 +1,6 @@
 package model
 
 import (
-	"fmt"
 	"io/fs"
 	"regexp"
 	"strings"
@@ -37,17 +36,20 @@ const (
 )
 
 type Skill struct {
-	Name, Main, Root string // Main/Root are repo-relative; Root is "" for FlatSkill (N/A)
-	Format           SkillFormat
-	Repo             *Repository
-	Document         Document
-	MainFile         File   // the skill's own file; Path is always "SKILL.md", Data always populated
-	Files            []File // nested files only (never the main file); Path is skill-relative
+	// FlatSkill (a bare {name}.skill.md file, no directory): Main = "a.skill.md", Root = "". Nothing to walk into — FilesByPath returns immediately for a flat skill.
+	// AgentDirSkill (a {name}.skill/ or arbitrary directory whose marker is literally SKILL.md): Main = "a/SKILL.md", Root = "a".
+	// HumanDirSkill (a {name}.skill/ directory whose marker is {name}.skill.md, not SKILL.md): Main = "a.skill/a.skill.md", Root = "a.skill".
+	Name, MainFilePath, SkillDirPath string // Main/Root are repo-relative; Root is "" for FlatSkill (N/A)
+	Format                           SkillFormat
+	Repo                             *Repository
+	Document                         Document
+	MainFile                         File   // the skill's own file; Path is always "SKILL.md", Data always populated
+	Files                            []File // nested files only (never the main file); Path is skill-relative
 
 	scanned map[string][]*File // FilesByPath cache, keyed by the requested p
 }
 
-func (s *Skill) Key() string { return s.Repo.ID + "\x00" + s.Main }
+func (s *Skill) Key() string { return s.Repo.ID + "\x00" + s.MainFilePath }
 
 // FileData returns the content of the skill's i-th nested file, reading it
 // from the source repository and caching the result on first access --
@@ -59,21 +61,21 @@ func (s *Skill) FileData(i int) ([]byte, error) {
 	return s.Data(&s.Files[i])
 }
 
-// FilesByPath returns the files at and below skill-relative sub-path p
+// FilesByPath returns every file at and below skill-relative sub-path p
 // ("" means the skill's own root), walking only that part of the skill's
 // directory -- a caller that never asks about a subtree never pays for
-// walking it. Results are cached per distinct p, so repeat calls with the
-// same p don't re-walk, and returned as pointers into that same cached
-// slice: Data loads its content straight into File.Data, in place, so a
-// later call with the same p sees it already loaded. Note this per-p
-// caching means two *overlapping* p's (e.g. "" and "docs") each get their
-// own walk and their own *File for the same on-disk file -- loading Data
-// through one does not populate the other. Callers should pick one
-// granularity for a given skill rather than mixing scopes.
-// A FlatSkill has no subtree and returns immediately for any p. Detects
-// the same nested-skill conflict Detector.Rooted's own walk checks today
-// (another skill marker found inside p's subtree), scoped to whatever p
-// covers -- a marker outside p's subtree is not seen by this call.
+// walking it. It is a pure lister: it has no opinion about what it finds,
+// including a file that looks like another skill's own marker -- that's a
+// validation concern for the caller (see sourcing.SkillCatalog.accept),
+// not this method's job. Results are cached per distinct p, so repeat
+// calls with the same p don't re-walk, and returned as pointers into that
+// same cached slice: Data loads its content straight into File.Data, in
+// place, so a later call with the same p sees it already loaded. Note
+// this per-p caching means two *overlapping* p's (e.g. "" and "docs")
+// each get their own walk and their own *File for the same on-disk file
+// -- loading Data through one does not populate the other. Callers should
+// pick one granularity for a given skill rather than mixing scopes.
+// A FlatSkill has no subtree and returns immediately for any p.
 func (s *Skill) FilesByPath(p string) ([]*File, error) {
 	if cached, ok := s.scanned[p]; ok {
 		return cached, nil
@@ -81,9 +83,9 @@ func (s *Skill) FilesByPath(p string) ([]*File, error) {
 	if s.Format == FlatSkill {
 		return nil, nil
 	}
-	start := s.Root
+	start := s.SkillDirPath
 	if p != "" {
-		start = NestedRepoPath(s.Root, p)
+		start = NestedRepoPath(s.SkillDirPath, p)
 	}
 	var files []*File
 	err := fs.WalkDir(s.Repo.FS, start, func(cur string, e fs.DirEntry, err error) error {
@@ -93,27 +95,15 @@ func (s *Skill) FilesByPath(p string) ([]*File, error) {
 		if e.IsDir() && e.Name() == ".git" {
 			return fs.SkipDir
 		}
-		if cur == start || cur == s.Main {
+		if cur == start || cur == s.MainFilePath {
 			return nil
-		}
-		rel := strings.TrimPrefix(cur, s.Root+"/")
-		if s.Root == "." {
-			rel = cur
-		}
-		first := strings.Split(rel, "/")[0]
-		for _, skip := range s.Repo.SkipFolders {
-			if first == skip {
-				if e.IsDir() {
-					return fs.SkipDir
-				}
-				return nil
-			}
-		}
-		if !e.IsDir() && (e.Name() == "SKILL.md" || strings.HasSuffix(e.Name(), ".skill.md")) {
-			return fmt.Errorf("nested-skill: %s", cur)
 		}
 		if e.IsDir() || e.Name() == Marker {
 			return nil
+		}
+		rel := strings.TrimPrefix(cur, s.SkillDirPath+"/")
+		if s.SkillDirPath == "." {
+			rel = cur
 		}
 		info, err := e.Info()
 		if err != nil {
@@ -153,7 +143,7 @@ func (s *Skill) Find(p string, re *regexp.Regexp) ([]*File, error) {
 // MainFile) -- a File with no owning skill wired in will panic.
 func (f *File) Content() ([]byte, error) {
 	if f.Data == nil {
-		data, err := fs.ReadFile(f.skill.Repo.FS, NestedRepoPath(f.skill.Root, f.Path))
+		data, err := fs.ReadFile(f.skill.Repo.FS, NestedRepoPath(f.skill.SkillDirPath, f.Path))
 		if err != nil {
 			return nil, err
 		}

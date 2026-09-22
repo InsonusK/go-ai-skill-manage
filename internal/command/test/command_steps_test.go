@@ -65,8 +65,13 @@ func initialize(sc *godog.ScenarioContext) {
 		}
 		detector := discovery.Detector{Codec: document.Codec{}}
 		store := filesystem.Store{}
-		sources := sourcing.NewManager(map[string]interfaces.SourceProvider{"local": repository.Local{}})
-		service := &services.SyncService{Sources: sources, Lookup: sources, Detector: detector, Relations: relations.Expander{Detector: detector}, Planner: planning.Planner{State: store, Codec: document.Codec{}}, Writer: store}
+		req, reqErr := (command.App{ReadFile: os.ReadFile, Err: &stderr}).Request(opts, dir)
+		var tempDir string
+		if reqErr == nil {
+			tempDir = req.TempDir
+		}
+		sources := sourcing.NewManager(map[string]interfaces.SourceProvider{"local": repository.Local{}}, tempDir)
+		service := &services.SyncService{Sources: sources, Codec: document.Codec{}, Lookup: sources, Detector: detector, Relations: relations.Expander{Detector: detector}, Planner: planning.Planner{State: store, Codec: document.Codec{}}, Writer: store}
 		app := command.App{Sync: service, ReadFile: os.ReadFile, Out: &stdout, Err: &stderr, Version: "test-version"}
 		code = app.Execute(ctx, opts, dir)
 		testsupport.Log("exit=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
