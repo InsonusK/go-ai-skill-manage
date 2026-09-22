@@ -10,9 +10,10 @@ import (
 )
 
 // Manager caches acquired repositories by SourceKey (type+path+tree),
-// dispatching to the right underlying provider by SourceSpec.Type, so the
-// same source referenced by multiple SourceSpecs (different Subpaths/Tags)
-// is fetched only once. It owns the whole acquisition lifecycle: callers
+// dispatching to the right underlying provider by key.Type, so the same
+// source referenced by multiple SourceSpecs (different Subpaths/Tags,
+// which don't affect identity) is fetched only once. It owns the whole
+// acquisition lifecycle: callers
 // close every cached Repository via a single Close call instead of tracking
 // per-source cleanup funcs themselves. Manager only ever calls the
 // interfaces.SourceProvider port it was given -- the actual filesystem/Git/
@@ -24,25 +25,24 @@ type Manager struct {
 	order     []model.SourceKey
 }
 
-// NewManager returns a Manager dispatching by SourceSpec.Type to the given
+// NewManager returns a Manager dispatching by SourceKey.Type to the given
 // providers (e.g. "local", "github").
 func NewManager(providers map[string]interfaces.SourceProvider) *Manager {
 	return &Manager{providers: providers, repos: map[model.SourceKey]*model.Repository{}}
 }
 
-// GetOrAdd returns the cached Repository for s's identity, fetching it via
-// the registered provider for s.Type only on the first call for that
+// GetOrAdd returns the cached Repository for key, fetching it via the
+// registered provider for key.Type only on the first call for that
 // identity.
-func (m *Manager) GetOrAdd(ctx context.Context, s model.SourceSpec, options model.AcquisitionOptions) (*model.Repository, error) {
-	key := s.Key()
+func (m *Manager) GetOrAdd(ctx context.Context, key model.SourceKey, options model.AcquisitionOptions) (*model.Repository, error) {
 	if repo, ok := m.repos[key]; ok {
 		return repo, nil
 	}
-	provider, ok := m.providers[s.Type]
+	provider, ok := m.providers[key.Type]
 	if !ok {
-		return nil, fmt.Errorf("unknown source type %q", s.Type)
+		return nil, fmt.Errorf("unknown source type %q", key.Type)
 	}
-	repo, err := provider.Acquire(ctx, s, options)
+	repo, err := provider.Acquire(ctx, key, options)
 	if err != nil {
 		return nil, err
 	}

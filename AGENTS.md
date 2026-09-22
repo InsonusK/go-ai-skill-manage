@@ -48,12 +48,17 @@
 затем говорит продолжать.
 
 1. **Доработать работу с файлами в `Skill`/`Skill.Files`.** ✅ **Готово,
-   закоммичено** (`62f8b98`). См. "Что сделано" ниже — детали реализации,
-   которые важно не забыть при следующих шагах.
+   закоммичено** (`62f8b98`). См. "Что сделано (шаг 1)" ниже.
 2. **Переделать `SkillCatalog`**: перенос в `sourcing`, добавление
-   `Manager`, метод `GetByPath`. ⏳ Не начато.
+   `Manager`, метод `GetOrAddByPath`. ✅ **Реализовано, ждёт ревью/коммита
+   пользователем.** См. "Что сделано (шаг 2)" ниже — включая незапланированный,
+   но важный побочный рефакторинг `SourceProvider`/`SourceCache` на
+   `SourceKey` и оставленный `TODO` на живую регрессию `SkipFolders`.
 3. **Переделать `Discovery`**: убрать построение `Skill` из `discovery`,
-   сделать чистым обходчиком поверх `SkillCatalog.GetByPath`. ⏳ Не начато.
+   сделать чистым обходчиком поверх `SkillCatalog.GetOrAddByPath`.
+   **Обязательно** заодно закрыть `TODO` про `SkipFolders` (см. ниже) —
+   иначе `examples`-исключение из `nested-skill` останется сломанным.
+   ⏳ Не начато.
 4. **Переделать `Sync`**: убрать заранее-загрузку `Repository`, передать
    `SkillCatalog` напрямую в `Discovery`. ⏳ Не начато.
 
@@ -108,26 +113,99 @@ test/features** — `discovery`/`catalog.go`/`relations`/`planning`/`sync.go`
   последующий `FilesByPath` с тем же `p` (это была реальная баг, уже
   починенная: `Find` раньше копировал `File` по значению).
 
-## Принятые решения (чтобы не переигрывать на шагах 2–4)
+## Что сделано (шаг 2) — важные детали реализации
+
+Новый файл `internal/domain/services/sourcing/catalog.go` +
+`features/catalog.feature`/`test/catalog_steps_test.go`. Плюс —
+незапланированный, но сделанный по прямому запросу в этой же сессии
+рефакторинг портов источников (см. ниже, он расходится с исходным
+пунктом плана "`Manager` не трогаем").
+
+- `SkillCatalog{Manager, Codec, Skills, Conflict}` (в `sourcing`, не в
+  `model` — `model` не может зависеть от `sourcing`).
+  `GetOrAddByPath(ctx, key model.SourceKey, path string, options) ([]*model.Skill, error)`
+  — грузит `Repository` через `Manager` (лениво, кеш по `SourceKey`),
+  рекурсивно ищет скилы (та же семантика, что у `Detector.DiscoverByPath`
+  сегодня), валидирует (`pattern-conflict`/`invalid-name`/`nested-skill`
+  — последний ловится вызовом `skill.FilesByPath("")` сразу после
+  постройки скила, это же прогревает его файловый кеш), добавляет с
+  дедупом по имени (`Conflict`: `error`/`last_wins`).
+  `Owner`/`Destination` — без предвычисленного индекса, сканом через
+  `OwnsPath`/`RelativePath` (осознанно, см. ниже).
+  Своя копия `rooted`/`makeSkill`/`validName` — **не** импортирует
+  `discovery` (цикл `discovery` ↔ `sourcing` не создан).
+  `model.SkillCatalog` (старый тип в `model/catalog.go`) **не тронут**,
+  всё ещё используется `sync.go`/`relations`/`planning` как раньше.
+- **Мемоизация по пути**: `bySource map[string]*model.Skill` (ключ —
+  уже существующий `model.OriginalKey(repoID, path)`, переиспользован,
+  не изобретали вложенную карту), пишется в `remember()` (вызывается из
+  `finish()` после успешного `add()`) под ключами `Main` и — для
+  directory-скила — `Root`. `scan(p)` в самом начале проверяет `bySource`
+  и, если скил уже разрешён по этому пути, возвращает его без единого
+  чтения — не только избегает повторного `fs.ReadDir`/`fs.ReadFile`, но и
+  повторного `FilesByPath("")`-обхода (который иначе был бы новым
+  объектом `*Skill` с пустым кешем, даже для физически того же файла).
+  `add()`'s `last_wins`-ветка зовёт `forget()` для заменяемого скила —
+  без этого в `bySource` остался бы указатель на скил, которого уже нет
+  в `c.Skills`. Тест: "A repeated GetOrAddByPath call for the same path
+  reuses the already-resolved skill" (считает открытия файлов до/после
+  повторного вызова, ожидает 0 новых).
+- **`GetOrAdd` в старом смысле — удалён из дизайна нового `SkillCatalog`
+  целиком.** Никакого отдельного "просто резолвнуть, не добавляя" —
+  `GetOrAddByPath` всегда добавляет всё найденное и валидное.
+  `SkillCatalog` **не знает** про теги/exclude-path — это забота
+  `discovery` (шаг 3): он сам, получив `[]*model.Skill` от
+  `GetOrAddByPath`, решает, что отсеять.
+- **Предвычисленный индекс destinations (`dest`/`index()`/`deindex()`)
+  убран.** `Destination` всегда сканит `c.Skills` через
+  `OwnsPath`/`RelativePath` — тот же fallback, что и в старом
+  `model.SkillCatalog.Destination`, просто теперь единственный путь, не
+  fallback. O(n) вместо O(1), осознанный трейд-офф под "не делать
+  безусловную работу".
+- **`SourceProvider`/`SourceCache` переведены на `model.SourceKey`**
+  (было `model.SourceSpec`) — не по исходному плану шага 2, а по
+  дополнительному запросу в этой же сессии, т.к. `SourceSpec` для
+  ACQUIRE (не для discovery-фильтрации) был не нужен уже ничем, кроме
+  `SkipFolders`. Затронуты (за пределами `sourcing`, с явным
+  подтверждением пользователя, что это ок):
+  `internal/domain/interfaces/source.go`,
+  `internal/infrastructure/repository/local.go`, `fetch.go`, `sync.go`
+  (вызов `s.Sources.GetOrAdd(ctx, spec.Key(), ...)` вместо `spec`).
+  - **⚠️ TODO / известная регрессия, оставлена по решению пользователя,
+    закрыть в шаге 3**: `Repository.SkipFolders` теперь **никогда и
+    никем не проставляется** — `Local.Acquire`/`Fetcher.Acquire` больше
+    не получают `SourceSpec.SkipFolders` (только `SourceKey`). Это не
+    "пробел в новом неиспользуемом коде" — это ломает **уже боевой**
+    `discovery.Rooted` (`internal/domain/services/discovery/detector.go:149`,
+    `for _, skip := range repo.SkipFolders`), который прямо сейчас
+    используется реальным `sync` (например чтобы `examples/` со
+    вложенным flat-скилом не считался `nested-skill`). Отмечено `TODO`
+    в `interfaces/source.go` и `repository/local.go`. **При переделке
+    `Discovery` в шаге 3 обязательно решить, как `SkipFolders` реально
+    доходит до места, где он нужен** (скорее всего — явным параметром в
+    `Skill.FilesByPath`/`GetOrAddByPath`, а не через `Repository`).
+- Тесты: `sourcing/features/catalog.feature`, 14 новых сценариев (+7
+  старых `sourcing.feature` — не задеты). Есть отдельный сценарий,
+  явно документирующий вышеописанный пробел ("Known gap -- SkipFolders
+  isn't threaded through yet...").
+
+## Принятые решения (чтобы не переигрывать на шаге 3–4)
 
 - **Импорт-цикл `discovery` ↔ `sourcing`**: решено переносом построения
-  `Skill` (`Detector.Rooted`/`makeSkill`) в `sourcing`, рядом с
-  `SkillCatalog`. `discovery` зовёт `SkillCatalog.GetByPath`, обратной
-  зависимости нет.
-- **`SourceKey` vs `SourceSpec`**: `Repository.SkipFolders` сегодня берётся
-  из `SourceSpec.SkipFolders` при первом `Manager.GetOrAdd`. Если
-  `SkillCatalog.GetByPath` дёргает `Manager` только по `SourceKey` (без
-  `SkipFolders`), взять их неоткуда. Нужно решить на шаге 2: либо
-  `GetByPath` принимает что-то шире `SourceKey`, либо `Sync` всё ещё
-  регистрирует `SourceSpec` заранее (не *грузя* репозиторий, только
-  передавая настройки).
-- **Fetch-кеш vs output-список**: один общий список (как сегодня
-  `SkillCatalog.GetOrAdd`) — `GetByPath` должен сам звать `GetOrAdd`
-  внутри себя, а не вести отдельный "просто закешированные" реестр.
+  `Skill` (`Detector.Rooted`/`makeSkill`) в `sourcing` (сделано в шаге 2,
+  своя копия, без импорта `discovery`). `discovery` (шаг 3) должен звать
+  `SkillCatalog.GetOrAddByPath`, обратной зависимости быть не должно.
+- **`SourceKey` vs `SourceSpec`**: решено — `GetOrAddByPath` и весь путь
+  acquire (`SourceProvider`/`SourceCache`/`Manager`/`Local`/`Fetcher`)
+  работают через `SourceKey`. См. "Что сделано (шаг 2)" выше про
+  вытекающий `TODO` на `SkipFolders`.
+- **Fetch-кеш vs output-список**: один общий список — `GetOrAddByPath`
+  сам добавляет всё найденное и валидное; никакого отдельного "просто
+  закешированные, не добавленные" реестра. Фильтрация (теги/exclude) —
+  целиком забота `discovery`, после получения списка от `GetOrAddByPath`.
   Следствие: семантику `add_relations=false` ("нашли скил по ссылке, но
   не добавили — ошибка `unselected-skill`") придётся переносить на
-  сторону вызывающего (кто-то должен решать *до* вызова `GetByPath`, не
-  полагаясь на то, что `GetByPath` сам не добавит).
+  сторону вызывающего в шаге 3/4.
 
 ## Общие договорённости на весь ход работы
 

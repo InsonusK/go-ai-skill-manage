@@ -25,7 +25,7 @@ type source struct {
 	tempDir *string
 }
 
-func (s source) GetOrAdd(_ context.Context, _ model.SourceSpec, options model.AcquisitionOptions) (*model.Repository, error) {
+func (s source) GetOrAdd(_ context.Context, _ model.SourceKey, options model.AcquisitionOptions) (*model.Repository, error) {
 	*s.tempDir = options.TempDir
 	return s.repo, nil
 }

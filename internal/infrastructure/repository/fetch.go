@@ -20,7 +20,7 @@ type Fetcher struct {
 	Archive ArchiveFetcher
 }
 
-func (f Fetcher) Acquire(ctx context.Context, s model.SourceSpec, options model.AcquisitionOptions) (*model.Repository, error) {
+func (f Fetcher) Acquire(ctx context.Context, key model.SourceKey, options model.AcquisitionOptions) (*model.Repository, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -35,33 +35,33 @@ func (f Fetcher) Acquire(ctx context.Context, s model.SourceSpec, options model.
 		}
 	}()
 	root := filepath.Join(temp, "repo")
-	tree := s.Tree
+	tree := key.Tree
 	if tree == "" {
 		tree = "master"
 	}
-	cloneErr := f.Git.Clone(ctx, s.Path, tree, root)
+	cloneErr := f.Git.Clone(ctx, key.Path, tree, root)
 	if cloneErr != nil {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if _, _, err := GitHubURL(s.Path); err != nil {
+		if _, _, err := GitHubURL(key.Path); err != nil {
 			return nil, cloneErr
 		}
 		if err := os.RemoveAll(root); err != nil {
 			return nil, err
 		}
-		root, err = f.Archive.Fetch(ctx, s.Path, tree, filepath.Join(temp, "archive"))
+		root, err = f.Archive.Fetch(ctx, key.Path, tree, filepath.Join(temp, "archive"))
 		if err != nil {
 			return nil, fmt.Errorf("source acquisition: %w", errors.Join(cloneErr, err))
 		}
 	}
-	local := s
+	local := key
 	local.Path = root
 	repo, err := (Local{}).Acquire(ctx, local, options)
 	if err != nil {
 		return nil, err
 	}
-	repo.ID = s.Path + "@" + tree
+	repo.ID = key.Path + "@" + tree
 	repo.AddCloser(func() error { return os.RemoveAll(temp) })
 	failed = false
 	return repo, nil

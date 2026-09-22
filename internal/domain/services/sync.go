@@ -27,7 +27,7 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 	var issues model.Issues
 	for _, spec := range req.Sources {
 		slog.DebugContext(ctx, "acquiring source", "type", spec.Type, "path", spec.Path)
-		repo, acquireErr := s.Sources.GetOrAdd(ctx, spec, model.AcquisitionOptions{TempDir: req.TempDir})
+		repo, acquireErr := s.Sources.GetOrAdd(ctx, spec.Key(), model.AcquisitionOptions{TempDir: req.TempDir})
 		if acquireErr != nil {
 			return result, acquireErr
 		}

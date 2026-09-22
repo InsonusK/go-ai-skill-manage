@@ -23,14 +23,27 @@ import (
 
 // SourceProvider fetches (never caches) one Repository -- implemented by
 // Local/Fetcher, used only inside a sourcing.Manager's own dispatch map.
+// Takes only a SourceKey (identity: type/path/tree) -- Subpaths/Tags/Name
+// are a SourceSpec's selection concern, applied later by whoever selects
+// skills, not by acquisition.
+//
+// TODO(discovery step 3): SourceSpec.SkipFolders used to flow through here
+// into Repository.SkipFolders (set by Local.Acquire), and
+// discovery.Rooted's still-active deep walk reads it from there (e.g. to
+// keep an "examples" folder's nested flat-skills from tripping
+// nested-skill). That path is now unreachable -- Repository.SkipFolders is
+// never set -- until discovery is redesigned to thread SkipFolders through
+// some other way (most likely as an explicit parameter, not a Repository
+// field). Known, accepted regression until then, not silently dropped.
 type SourceProvider interface {
-	Acquire(context.Context, model.SourceSpec, model.AcquisitionOptions) (*model.Repository, error)
+	Acquire(context.Context, model.SourceKey, model.AcquisitionOptions) (*model.Repository, error)
 }
 
 // SourceCache is the caching front the domain depends on for source
-// acquisition -- implemented by *sourcing.Manager.
+// acquisition -- implemented by *sourcing.Manager. Same SourceKey-only
+// note as SourceProvider applies.
 type SourceCache interface {
-	GetOrAdd(context.Context, model.SourceSpec, model.AcquisitionOptions) (*model.Repository, error)
+	GetOrAdd(context.Context, model.SourceKey, model.AcquisitionOptions) (*model.Repository, error)
 }
 
 // RepositoryLookup finds an already-acquired Repository by its ID, without
