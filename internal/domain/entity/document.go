@@ -1,18 +1,22 @@
-package document
+package entity
 
 import (
 	"bytes"
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"go.yaml.in/yaml/v3"
 	"strings"
+
+	"go.yaml.in/yaml/v3"
 )
 
-type Codec struct{}
+type SkillDocument struct {
+	Properties     map[string]any
+	Body           string
+	HasFrontmatter bool
+}
 
-func (Codec) Decode(data []byte) (model.Document, error) {
+func MakeSkillDocument(data []byte) (SkillDocument, error) {
 	text := strings.ReplaceAll(string(data), "\r\n", "\n")
-	doc := model.Document{Body: text}
+	doc := SkillDocument{Body: text}
 	if !strings.HasPrefix(text, "---\n") {
 		return doc, nil
 	}
@@ -41,9 +45,9 @@ func (Codec) Decode(data []byte) (model.Document, error) {
 	if props == nil {
 		props = map[string]any{}
 	}
-	return model.Document{Properties: props, Body: body, HasFrontmatter: true}, nil
+	return SkillDocument{Properties: props, Body: body, HasFrontmatter: true}, nil
 }
-func (Codec) Encode(doc model.Document) ([]byte, error) {
+func (doc *SkillDocument) Encode() ([]byte, error) {
 	if !doc.HasFrontmatter {
 		return []byte(doc.Body), nil
 	}
@@ -57,12 +61,5 @@ func (Codec) Encode(doc model.Document) ([]byte, error) {
 		return nil, err
 	}
 	body := doc.Body
-	if len(doc.Metadata) > 0 {
-		extra, err := yaml.Marshal(doc.Metadata)
-		if err != nil {
-			return nil, err
-		}
-		body += "\n## Metadata\n\n```yaml\n" + string(extra) + "```\n"
-	}
 	return []byte("---\n" + b.String() + "---\n" + body), nil
 }

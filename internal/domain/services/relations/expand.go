@@ -12,7 +12,7 @@ import (
 
 type Expander struct{ Detector discovery.Detector }
 
-func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalog, add bool, skip []string) error {
+func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalogImpl, add bool, skip []string) error {
 	processed := map[string]bool{}
 	var issues model.Issues
 	scan := func(s *model.SkillImpl, f *model.FileImpl, repoPath string, data []byte) {

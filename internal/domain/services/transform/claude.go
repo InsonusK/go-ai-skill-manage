@@ -2,13 +2,14 @@ package transform
 
 import (
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"strings"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 )
 
 var native = map[string]bool{"name": true, "description": true, "when_to_use": true, "argument-hint": true, "arguments": true, "disable-model-invocation": true, "user-invocable": true, "allowed-tools": true, "disallowed-tools": true, "model": true, "effort": true, "context": true, "agent": true, "hooks": true, "paths": true, "shell": true}
 
-func Claude(doc model.Document) model.Document {
+func Claude(doc model.SkillDocument) model.SkillDocument {
 	if !doc.HasFrontmatter {
 		return doc
 	}

@@ -17,7 +17,7 @@ type Planner struct {
 	Codec interfaces.DocumentCodec
 }
 
-func (p Planner) Plan(ctx context.Context, cat *model.SkillCatalog, sources interfaces.RepositoryLookup, req model.Request, target model.Target) (model.TargetPlan, error) {
+func (p Planner) Plan(ctx context.Context, cat *model.SkillCatalogImpl, sources interfaces.RepositoryLookup, req model.Request, target model.Target) (model.TargetPlan, error) {
 	plan := model.TargetPlan{Target: target, Operations: []model.Operation{}}
 	layout, err := BuildLayout(ctx, cat, sources)
 	if err != nil {

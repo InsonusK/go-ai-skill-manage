@@ -37,7 +37,7 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 	result.DryRun = req.DryRun
 	result.Skills = []string{}
 	result.Plans = []model.TargetPlan{}
-	catalog := &model.SkillCatalog{Conflict: req.Conflict}
+	catalog := &model.SkillCatalogImpl{Conflict: req.Conflict}
 	var issues model.Issues
 	for _, spec := range req.Sources {
 		slog.DebugContext(ctx, "acquiring source", "type", spec.Type, "path", spec.Path)

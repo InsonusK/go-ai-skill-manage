@@ -2,32 +2,33 @@ package repository
 
 import (
 	"context"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"errors"
 	"os"
 	"path/filepath"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 )
 
 type Local struct{}
 
-func (Local) Acquire(ctx context.Context, key model.SourceKey, _ model.AcquisitionOptions) (*model.Repository, error) {
+func (Local) Acquire(ctx context.Context, key model.SourceKey, _ model.AcquisitionOptions) (*entity.Repository, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	absolute, err := filepath.Abs(key.Path)
+	absoluteRootPath, err := filepath.Abs(key.Path)
 	if err != nil {
 		return nil, err
 	}
-	info, err := os.Stat(absolute)
+	info, err := os.Stat(absoluteRootPath)
 	if err != nil {
 		return nil, err
 	}
-	rootPath := absolute
-	singleFile := ""
 	if !info.IsDir() {
-		rootPath = filepath.Dir(absolute)
-		singleFile = filepath.Base(absolute)
+		return nil, errors.New("source must be a directory")
 	}
-	root, err := os.OpenRoot(rootPath)
+
+	root, err := os.OpenRoot(absoluteRootPath)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +37,6 @@ func (Local) Acquire(ctx context.Context, key model.SourceKey, _ model.Acquisiti
 	// discovery pipeline threads SkipFolders explicitly instead; only
 	// relations.Expander (still on the old discovery.Rooted path) is left
 	// affected by that. See interfaces.SourceProvider's doc comment.
-	repo := &model.Repository{ID: "local:" + rootPath, Root: rootPath, FS: root.FS(), SingleFile: singleFile}
-	repo.AddCloser(root.Close)
+	repo := entity.MakeRepository(key, absoluteRootPath, root.FS(), root.Close)
 	return repo, nil
 }

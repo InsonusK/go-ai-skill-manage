@@ -1,15 +1,16 @@
-package document_test
+package entity_test
 
 import (
 	"context"
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/document"
+	"strings"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
-	"strings"
 )
 
-func initialize(sc *godog.ScenarioContext) {
+func registerDocumentSteps(sc *godog.ScenarioContext) {
 	var text string
 	var actual map[string]any
 	var failure error
@@ -20,17 +21,16 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I round trip the document$`, func(ctx context.Context) error {
-		codec := document.Codec{}
-		d, err := codec.Decode([]byte(text))
+		d, err := entity.MakeSkillDocument([]byte(text))
 		failure = err
 		if err != nil {
 			return nil
 		}
-		raw, err := codec.Encode(d)
+		raw, err := d.Encode()
 		if err != nil {
 			return err
 		}
-		round, err := codec.Decode(raw)
+		round, err := entity.MakeSkillDocument(raw)
 		if err != nil {
 			return err
 		}

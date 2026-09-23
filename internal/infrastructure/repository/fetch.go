@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"os"
 	"path/filepath"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 )
 
 type Cloner interface {
@@ -20,11 +22,11 @@ type Fetcher struct {
 	Archive ArchiveFetcher
 }
 
-func (f Fetcher) Acquire(ctx context.Context, key model.SourceKey, options model.AcquisitionOptions) (*model.Repository, error) {
+func (f Fetcher) Acquire(ctx context.Context, key model.SourceKey, options model.AcquisitionOptions) (*entity.Repository, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	temp, err := os.MkdirTemp(options.TempDir, "aism-source-")
+	temp, err := os.MkdirTemp(options.TempDir, "aism-source")
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +63,7 @@ func (f Fetcher) Acquire(ctx context.Context, key model.SourceKey, options model
 	if err != nil {
 		return nil, err
 	}
-	repo.ID = key.Path + "@" + tree
+	repo.Key = key
 	repo.AddCloser(func() error { return os.RemoveAll(temp) })
 	failed = false
 	return repo, nil

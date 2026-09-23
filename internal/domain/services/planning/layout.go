@@ -17,7 +17,7 @@ type Layout struct {
 	Shared []model.OutputFile
 }
 
-func BuildLayout(ctx context.Context, cat *model.SkillCatalog, sources interfaces.RepositoryLookup) (Layout, error) {
+func BuildLayout(ctx context.Context, cat *model.SkillCatalogImpl, sources interfaces.RepositoryLookup) (Layout, error) {
 	layout := Layout{Paths: cat.Destinations(), Shared: []model.OutputFile{}}
 	external := map[string]bool{}
 	scan := func(f *model.FileImpl) {

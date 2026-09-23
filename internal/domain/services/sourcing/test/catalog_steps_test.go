@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing/fstest"
 
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
@@ -38,16 +39,16 @@ type catalogProvider struct {
 	fs    catalogTreeFS
 }
 
-func (p catalogProvider) Acquire(ctx context.Context, key model.SourceKey, options model.AcquisitionOptions) (*model.Repository, error) {
+func (p catalogProvider) Acquire(ctx context.Context, key model.SourceKey, options model.AcquisitionOptions) (*entity.Repository, error) {
 	*p.calls++
-	return &model.Repository{ID: key.Path, FS: p.fs}, nil
+	return &entity.Repository{Key: key.Path, FS: p.fs}, nil
 }
 
 func catalogSteps(sc *godog.ScenarioContext) {
 	var catalog *sourcing.SkillCatalog
 	var acquireCalls int
 	var openCounts map[string]int
-	var found []*model.SkillImpl
+	var found []*entity.Skill
 	var failure error
 	var openSnapshot int
 
@@ -146,7 +147,7 @@ func catalogSteps(sc *godog.ScenarioContext) {
 		return testsupport.Equal(strconv.Itoa(acquireCalls), want)
 	})
 	sc.Step(`^catalog skill "([^"]*)" belongs to root "([^"]*)"$`, func(ctx context.Context, name, root string) error {
-		for _, s := range catalog.Skills {
+		for _, s := range catalog.SkillMap {
 			if s.Name == name {
 				return testsupport.Equal(s.SkillDirPath, root)
 			}

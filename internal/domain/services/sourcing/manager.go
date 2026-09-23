@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 )
@@ -21,7 +22,7 @@ import (
 // Manager itself satisfies interfaces.SourceCache.
 type Manager struct {
 	providers map[string]interfaces.SourceProvider
-	repos     map[model.SourceKey]*model.Repository
+	repos     map[model.SourceKey]*entity.Repository
 	order     []model.SourceKey
 	tempDir   string
 }
@@ -31,13 +32,13 @@ type Manager struct {
 // AcquisitionOptions.TempDir -- callers don't thread that through every
 // GetOrAdd call themselves.
 func NewManager(providers map[string]interfaces.SourceProvider, tempDir string) *Manager {
-	return &Manager{providers: providers, repos: map[model.SourceKey]*model.Repository{}, tempDir: tempDir}
+	return &Manager{providers: providers, repos: map[model.SourceKey]*entity.Repository{}, tempDir: tempDir}
 }
 
-// GetOrAdd returns the cached Repository for key, fetching it via the
+// Get returns the cached Repository for key, fetching it via the
 // registered provider for key.Type only on the first call for that
 // identity.
-func (m *Manager) GetOrAdd(ctx context.Context, key model.SourceKey) (*model.Repository, error) {
+func (m *Manager) Get(ctx context.Context, key model.SourceKey) (*entity.Repository, error) {
 	if repo, ok := m.repos[key]; ok {
 		return repo, nil
 	}
@@ -59,13 +60,17 @@ func (m *Manager) GetOrAdd(ctx context.Context, key model.SourceKey) (*model.Rep
 // from a Link.Target) and need the *Repository it came from, not a fresh
 // acquisition by SourceKey. A linear scan is fine here: realistic source
 // counts are small, and IDs are unique by construction.
-func (m *Manager) Lookup(ctx context.Context, id string) (*model.Repository, bool) {
+func (m *Manager) LookupId(ctx context.Context, id string) (*entity.Repository, bool) {
 	for _, repo := range m.repos {
-		if repo.ID == id {
+		if repo.Key.String() == id {
 			return repo, true
 		}
 	}
 	return nil, false
+}
+
+func (m *Manager) LookupKey(ctx context.Context, key model.SourceKey) (*entity.Repository, bool) {
+	return m.LookupId(ctx, key.String())
 }
 
 // Close closes every acquired Repository, most recently acquired first,
