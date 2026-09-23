@@ -9,6 +9,7 @@ import (
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
 )
@@ -22,6 +23,8 @@ func registerFileSteps(sc *godog.ScenarioContext) {
 	var contractErr error
 	var requestedFilePath string
 	var requestedFilePathErr error
+	var contractLinks []*model.Link
+	var linksErr error
 
 	sc.Step(`^a file "([^"]*)" containing "([^"]*)" attached to a mocked skill rooted at "([^"]*)" in repository "([^"]*)"$`,
 		func(ctx context.Context, filePath, content, skillRoot, repositoryRoot string) error {
@@ -47,6 +50,8 @@ func registerFileSteps(sc *godog.ScenarioContext) {
 			assertedFile = entity.MakeFile(filePath, usedSkill)
 			contractContent, contractErr = nil, nil
 			requestedFilePath, requestedFilePathErr = "", nil
+			contractLinks, linksErr = nil, nil
+			entity.SetDefaultLinkSearcher(links.Searcher{})
 			return nil
 		})
 	sc.Step(`^I read the contract file content$`, func(ctx context.Context) error {
@@ -81,20 +86,28 @@ func registerFileSteps(sc *godog.ScenarioContext) {
 	sc.Step(`^the contract file belongs to the mocked skill$`, func(ctx context.Context) error {
 		return testsupport.Equal(assertedFile.Skill().Key(), usedSkill.Key())
 	})
-	sc.Step(`^the contract file has link target "([^"]*)"$`, func(ctx context.Context, target string) error {
-		assertedFile = entity.MakeFile("docs/intro.md", usedSkill)
+	sc.Step(`^no link searcher is configured$`, func(ctx context.Context) error {
+		entity.SetDefaultLinkSearcher(nil)
+		return nil
+	})
+	sc.Step(`^I read the contract file links$`, func(ctx context.Context) error {
+		contractLinks, linksErr = assertedFile.Links()
 		return nil
 	})
 	sc.Step(`^the contract file link targets are "([^"]*)"$`, func(ctx context.Context, want string) error {
-		panic("implement me")
-		//var targets []string
-		//links, err := assertedFile.Links()
-		//if err != nil {
-		//	return err
-		//}
-		//for _, link := range links {
-		//	targets = append(targets, link.Target)
-		//}
-		//return testsupport.Equal(strings.Join(targets, ","), want)
+		if linksErr != nil {
+			return linksErr
+		}
+		var paths []string
+		for _, link := range contractLinks {
+			paths = append(paths, link.Path)
+		}
+		return testsupport.Equal(strings.Join(paths, ","), want)
+	})
+	sc.Step(`^reading the contract file links fails with "([^"]*)"$`, func(ctx context.Context, want string) error {
+		if linksErr == nil || !strings.Contains(linksErr.Error(), want) {
+			return fmt.Errorf("error=%v want contains %s", linksErr, want)
+		}
+		return nil
 	})
 }

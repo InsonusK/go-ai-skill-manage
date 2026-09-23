@@ -2,6 +2,7 @@ package links
 
 import (
 	"errors"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"io/fs"
 	"path"
@@ -9,13 +10,13 @@ import (
 	"strings"
 )
 
-func Resolve(repo *model.Repository, from, raw string, knownOwner func(string) bool) (string, error) {
+func Resolve(repo *entity.Repository, from, raw string, knownOwner func(string) bool) (string, error) {
 	p := strings.ReplaceAll(raw, "\\", "/")
 	switch {
 	case strings.HasPrefix(p, "./") || strings.HasPrefix(p, "../"):
 		p = path.Join(path.Dir(from), p)
 	case strings.HasPrefix(p, "/") || (len(p) > 1 && p[1] == ':'):
-		root := strings.TrimSuffix(filepath.ToSlash(repo.Root), "/")
+		root := strings.TrimSuffix(filepath.ToSlash(repo.RootPath), "/")
 		if p == root {
 			p = "."
 		} else if strings.HasPrefix(p, root+"/") {

@@ -31,9 +31,20 @@ Feature: Access a skill file through the File contract
  Scenario: Skill returns the file's owning skill
   Given a file "docs/intro.md" containing "intro" attached to a mocked skill rooted at "a" in repository "/source"
   Then the contract file belongs to the mocked skill
-  
- #TODO: Implement the following scenario when the LinkSearcher is implemented
- #Scenario: Links returns the file's discovered links
- # Given a file "docs/intro.md" containing "intro" attached to a mocked skill rooted at "a" in repository "/source"
- # And the contract file has link target "repo\u0000other/SKILL.md"
- # Then the contract file link targets are "repo\u0000other/SKILL.md"
+
+ Scenario: Links returns the file's discovered links
+  Given a file "docs/intro.md" containing "[Guide](./guide.md#intro)" attached to a mocked skill rooted at "a" in repository "/source"
+  When I read the contract file links
+  Then the contract file link targets are "./guide.md"
+
+ Scenario: Links reads the file's content once and caches the discovered links
+  Given a file "docs/intro.md" containing "[Guide](./guide.md#intro)" attached to a mocked skill rooted at "a" in repository "/source"
+  When I read the contract file links
+  And I read the contract file links
+  Then the contract file was read 1 time
+
+ Scenario: Links fails clearly when no LinkSearcher is configured
+  Given a file "docs/intro.md" containing "[Guide](./guide.md#intro)" attached to a mocked skill rooted at "a" in repository "/source"
+  And no link searcher is configured
+  When I read the contract file links
+  Then reading the contract file links fails with "no LinkSearcher configured"

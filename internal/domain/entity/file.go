@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"path"
@@ -87,6 +88,9 @@ func (f *File) Skill() *Skill {
 // Links returns the links discovered in this file.
 func (f *File) Links() ([]*model.Link, error) {
 	if f.links == nil {
+		if defaultLinkSearcher == nil {
+			return nil, errors.New("entity: no LinkSearcher configured, call SetDefaultLinkSearcher first")
+		}
 		content, err := f.Content()
 		if err != nil {
 			return nil, err

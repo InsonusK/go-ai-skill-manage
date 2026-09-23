@@ -3,7 +3,7 @@ package links_test
 import (
 	"context"
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
@@ -30,6 +30,17 @@ func initialize(sc *godog.ScenarioContext) {
 		}
 		return nil
 	})
+	sc.Step(`^I search links via the entity\.LinkSearcher contract$`, func(ctx context.Context) error {
+		found, err := links.Searcher{}.SearchLinks(input)
+		if err != nil {
+			return err
+		}
+		actual = []any{}
+		for _, l := range found {
+			actual = append(actual, map[string]any{"text": l.Text, "path": l.Path, "fragment": l.Fragment, "image": l.Image})
+		}
+		return nil
+	})
 	sc.Step(`^references are$`, func(ctx context.Context, d *godog.DocString) error { return testsupport.JSON(actual, d) })
 	sc.Step(`^source paths "([^"]*)"$`, func(ctx context.Context, s string) error {
 		knownRoot = ""
@@ -42,7 +53,7 @@ func initialize(sc *godog.ScenarioContext) {
 	})
 	sc.Step(`^known skill root "([^"]*)"$`, func(ctx context.Context, root string) error { knownRoot = root; return nil })
 	sc.Step(`^I resolve "([^"]*)" from "([^"]*)"$`, func(ctx context.Context, raw, from string) error {
-		target, failure = links.Resolve(&model.Repository{FS: tree, Root: "/source"}, from, raw, func(p string) bool { return knownRoot != "" && (p == knownRoot || strings.HasPrefix(p, knownRoot+"/")) })
+		target, failure = links.Resolve(&entity.Repository{FS: tree, RootPath: "/source"}, from, raw, func(p string) bool { return knownRoot != "" && (p == knownRoot || strings.HasPrefix(p, knownRoot+"/")) })
 		testsupport.Log("resolved=%s error=%v", target, failure)
 		return nil
 	})

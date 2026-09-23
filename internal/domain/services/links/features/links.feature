@@ -57,6 +57,17 @@ Feature: Extract and classify references
    [{"text":"`template.md`","path":"./missing.md","fragment":"","image":false,"excluded":true},{"text":"normal","path":"exists.md","fragment":"","image":false,"excluded":false}]
    """
 
+ Scenario: Searcher satisfies the entity.LinkSearcher contract used by File.Links
+  Given link document
+   """
+   [Guide](./guide.md#intro)
+   """
+  When I search links via the entity.LinkSearcher contract
+  Then references are
+   """
+   [{"text":"Guide","path":"./guide.md","fragment":"#intro","image":false}]
+   """
+
  Scenario: Missing path inside a selected skill follows Python ownership resolution
   Given source paths "guide/SKILL.md"
   And known skill root "guide"
