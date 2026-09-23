@@ -12,6 +12,7 @@ import (
 	"testing/fstest"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
 )
@@ -58,7 +59,7 @@ func registerSkillSteps(sc *godog.ScenarioContext) {
 				tree[filePath] = &fstest.MapFile{Data: []byte(content)}
 			}
 			repository := &entity.Repository{
-				Key:      "repo",
+				Key:      model.SourceKey{Type: "local", Path: "repo"},
 				RootPath: repositoryRoot,
 				FS: countingFS{
 					files:  tree,
@@ -97,7 +98,7 @@ func registerSkillSteps(sc *godog.ScenarioContext) {
 			"mainFilePath":   skill.MainFilePath,
 			"skillDirPath":   skill.SkillDirPath,
 			"format":         skill.Format,
-			"repositoryId":   skill.Repo.Key,
+			"repositoryId":   skill.Repo.Key.String(),
 			"repositoryRoot": skill.Repo.RootPath,
 		}
 		testsupport.Log("comparing returned skill metadata")

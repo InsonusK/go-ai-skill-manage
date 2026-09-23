@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
@@ -22,11 +23,10 @@ type countingProvider struct {
 	closed *[]string
 }
 
-func (p countingProvider) Acquire(ctx context.Context, key model.SourceKey, options model.AcquisitionOptions) (*model.Repository, error) {
+func (p countingProvider) Acquire(ctx context.Context, key model.SourceKey, options model.AcquisitionOptions) (*entity.Repository, error) {
 	*p.calls++
-	repo := &model.Repository{ID: key.Path}
 	id := key.Path
-	repo.AddCloser(func() error { *p.closed = append(*p.closed, id); return nil })
+	repo := entity.MakeRepository(key, "", nil, func() error { *p.closed = append(*p.closed, id); return nil })
 	return repo, nil
 }
 
@@ -35,7 +35,7 @@ func initialize(sc *godog.ScenarioContext) {
 	var manager *sourcing.Manager
 	var calls int
 	var closedOrder []string
-	var repos []*model.Repository
+	var repos []*entity.Repository
 	var failure error
 	sc.Step(`^a source manager with a counting local provider$`, func(ctx context.Context) error {
 		calls = 0
@@ -48,28 +48,28 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I acquire "([^"]*)" source "([^"]*)" twice$`, func(ctx context.Context, typ, path string) error {
-		a, err := manager.GetOrAdd(ctx, model.SourceKey{Type: typ, Path: path})
+		a, err := manager.Get(ctx, model.SourceKey{Type: typ, Path: path})
 		if err != nil {
 			failure = err
 			return nil
 		}
-		b, err := manager.GetOrAdd(ctx, model.SourceKey{Type: typ, Path: path})
+		b, err := manager.Get(ctx, model.SourceKey{Type: typ, Path: path})
 		failure = err
-		repos = []*model.Repository{a, b}
+		repos = []*entity.Repository{a, b}
 		return nil
 	})
 	sc.Step(`^I acquire "([^"]*)" source "([^"]*)" and "([^"]*)" source "([^"]*)"$`, func(ctx context.Context, t1, p1, t2, p2 string) error {
-		_, err := manager.GetOrAdd(ctx, model.SourceKey{Type: t1, Path: p1})
+		_, err := manager.Get(ctx, model.SourceKey{Type: t1, Path: p1})
 		if err != nil {
 			failure = err
 			return nil
 		}
-		_, err = manager.GetOrAdd(ctx, model.SourceKey{Type: t2, Path: p2})
+		_, err = manager.Get(ctx, model.SourceKey{Type: t2, Path: p2})
 		failure = err
 		return nil
 	})
 	sc.Step(`^I acquire "([^"]*)" source "([^"]*)"$`, func(ctx context.Context, typ, path string) error {
-		_, failure = manager.GetOrAdd(ctx, model.SourceKey{Type: typ, Path: path})
+		_, failure = manager.Get(ctx, model.SourceKey{Type: typ, Path: path})
 		return nil
 	})
 	sc.Step(`^the provider was called "([^"]*)" times$`, func(ctx context.Context, want string) error {
@@ -92,14 +92,14 @@ func initialize(sc *godog.ScenarioContext) {
 		return testsupport.Equal(strings.Join(closedOrder, ","), want)
 	})
 	sc.Step(`^lookup of "([^"]*)" finds the repository$`, func(ctx context.Context, id string) error {
-		repo, ok := manager.Lookup(ctx, id)
+		repo, ok := manager.LookupKey(ctx, model.SourceKey{Type: "local", Path: id})
 		if !ok {
 			return fmt.Errorf("expected repository %s to be found", id)
 		}
-		return testsupport.Equal(repo.ID, id)
+		return testsupport.Equal(repo.Key.Path, id)
 	})
 	sc.Step(`^lookup of "([^"]*)" finds nothing$`, func(ctx context.Context, id string) error {
-		if _, ok := manager.Lookup(ctx, id); ok {
+		if _, ok := manager.LookupKey(ctx, model.SourceKey{Type: "local", Path: id}); ok {
 			return fmt.Errorf("expected no repository for %s", id)
 		}
 		return nil

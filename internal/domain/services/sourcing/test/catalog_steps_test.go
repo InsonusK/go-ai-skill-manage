@@ -13,13 +13,12 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
-	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/document"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
 )
 
 // catalogTreeFS wraps fstest.MapFS, counting Open calls per path so a test
-// can prove GetOrAddByPath warms a found skill's own FilesByPath("") cache
+// can prove GetByPath warms a found skill's own FilesByPath("") cache
 // (no re-walk on a later, separate FilesByPath call).
 type catalogTreeFS struct {
 	files  fstest.MapFS
@@ -33,7 +32,7 @@ func (f catalogTreeFS) Open(name string) (fs.File, error) {
 
 // catalogProvider is a fake interfaces.SourceProvider returning a
 // Repository backed by catalogTreeFS, counting Acquire calls to prove
-// Manager's own caching is reused across GetOrAddByPath calls.
+// Manager's own caching is reused across GetByPath calls.
 type catalogProvider struct {
 	calls *int
 	fs    catalogTreeFS
@@ -41,7 +40,7 @@ type catalogProvider struct {
 
 func (p catalogProvider) Acquire(ctx context.Context, key model.SourceKey, options model.AcquisitionOptions) (*entity.Repository, error) {
 	*p.calls++
-	return &entity.Repository{Key: key.Path, FS: p.fs}, nil
+	return &entity.Repository{Key: key, FS: p.fs}, nil
 }
 
 func catalogSteps(sc *godog.ScenarioContext) {
@@ -57,9 +56,7 @@ func catalogSteps(sc *godog.ScenarioContext) {
 		openCounts = map[string]int{}
 		provider := catalogProvider{calls: &acquireCalls, fs: catalogTreeFS{files: tree, counts: openCounts}}
 		return &sourcing.SkillCatalog{
-			Manager:  sourcing.NewManager(map[string]interfaces.SourceProvider{"local": provider}, ""),
-			Codec:    document.Codec{},
-			Conflict: "error",
+			Manager: sourcing.NewManager(map[string]interfaces.SourceProvider{"local": provider}, ""),
 		}
 	}
 	sc.Step(`^a source tree$`, func(ctx context.Context, d *godog.DocString) error {
@@ -73,22 +70,24 @@ func catalogSteps(sc *godog.ScenarioContext) {
 		}
 		catalog = newCatalog(tree)
 		found, failure = nil, nil
+		// Reset the package-level nested-skill exemption between scenarios --
+		// it's a package var (SetSkipFoldersInNestedChecker), not a per-catalog
+		// field, so a scenario that doesn't touch it must not inherit a
+		// previous scenario's override.
+		sourcing.SetSkipFoldersInNestedChecker([]string{"examples"})
 		testsupport.Log("files=%v", raw)
 		return nil
 	})
-	sc.Step(`^conflict policy "([^"]*)"$`, func(ctx context.Context, policy string) error {
-		catalog.Conflict = policy
-		return nil
-	})
 	sc.Step(`^skip folders are "([^"]*)"$`, func(ctx context.Context, folders string) error {
-		catalog.SkipFolders = nil
+		var skip []string
 		if folders != "" {
-			catalog.SkipFolders = strings.Split(folders, ",")
+			skip = strings.Split(folders, ",")
 		}
+		sourcing.SetSkipFoldersInNestedChecker(skip)
 		return nil
 	})
 	sc.Step(`^I get or add skills at "([^"]*)"$`, func(ctx context.Context, p string) error {
-		skills, err := catalog.GetOrAddByPath(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
+		skills, err := catalog.GetByPath(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
 		found = skills
 		failure = err
 		return nil
@@ -107,15 +106,6 @@ func catalogSteps(sc *godog.ScenarioContext) {
 		}
 		if failure == nil || !strings.Contains(failure.Error(), contains) {
 			return fmt.Errorf("error=%v want contains %s", failure, contains)
-		}
-		return nil
-	})
-	sc.Step(`^catalog error contains "([^"]*)"$`, func(ctx context.Context, want string) error {
-		if want == "" {
-			return failure
-		}
-		if failure == nil || !strings.Contains(failure.Error(), want) {
-			return fmt.Errorf("error=%v want contains %s", failure, want)
 		}
 		return nil
 	})
@@ -146,32 +136,16 @@ func catalogSteps(sc *godog.ScenarioContext) {
 	sc.Step(`^the source manager acquired "([^"]*)" times$`, func(ctx context.Context, want string) error {
 		return testsupport.Equal(strconv.Itoa(acquireCalls), want)
 	})
-	sc.Step(`^catalog skill "([^"]*)" belongs to root "([^"]*)"$`, func(ctx context.Context, name, root string) error {
-		for _, s := range catalog.SkillMap {
-			if s.Name == name {
-				return testsupport.Equal(s.SkillDirPath, root)
-			}
-		}
-		return fmt.Errorf("skill %q not found in catalog", name)
-	})
+	// SkillCatalog has no Owner/Destination yet (see AGENTS.md -- deferred
+	// pending Sync integration); these steps deliberately fail so the gap
+	// stays visible in `go test` output instead of being silently dropped.
 	sc.Step(`^catalog owner of "([^"]*)" is "([^"]*)"$`, func(ctx context.Context, p, want string) error {
-		owner := catalog.Owner(ctx, "repo", p)
-		if owner == nil {
-			return fmt.Errorf("expected owner %s for %s", want, p)
-		}
-		return testsupport.Equal(owner.Name, want)
+		return fmt.Errorf("sourcing.SkillCatalog has no Owner method yet -- cannot resolve owner of %q", p)
 	})
 	sc.Step(`^catalog owner of "([^"]*)" is not found$`, func(ctx context.Context, p string) error {
-		if owner := catalog.Owner(ctx, "repo", p); owner != nil {
-			return fmt.Errorf("expected no owner for %s, got %s", p, owner.Name)
-		}
-		return nil
+		return fmt.Errorf("sourcing.SkillCatalog has no Owner method yet -- cannot resolve owner of %q", p)
 	})
 	sc.Step(`^catalog destination of "([^"]*)" is "([^"]*)" at "([^"]*)"$`, func(ctx context.Context, p, name, dest string) error {
-		gotName, gotDest, ok := catalog.Destination(ctx, "repo", p)
-		if !ok {
-			return fmt.Errorf("destination not found for %s", p)
-		}
-		return testsupport.Equal([]any{gotName, gotDest}, []any{name, dest})
+		return fmt.Errorf("sourcing.SkillCatalog has no Destination method yet -- cannot resolve destination of %q", p)
 	})
 }

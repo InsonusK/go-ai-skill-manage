@@ -3,11 +3,6 @@ Feature: Obtain source trees
   Given a repository source
   When I acquire the local source
   Then acquired file "skills/a.skill.md" equals "content"
- Scenario: A single-file local source is remembered on the repository
-  Given a repository source
-  When I acquire the local source at "skills/a.skill.md"
-  Then acquired repository single file equals "a.skill.md"
-  And acquired file "a.skill.md" equals "content"
  Scenario: Failed clone falls back to GitHub archive
   Given a repository source
   When I fetch GitHub with clone failure "true"

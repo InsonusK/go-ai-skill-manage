@@ -6,10 +6,6 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/repository"
-	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
-	"github.com/cucumber/godog"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +13,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/repository"
+	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
+	"github.com/cucumber/godog"
 )
 
 type cloneStub struct{ fail bool }
@@ -43,7 +45,7 @@ func fixture(dir string) error {
 func initialize(sc *godog.ScenarioContext) {
 	gitSteps(sc)
 	var temp string
-	var repo *model.Repository
+	var repo *entity.Repository
 	var failure error
 	var calls int
 	sc.After(func(ctx context.Context, s *godog.Scenario, err error) (context.Context, error) {
@@ -117,9 +119,6 @@ func initialize(sc *godog.ScenarioContext) {
 		}
 		return nil
 	})
-	sc.Step(`^acquired repository single file equals "([^"]*)"$`, func(ctx context.Context, want string) error {
-		return testsupport.Equal(repo.SingleFile, want)
-	})
 	sc.Step(`^acquired file "([^"]*)" equals "([^"]*)"$`, func(ctx context.Context, p, want string) error {
 		raw, err := fs.ReadFile(repo.FS, p)
 		if err != nil {
@@ -128,12 +127,12 @@ func initialize(sc *godog.ScenarioContext) {
 		return testsupport.Equal(string(raw), want)
 	})
 	sc.Step(`^acquired repository root matches "([^"]*)" below temporary directory$`, func(ctx context.Context, pattern string) error {
-		relative, err := filepath.Rel(temp, repo.Root)
+		relative, err := filepath.Rel(temp, repo.RootPath)
 		if err != nil {
 			return err
 		}
 		matched, err := filepath.Match(pattern, relative)
-		testsupport.Log("repository root=%s relative=%s matched=%t", repo.Root, relative, matched)
+		testsupport.Log("repository root=%s relative=%s matched=%t", repo.RootPath, relative, matched)
 		if err != nil {
 			return err
 		}

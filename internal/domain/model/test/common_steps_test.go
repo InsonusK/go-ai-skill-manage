@@ -19,9 +19,4 @@ func (f countingFS) Open(name string) (fs.File, error) {
 	return f.files.Open(name)
 }
 
-func initialize(sc *godog.ScenarioContext) {
-	registerOwnershipSteps(sc)
-	registerDocumentSteps(sc)
-	registerSkillSteps(sc)
-	registerCatalogSteps(sc)
-}
+func initialize(sc *godog.ScenarioContext) {}

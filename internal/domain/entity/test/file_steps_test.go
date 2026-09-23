@@ -8,6 +8,7 @@ import (
 	"testing/fstest"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
 )
@@ -28,7 +29,7 @@ func registerFileSteps(sc *godog.ScenarioContext) {
 			contractRepoPath = path.Join(skillRoot, filePath)
 			mainFilePath := path.Join(skillRoot, "SKILL.md")
 			repository := &entity.Repository{
-				Key:      "repo",
+				Key:      model.SourceKey{Type: "local", Path: "repo"},
 				RootPath: repositoryRoot,
 				FS: countingFS{
 					files: fstest.MapFS{

@@ -21,6 +21,8 @@ package interfaces
 
 import (
 	"context"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 )
 
@@ -40,11 +42,11 @@ import (
 // resolves link targets via discovery.Detector.Find/Rooted -- a separate,
 // still-unscheduled gap, not fixed here.
 type SourceProvider interface {
-	Acquire(context.Context, model.SourceKey, model.AcquisitionOptions) (*model.Repository, error)
+	Acquire(context.Context, model.SourceKey, model.AcquisitionOptions) (*entity.Repository, error)
 }
 
 // RepositoryLookup finds an already-acquired Repository by its ID, without
 // fetching anything new -- implemented by *sourcing.Manager.
 type RepositoryLookup interface {
-	Lookup(context.Context, string) (*model.Repository, bool)
+	Lookup(context.Context, string) (*entity.Repository, bool)
 }

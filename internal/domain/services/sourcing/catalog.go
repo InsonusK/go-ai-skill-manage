@@ -55,9 +55,22 @@ func (c *SkillCatalog) GetByPath(ctx context.Context, key model.SourceKey, start
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if c.cachedSkillMap == nil {
+		c.cachedSkillMap = map[string]*entity.Skill{}
+	}
 	repo, err := c.Manager.Get(ctx, key)
 	if err != nil {
 		return nil, err
+	}
+	start, err = cleanRelative(repo, start)
+	if err != nil {
+		return nil, err
+	}
+	// A start path already resolved by an earlier call is served straight
+	// from the cache -- skip normalizePath's own fs.Stat too, so a repeat
+	// call for the same path costs zero additional filesystem reads.
+	if skill, ok := c.cachedSkillMap[entity.GetSkillKey(repo.Key, start)]; ok {
+		return []*entity.Skill{skill}, nil
 	}
 	start, err = normalizePath(repo, start)
 	if err != nil {
@@ -155,11 +168,17 @@ func (c *SkillCatalog) validateAndAdd(skill *entity.Skill, out *[]*entity.Skill,
 
 	exist_key, is_exist := c.cachedSkillMap[skill.Key()]
 	if is_exist {
-		*issues = append(*issues, model.Issue{Code: "duplicate-name", Skill: skill.Name, File: skill.MainFilePath, Message: fmt.Sprintf("also defined at %s", exist_key)})
+		*issues = append(*issues, model.Issue{Code: "duplicate-name", Skill: skill.Name, File: skill.MainFilePath, Message: fmt.Sprintf("also defined at %s", exist_key.MainFilePath)})
 		return
 	}
 
 	c.cachedSkillMap[skill.Key()] = skill
+	if skill.SkillDirPath != "" {
+		// A directory skill is looked up again by its own directory path,
+		// not its main file's path, when a later scan() revisits the same
+		// starting path -- remember it under both so that repeat lookup hits.
+		c.cachedSkillMap[entity.GetSkillKey(skill.Repo.Key, skill.SkillDirPath)] = skill
+	}
 	*out = append(*out, skill)
 }
 
@@ -171,17 +190,18 @@ func (c *SkillCatalog) validateAndAdd(skill *entity.Skill, out *[]*entity.Skill,
 // along with it (see DefaultSkipFolders), not a validation failure.
 func nestedSkillPath(files []*entity.File, skipFolders []string) string {
 	for _, f := range files {
-		name, err := f.Path(entity.SkillRelative)
+		relPath, err := f.Path(entity.SkillRelative)
 		if err != nil {
 			continue
 		}
+		name := relPath
 		if idx := strings.LastIndex(name, "/"); idx >= 0 {
 			name = name[idx+1:]
 		}
 		if name != "SKILL.md" && !strings.HasSuffix(name, ".skill.md") {
 			continue
 		}
-		first := strings.SplitN(f.Path(entity.SkillRelative), "/", 2)[0]
+		first := strings.SplitN(relPath, "/", 2)[0]
 		exempt := false
 		for _, skip := range skipFolders {
 			if first == skip {
@@ -190,7 +210,7 @@ func nestedSkillPath(files []*entity.File, skipFolders []string) string {
 			}
 		}
 		if !exempt {
-			return f.Path
+			return relPath
 		}
 	}
 	return ""
@@ -203,7 +223,6 @@ func nestedSkillPath(files []*entity.File, skipFolders []string) string {
 // result (nestedSkillPath), both triggered by accept once the Skill
 // exists.
 func (c *SkillCatalog) isSkillDir(repo *entity.Repository, dir string) (*entity.Skill, error) {
-	t
 	entries, err := fs.ReadDir(repo.FS, dir)
 	if err != nil {
 		return nil, err
@@ -244,9 +263,10 @@ func (c *SkillCatalog) isSkillDir(repo *entity.Repository, dir string) (*entity.
 	return entity.MakeSkill(repo, main, dir, format)
 }
 
-// normalizePath resolves start into a clean, valid, repo-relative path safe to
-// pass to repo.FS
-func normalizePath(repo *entity.Repository, start string) (string, error) {
+// cleanRelative resolves start into a clean, valid, repo-relative path --
+// pure path arithmetic, no filesystem access, so a cache hit on the result
+// costs nothing beyond it.
+func cleanRelative(repo *entity.Repository, start string) (string, error) {
 	if filepath.IsAbs(start) {
 		rel, err := filepath.Rel(repo.RootPath, start)
 		if err != nil {
@@ -257,6 +277,16 @@ func normalizePath(repo *entity.Repository, start string) (string, error) {
 	start = filepath.ToSlash(filepath.Clean(start))
 	if !fs.ValidPath(start) || strings.Contains(start, "\\") {
 		return "", fmt.Errorf("unsafe subpath %q", start)
+	}
+	return start, nil
+}
+
+// normalizePath resolves start into a clean, valid, repo-relative path safe to
+// pass to repo.FS, additionally confirming it exists.
+func normalizePath(repo *entity.Repository, start string) (string, error) {
+	start, err := cleanRelative(repo, start)
+	if err != nil {
+		return "", err
 	}
 	if _, err := fs.Stat(repo.FS, start); err != nil {
 		return "", fmt.Errorf("subpath %q does not exist in repository %q", start, repo.Key)

@@ -8,7 +8,7 @@ Feature: Access a skill through the Skill contract
   When I request the skill key
   Then the skill key is
    """
-   "repo\u0000skills/guide/SKILL.md"
+   "local:repo\u0000skills/guide/SKILL.md"
    """
 
  Scenario: Metadata returns the skill metadata
@@ -19,7 +19,7 @@ Feature: Access a skill through the Skill contract
   When I request the skill metadata
   Then the skill metadata is
    """
-   {"name":"guide","mainFilePath":"skills/guide/SKILL.md","skillDirPath":"skills/guide","format":"agent-dir","repositoryId":"repo","repositoryRoot":"/source"}
+   {"name":"guide","mainFilePath":"skills/guide/SKILL.md","skillDirPath":"skills/guide","format":"agent-dir","repositoryId":"local:repo","repositoryRoot":"/source"}
    """
 
  Scenario: FilesByPath lists every nested file under the skill root

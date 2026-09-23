@@ -51,10 +51,7 @@ func GetSkillKey(sourceKey model.SourceKey, mainFilePath string) string {
 // MakeSkill builds a Skill from its identity/location fields. Its MainFile
 // is constructed and wired to it automatically.
 func MakeSkill(repo *Repository, mainFilePath, skillDirPath string, format SkillFormat) (*Skill, error) {
-	if !repo.IsExist(mainFilePath) {
-		return nil, errors.New("main file does not exist in repository: " + repo.Key.String())
-	}
-	if !repo.IsExist(skillDirPath) {
+	if skillDirPath != "" && !repo.IsExist(skillDirPath) {
 		return nil, errors.New("skill directory does not exist in repository: " + repo.Key.String())
 	}
 
