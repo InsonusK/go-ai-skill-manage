@@ -1,8 +1,9 @@
-package discovery_test
+package skill_selector_test
 
 import (
-	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"testing"
+
+	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 )
 
 func TestFeatures(t *testing.T) { testsupport.Run(t, initialize) }

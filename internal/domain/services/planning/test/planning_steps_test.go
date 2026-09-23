@@ -56,7 +56,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	runPlan := func(ctx context.Context, adapters []string) error {
-		detector := discovery.Detector{Codec: document.Codec{}}
+		detector := discovery.SkillSelector{Codec: document.Codec{}}
 		repo := &model.Repository{ID: "repo", Root: "/source", FS: tree}
 		discovered, err := detector.DiscoverByPath(ctx, repo, ".")
 		if err != nil {

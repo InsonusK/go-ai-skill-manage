@@ -10,7 +10,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
 )
 
-type Expander struct{ Detector discovery.Detector }
+type Expander struct{ Detector discovery.SkillSelector }
 
 func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalogImpl, add bool, skip []string) error {
 	processed := map[string]bool{}

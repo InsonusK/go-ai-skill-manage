@@ -96,7 +96,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I synchronize$`, func(ctx context.Context) error {
-		detector := discovery.Detector{Codec: document.Codec{}}
+		detector := discovery.SkillSelector{Codec: document.Codec{}}
 		manager := sourcing.NewManager(map[string]interfaces.SourceProvider{"local": source{repo, &acquiredTempDir}}, request.TempDir)
 		service := services.SyncService{Sources: manager, Codec: document.Codec{}, Lookup: manager, Detector: detector, Relations: relations.Expander{Detector: detector}, Planner: planning.Planner{State: state{fail}, Codec: document.Codec{}}, Writer: writer{&calls}}
 		if detectorFailure != "" {

@@ -67,7 +67,7 @@ func run() (code int) {
 	}
 	codec := document.Codec{}
 	store := filesystem.Store{}
-	detector := discovery.Detector{Codec: codec}
+	detector := discovery.SkillSelector{Codec: codec}
 	sources := sourcing.NewManager(map[string]interfaces.SourceProvider{
 		"local": repository.Local{},
 		"github": repository.Fetcher{

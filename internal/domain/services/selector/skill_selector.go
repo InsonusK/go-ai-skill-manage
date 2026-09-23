@@ -1,24 +1,32 @@
-package discovery
+package skill_selector
 
 import (
 	"context"
+	"errors"
+	"io/fs"
+	"strings"
 
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/tags"
 )
 
+type SkillSelector struct {
+	SkillCatalog *sourcing.SkillCatalog
+}
+
 // Select resolves spec's configured subpaths (defaulting to ".") by
 // calling catalog.GetOrAddByPath once per path with spec's SourceKey --
 // catalog itself acquires the Repository (via its Manager, lazily/cached),
 // normalizes the path (a single-file source collapses every path to that
-// one file), and recursively finds/validates/adds every skill at or below
+// one file), and recursively finds/validates/adds every skill at or belowWWSS
 // it. Select never acquires a Repository itself; its own job is only
 // filtering catalog's results by spec's tags and applying an optional
 // single-skill name override.
-func (d Detector) Select(ctx context.Context, catalog *sourcing.SkillCatalog, spec model.SourceSpec) ([]*model.SkillImpl, error) {
+func (d SkillSelector) Select(ctx context.Context, spec model.SourceSpec) ([]*entity.Skill, error) {
 	var issues model.Issues
-	selected := []*model.SkillImpl{}
+	selected := []*entity.Skill{}
 	seen := map[string]bool{}
 	// Compile invalid filters even if discovery produces no candidates.
 	if _, err := tags.Match(nil, spec.Tags); err != nil {
@@ -29,7 +37,7 @@ func (d Detector) Select(ctx context.Context, catalog *sourcing.SkillCatalog, sp
 		paths = []string{"."}
 	}
 	for _, p := range paths {
-		found, err := catalog.GetOrAddByPath(ctx, spec.Key(), p)
+		found, err := d.SkillCatalog.GetByPath(ctx, spec.Key(), p)
 		if err != nil {
 			if list, ok := err.(model.Issues); ok {
 				issues = append(issues, list...)
@@ -51,11 +59,27 @@ func (d Detector) Select(ctx context.Context, catalog *sourcing.SkillCatalog, sp
 	if len(issues) > 0 {
 		return selected, issues
 	}
-	if spec.Name != "" {
-		if !ValidName(spec.Name) || len(selected) != 1 {
-			return nil, model.Problem("name-override", "name requires exactly one skill and a valid skill name")
-		}
-		selected[0].Name = spec.Name
-	}
 	return selected, nil
+}
+
+func issue(code, p string, err error) model.Issue {
+	return model.Issue{Code: code, File: p, Message: err.Error()}
+}
+
+func isNotExist(err error) bool { return errors.Is(err, fs.ErrNotExist) }
+
+func Tags(s *entity.Skill) []string {
+	raw := s.Document.Properties["tags"]
+	if text, ok := raw.(string); ok {
+		return []string{strings.TrimSpace(text)}
+	}
+	out := []string{}
+	if list, ok := raw.([]any); ok {
+		for _, v := range list {
+			if text, ok := v.(string); ok {
+				out = append(out, strings.TrimSpace(text))
+			}
+		}
+	}
+	return out
 }

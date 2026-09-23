@@ -63,7 +63,7 @@ func initialize(sc *godog.ScenarioContext) {
 			fmt.Fprintln(&stderr, err)
 			return nil
 		}
-		detector := discovery.Detector{Codec: document.Codec{}}
+		detector := discovery.SkillSelector{Codec: document.Codec{}}
 		store := filesystem.Store{}
 		req, reqErr := (command.App{ReadFile: os.ReadFile, Err: &stderr}).Request(opts, dir)
 		var tempDir string

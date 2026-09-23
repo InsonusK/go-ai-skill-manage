@@ -38,7 +38,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I expand from "([^"]*)"$`, func(ctx context.Context, start string) error {
-		detector := discovery.Detector{Codec: document.Codec{}}
+		detector := discovery.SkillSelector{Codec: document.Codec{}}
 		repo := &model.Repository{ID: "repo", Root: "/source", FS: tree}
 		skills, err := detector.DiscoverByPath(ctx, repo, start)
 		if err != nil {
