@@ -136,16 +136,30 @@ func catalogSteps(sc *godog.ScenarioContext) {
 	sc.Step(`^the source manager acquired "([^"]*)" times$`, func(ctx context.Context, want string) error {
 		return testsupport.Equal(strconv.Itoa(acquireCalls), want)
 	})
-	// SkillCatalog has no Owner/Destination yet (see AGENTS.md -- deferred
-	// pending Sync integration); these steps deliberately fail so the gap
-	// stays visible in `go test` output instead of being silently dropped.
 	sc.Step(`^catalog owner of "([^"]*)" is "([^"]*)"$`, func(ctx context.Context, p, want string) error {
-		return fmt.Errorf("sourcing.SkillCatalog has no Owner method yet -- cannot resolve owner of %q", p)
+		owner := catalog.Owner(ctx, "local:repo", p)
+		if owner == nil {
+			return fmt.Errorf("expected owner %q for %q, got none", want, p)
+		}
+		return testsupport.Equal(owner.Name, want)
 	})
 	sc.Step(`^catalog owner of "([^"]*)" is not found$`, func(ctx context.Context, p string) error {
-		return fmt.Errorf("sourcing.SkillCatalog has no Owner method yet -- cannot resolve owner of %q", p)
+		if owner := catalog.Owner(ctx, "local:repo", p); owner != nil {
+			return fmt.Errorf("expected no owner for %q, got %q", p, owner.Name)
+		}
+		return nil
 	})
 	sc.Step(`^catalog destination of "([^"]*)" is "([^"]*)" at "([^"]*)"$`, func(ctx context.Context, p, name, dest string) error {
-		return fmt.Errorf("sourcing.SkillCatalog has no Destination method yet -- cannot resolve destination of %q", p)
+		gotName, gotDest, ok := catalog.Destination(ctx, "local:repo", p)
+		if !ok {
+			return fmt.Errorf("expected destination %q at %q for %q, got none", name, dest, p)
+		}
+		return testsupport.Equal([]any{gotName, gotDest}, []any{name, dest})
+	})
+	sc.Step(`^catalog destination of "([^"]*)" is not found$`, func(ctx context.Context, p string) error {
+		if _, _, ok := catalog.Destination(ctx, "local:repo", p); ok {
+			return fmt.Errorf("expected no destination for %q", p)
+		}
+		return nil
 	})
 }

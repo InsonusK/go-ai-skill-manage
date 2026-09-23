@@ -263,6 +263,121 @@ func (c *SkillCatalog) isSkillDir(repo *entity.Repository, dir string) (*entity.
 	return entity.MakeSkill(repo, main, dir, format)
 }
 
+// ownsPath отвечает на вопрос "принадлежит ли repo-relative путь p скилу s?"
+// без чтения файлов -- только по уже известным идентичности/расположению
+// скила (s.MainFilePath/s.SkillDirPath/s.Format).
+//
+// Правила:
+//   - сам главный файл или сама корневая директория скила всегда принадлежат
+//     ему;
+//   - для flat-скила (SkillDirPath == "") этим всё и ограничивается -- у
+//     него нет директории, в которую что-то ещё могло бы попасть;
+//   - для directory-скила (agent-dir/human-dir) владение распространяется на
+//     всё, что лежит внутри его директории, даже если этот файл ещё ни разу
+//     не читался через FilesByPath.
+//
+// Примеры для скила с SkillDirPath="a/guide", MainFilePath="a/guide/SKILL.md",
+// Format=AgentDirSkill:
+//   - ownsPath(s, "a/guide/SKILL.md")   -> true  (главный файл)
+//   - ownsPath(s, "a/guide")            -> true  (сама директория)
+//   - ownsPath(s, "a/guide/notes.md")   -> true  (файл внутри директории)
+//   - ownsPath(s, "a/other/notes.md")   -> false (другая директория)
+//
+// Для flat-скила с MainFilePath="guide.skill.md", SkillDirPath=""
+// (Format=FlatSkill):
+//   - ownsPath(s, "guide.skill.md")     -> true  (главный файл)
+//   - ownsPath(s, "guide.skill.md.bak") -> false (директории нет, значит и
+//     "владения" за пределами самого файла тоже нет)
+func ownsPath(s *entity.Skill, p string) bool {
+	if p == s.MainFilePath || p == s.SkillDirPath {
+		return true
+	}
+	if s.Format == entity.FlatSkill {
+		return false
+	}
+	return s.SkillDirPath == "." || strings.HasPrefix(p, strings.TrimSuffix(s.SkillDirPath, "/")+"/")
+}
+
+// relativePath переводит repo-relative путь p, уже принадлежащий скилу s
+// (см. ownsPath), в путь внутри выходной директории этого скила -- то есть
+// в то имя, под которым файл окажется после копирования/сборки скила.
+//
+// Правила:
+//   - главный файл или сама директория скила всегда становятся "SKILL.md"
+//     -- так унифицируются все три формата (flat/human-dir/agent-dir), у
+//     которых главный файл на диске называется по-разному;
+//   - если скил лежит прямо в корне репозитория (SkillDirPath == "."), путь
+//     не меняется;
+//   - иначе у пути отрезается префикс директории скила.
+//
+// Примеры для того же скила (SkillDirPath="a/guide", MainFilePath=
+// "a/guide/SKILL.md"):
+//   - relativePath(s, "a/guide/SKILL.md")     -> "SKILL.md"
+//   - relativePath(s, "a/guide")               -> "SKILL.md"
+//   - relativePath(s, "a/guide/docs/intro.md") -> "docs/intro.md"
+//
+// Для скила, лежащего в корне репозитория (SkillDirPath="."):
+//   - relativePath(s, "notes.md") -> "notes.md" (без изменений)
+func relativePath(s *entity.Skill, p string) string {
+	if p == s.MainFilePath || p == s.SkillDirPath {
+		return "SKILL.md"
+	}
+	if s.SkillDirPath == "." {
+		return p
+	}
+	return strings.TrimPrefix(p, path.Clean(s.SkillDirPath)+"/")
+}
+
+// Owner ищет среди уже найденных (через GetByPath) скилов репозитория
+// repoID тот единственный, которому принадлежит repo-relative путь p (см.
+// ownsPath), и возвращает его. Если ни один известный скил не владеет этим
+// путём -- например путь ещё не был обнаружен через GetByPath, или
+// принадлежит другому репозиторию -- возвращает nil.
+//
+// repoID сравнивается со строковым представлением идентичности репозитория
+// (model.SourceKey.String()), а не с сырыми полями SourceKey -- так
+// вызывающему (например relations.Expander, резолвящему ссылку "куда-то в
+// этот же репозиторий") не нужно знать структуру SourceKey, только её
+// строковую форму, уже известную по Link.Target/OriginalKey.
+//
+// Пример: после GetByPath нашёл скил "guide" с SkillDirPath="a/guide" в
+// репозитории с Key.String()=="local:repo":
+//   - Owner(ctx, "local:repo", "a/guide/docs/intro.md") -> скил "guide"
+//   - Owner(ctx, "local:repo", "b/other.md")             -> nil (не найден)
+//   - Owner(ctx, "other:repo", "a/guide/docs/intro.md")  -> nil (другой репозиторий)
+func (c *SkillCatalog) Owner(ctx context.Context, repoID, p string) *entity.Skill {
+	for _, s := range c.cachedSkillMap {
+		if s.Repo.Key.String() != repoID {
+			continue
+		}
+		if ownsPath(s, p) {
+			return s
+		}
+	}
+	return nil
+}
+
+// Destination -- как Owner, но сразу возвращает и владеющий скил по имени,
+// и путь p, переведённый в координаты выходной директории этого скила (см.
+// relativePath), собранные в одну выходную строку "имя_скила/путь". Третье
+// возвращаемое значение -- ok -- false, если владелец не найден (тогда имя
+// и путь пустые).
+//
+// Пример (тот же скил "guide", SkillDirPath="a/guide"):
+//   - Destination(ctx, "local:repo", "a/guide/docs/intro.md")
+//     -> ("guide", "guide/docs/intro.md", true)
+//   - Destination(ctx, "local:repo", "a/guide/SKILL.md")
+//     -> ("guide", "guide/SKILL.md", true)
+//   - Destination(ctx, "local:repo", "b/other.md")
+//     -> ("", "", false)
+func (c *SkillCatalog) Destination(ctx context.Context, repoID, p string) (name, dest string, ok bool) {
+	s := c.Owner(ctx, repoID, p)
+	if s == nil {
+		return "", "", false
+	}
+	return s.Name, path.Join(s.Name, relativePath(s, p)), true
+}
+
 // cleanRelative resolves start into a clean, valid, repo-relative path --
 // pure path arithmetic, no filesystem access, so a cache hit on the result
 // costs nothing beyond it.

@@ -63,22 +63,46 @@ Feature: SkillCatalog finds and validates skills by path
   And I get or add skills at "b"
   Then the source manager acquired "1" times
 
- # Known gap, tracked in AGENTS.md: SkillCatalog has no Owner/Destination
- # yet (deferred until it's wired into Sync). These are deliberately
- # failing so the gap stays visible instead of being silently dropped from
- # coverage.
- Scenario: Owner is not implemented yet
+ Scenario: Owner finds the skill owning a path inside its root
   Given a source tree
    """
    {"a/SKILL.md":"---\nname: one\n---\n","a/notes.md":"hi"}
    """
   When I get or add skills at "."
   Then catalog owner of "a/notes.md" is "one"
+  And catalog owner of "a/SKILL.md" is "one"
+  And catalog owner of "a" is "one"
 
- Scenario: Destination is not implemented yet
+ Scenario: Owner reports no owner for a path outside every known skill
+  Given a source tree
+   """
+   {"a/SKILL.md":"---\nname: one\n---\n"}
+   """
+  When I get or add skills at "."
+  Then catalog owner of "b/notes.md" is not found
+
+ Scenario: Owner does not extend a flat skill's ownership beyond its own file
+  Given a source tree
+   """
+   {"one.skill.md":"---\nname: one\n---\n"}
+   """
+  When I get or add skills at "."
+  Then catalog owner of "one.skill.md" is "one"
+  And catalog owner of "one.skill.md.bak" is not found
+
+ Scenario: Destination resolves a path to its skill's output location
   Given a source tree
    """
    {"a/SKILL.md":"---\nname: one\n---\n","a/notes.md":"hi"}
    """
   When I get or add skills at "."
   Then catalog destination of "a/notes.md" is "one" at "one/notes.md"
+  And catalog destination of "a/SKILL.md" is "one" at "one/SKILL.md"
+
+ Scenario: Destination reports nothing for a path outside every known skill
+  Given a source tree
+   """
+   {"a/SKILL.md":"---\nname: one\n---\n"}
+   """
+  When I get or add skills at "."
+  Then catalog destination of "b/notes.md" is not found
