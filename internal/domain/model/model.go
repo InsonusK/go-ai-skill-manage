@@ -34,7 +34,21 @@ type Request struct {
 	LinkSkipFolders                            []string
 }
 
-type Issue struct{ Code, Skill, File, Link, Message string }
+// Issue is one problem found while loading or validating skills, with
+// enough context to report it grouped by skill and file.
+type Issue struct {
+	// Code is the kind of problem, e.g. "nested-skill", "missing-link-target".
+	Code string
+	// Source is the source the skill comes from (model.SourceKey.String()).
+	Source string
+	// Skill is the skill's name; SkillPath is its folder (or, for a flat
+	// skill, its marker file) from the repository folder.
+	Skill, SkillPath string
+	// File is the file the problem is in; Link is the link's text as
+	// written, when the problem is a link.
+	File, Link string
+	Message    string
+}
 
 func (e Issue) Error() string {
 	context := strings.Trim(strings.Join([]string{e.Skill, e.File, e.Link}, " "), " ")

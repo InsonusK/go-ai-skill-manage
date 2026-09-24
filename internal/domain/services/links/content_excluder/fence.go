@@ -1,6 +1,10 @@
 package content_excluder
 
-import "strings"
+import (
+	"strings"
+
+	link_parser "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/parser"
+)
 
 type fence struct {
 	start, end int
@@ -39,6 +43,16 @@ func fenced(text string) []fence {
 	}
 	if start >= 0 {
 		out = append(out, fence{start, len(text), example})
+	}
+	return out
+}
+
+// CodeFences returns the span of every fenced code block of content (see
+// fenced), whatever its info string -- fence lines included.
+func CodeFences(content string) []link_parser.Span {
+	out := []link_parser.Span{}
+	for _, f := range fenced(content) {
+		out = append(out, link_parser.Span{Start: f.start, End: f.end})
 	}
 	return out
 }

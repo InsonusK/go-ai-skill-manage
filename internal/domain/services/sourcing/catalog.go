@@ -44,6 +44,8 @@ type SkillCatalog struct {
 	// for each loaded skill its own folder (or, for a flat skill, its
 	// marker file) -> that one skill. See addPath.
 	cachedByPath map[string][]*entity.Skill
+	// loaded is every loaded skill once, in the order it was loaded.
+	loaded []*entity.Skill
 }
 
 var _ entity.SkillResolver = (*SkillCatalog)(nil)
@@ -124,7 +126,7 @@ func (c *SkillCatalog) GetOrFetchByPath(ctx context.Context, key model.SourceKey
 		// at its own location, so a repeat call fetches again and reports
 		// the same issues.
 		for _, skill := range skills {
-			c.addPath(skill.Repo.Key, ownPath(skill), []*entity.Skill{skill})
+			c.addPath(skill.Repo.Key, skill.DirOrMarkerPath(), []*entity.Skill{skill})
 		}
 		return skills, issues
 	}
@@ -148,7 +150,7 @@ func (c *SkillCatalog) GetOrFetchByPathUp(ctx context.Context, key model.SourceK
 	if err != nil {
 		return nil, err
 	}
-	c.addPath(repo.Key, ownPath(skill), []*entity.Skill{skill})
+	c.addPath(repo.Key, skill.DirOrMarkerPath(), []*entity.Skill{skill})
 	return skill, nil
 }
 
@@ -208,7 +210,7 @@ func (c *SkillCatalog) acquire(ctx context.Context, key model.SourceKey, p strin
 }
 
 // addPath remembers skills as the answer for path p of repository key, and
-// each skill as the answer for its own location (ownPath) -- so GetByPath
+// each skill as the answer for its own location (DirOrMarkerPath) -- so GetByPath
 // finds them by p or by a skill's folder, and GetByPathUp by any path
 // inside a skill's folder.
 //
@@ -221,10 +223,21 @@ func (c *SkillCatalog) addPath(key model.SourceKey, p string, skills []*entity.S
 	if c.cachedByPath == nil {
 		c.cachedByPath = map[string][]*entity.Skill{}
 	}
-	c.cachedByPath[entity.GetSkillKey(key, p)] = skills
 	for _, skill := range skills {
-		c.cachedByPath[entity.GetSkillKey(key, ownPath(skill))] = []*entity.Skill{skill}
+		if c.skillAt(key, skill.DirOrMarkerPath()) == nil {
+			c.loaded = append(c.loaded, skill)
+		}
+		c.cachedByPath[entity.GetSkillKey(key, skill.DirOrMarkerPath())] = []*entity.Skill{skill}
 	}
+	c.cachedByPath[entity.GetSkillKey(key, p)] = skills
+}
+
+// Skills returns every loaded skill once, in the order it was loaded: a
+// skill loaded later -- e.g. fetched while following a link -- comes after
+// all skills loaded before it, so a caller walking the list by index while
+// loading more sees the new ones too.
+func (c *SkillCatalog) Skills() []*entity.Skill {
+	return append([]*entity.Skill(nil), c.loaded...)
 }
 
 // skillAt returns cached skill which register ad this SourceKey and repo path
@@ -240,29 +253,11 @@ func (c *SkillCatalog) addPath(key model.SourceKey, p string, skills []*entity.S
 //     (для этого есть GetByPathUp)
 func (c *SkillCatalog) skillAt(key model.SourceKey, p string) *entity.Skill {
 	for _, skill := range c.cachedByPath[entity.GetSkillKey(key, p)] {
-		if ownPath(skill) == p {
+		if skill.DirOrMarkerPath() == p {
 			return skill
 		}
 	}
 	return nil
-}
-
-// ownPath is a skill's own location: its folder, or its marker file for a
-// flat skill, which has no folder.
-// - for flat skill - it is path to skill file
-// - for dir skill - it is path to skill directory
-//
-// Примеры:
-//   - agent-dir скил, маркер "a/guide/SKILL.md"    -> "a/guide"
-//   - human-dir скил, маркер "h.skill/h.skill.md"  -> "h.skill"
-//   - flat-скил "b.skill.md"                       -> "b.skill.md"
-//   - flat-скил "f/f.skill.md"                     -> "f/f.skill.md"
-//   - скил в папке репозитория, маркер "SKILL.md"  -> "."
-func ownPath(s *entity.Skill) string {
-	if s.SkillDirPath != "" {
-		return s.SkillDirPath
-	}
-	return s.MainFilePath
 }
 
 // FetchByPath finds every valid skill at or below start inside repo --
@@ -604,11 +599,9 @@ func relativePath(s *entity.Skill, p string) string {
 //   - Owner(ctx, "local:repo", "b/other.md")             -> nil (не найден)
 //   - Owner(ctx, "other:repo", "a/guide/docs/intro.md")  -> nil (другой репозиторий)
 func (c *SkillCatalog) Owner(ctx context.Context, repoID, p string) *entity.Skill {
-	for _, skills := range c.cachedByPath {
-		for _, s := range skills {
-			if s.Repo.Key.String() == repoID && ownsPath(s, p) {
-				return s
-			}
+	for _, s := range c.loaded {
+		if s.Repo.Key.String() == repoID && ownsPath(s, p) {
+			return s
 		}
 	}
 	return nil

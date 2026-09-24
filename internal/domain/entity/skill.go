@@ -96,6 +96,22 @@ func MakeSkill(repo *Repository, mainFilePath, skillDirPath string, format Skill
 
 func (s *Skill) Key() string { return GetSkillKey(s.Repo.Key, s.MainFilePath) }
 
+// DirOrMarkerPath is where the skill lies in its repository: its folder,
+// or its marker file for a flat skill, which has no folder.
+//
+// Примеры:
+//   - agent-dir скил, маркер "a/guide/SKILL.md"   -> "a/guide"
+//   - human-dir скил, маркер "h.skill/h.skill.md" -> "h.skill"
+//   - flat-скил "b.skill.md"                      -> "b.skill.md"
+//   - flat-скил "f/f.skill.md"                    -> "f/f.skill.md"
+//   - скил в папке репозитория, маркер "SKILL.md" -> "."
+func (s *Skill) DirOrMarkerPath() string {
+	if s.SkillDirPath != "" {
+		return s.SkillDirPath
+	}
+	return s.MainFilePath
+}
+
 // FilesByPath returns every file at and below a path resolved relative to
 // the skill directory. The path may use .. to leave the skill directory,
 // but its normalized repository path must remain valid inside Repo.FS.
