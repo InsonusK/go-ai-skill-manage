@@ -1,12 +1,13 @@
 package config
 
 import (
-	"fmt"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"path/filepath"
-	"strings"
 )
 
+// Resolve applies overrides and makes every local path absolute from base.
+// It doesn't check the result: that is config/validator.Validate's job,
+// run on what Resolve returns.
 func Resolve(c Config, o Overrides, base string) (model.Request, error) {
 	r := c.Request
 	absolute, err := filepath.Abs(base)
@@ -36,13 +37,6 @@ func Resolve(c Config, o Overrides, base string) (model.Request, error) {
 	for i := range r.Targets {
 		r.Targets[i].Path = resolve(r.Targets[i].Path)
 	}
-	for i, a := range r.Targets {
-		for _, b := range r.Targets[i+1:] {
-			if overlaps(a.Path, b.Path) {
-				return r, fmt.Errorf("target paths overlap: %s and %s", a.Path, b.Path)
-			}
-		}
-	}
 	r.DryRun = r.DryRun || o.DryRun
 	r.Force = o.Force
 	if o.RemoveOrphans != nil {
@@ -52,7 +46,4 @@ func Resolve(c Config, o Overrides, base string) (model.Request, error) {
 		r.AddRelations = *o.AddRelations
 	}
 	return r, nil
-}
-func overlaps(a, b string) bool {
-	return a == b || strings.HasPrefix(a, strings.TrimRight(b, string(filepath.Separator))+string(filepath.Separator)) || strings.HasPrefix(b, strings.TrimRight(a, string(filepath.Separator))+string(filepath.Separator))
 }

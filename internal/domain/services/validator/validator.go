@@ -4,19 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 )
 
-// Validator checks the skills loaded in a SkillCatalog and returns every
-// problem it finds, not only the first.
-type Validator interface {
+// Validator checks a target of type T -- e.g. a loaded SkillCatalog or a
+// resolved configuration -- and returns every problem I it finds, not only
+// the first.
+type Validator[T, I any] interface {
 	// Name identifies the validator in other validators' DependsOn.
 	Name() string
 	// DependsOn lists the validators that must run before this one.
 	DependsOn() []Dependency
-	Validate(ctx context.Context, catalog *sourcing.SkillCatalog) issues.SkillIssues
+	Validate(ctx context.Context, target T) []I
 }
 
 // Dependency is one validator that must run before the validator declaring
@@ -28,9 +26,10 @@ type Dependency struct {
 }
 
 // Manager runs its validators in the order they were registered and
-// collects all their issues.
-type Manager struct {
-	validators []Validator
+// collects all their problems. One Manager serves every kind of target, so
+// checking a configuration and checking skills follow the same rules.
+type Manager[T, I any] struct {
+	validators []Validator[T, I]
 }
 
 // NewManager registers validators in the given order. It does not reorder
@@ -46,7 +45,7 @@ type Manager struct {
 //     быть раньше skill-name-validator
 //   - с IsRequired=true и [skill-name-validator] -> ошибка: link-validator
 //     обязателен, но не зарегистрирован
-func NewManager(validators ...Validator) (*Manager, error) {
+func NewManager[T, I any](validators ...Validator[T, I]) (*Manager[T, I], error) {
 	position := map[string]int{}
 	var errs []error
 	for i, v := range validators {
@@ -70,15 +69,15 @@ func NewManager(validators ...Validator) (*Manager, error) {
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}
-	return &Manager{validators: validators}, nil
+	return &Manager[T, I]{validators: validators}, nil
 }
 
 // Validate runs every validator in order -- each one even when an earlier
-// one found problems -- and returns all their issues together.
-func (m *Manager) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) issues.SkillIssues {
-	var problems issues.SkillIssues
+// one found problems -- and returns all their problems together.
+func (m *Manager[T, I]) Validate(ctx context.Context, target T) []I {
+	var problems []I
 	for _, v := range m.validators {
-		problems = append(problems, v.Validate(ctx, catalog)...)
+		problems = append(problems, v.Validate(ctx, target)...)
 	}
 	return problems
 }

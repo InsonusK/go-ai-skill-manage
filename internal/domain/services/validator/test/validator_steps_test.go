@@ -23,7 +23,7 @@ type fakeValidator struct {
 
 func (f fakeValidator) Name() string                      { return f.name }
 func (f fakeValidator) DependsOn() []validator.Dependency { return f.deps }
-func (f fakeValidator) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) issues.SkillIssues {
+func (f fakeValidator) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) []issues.SkillIssue {
 	*f.ran = append(*f.ran, f.name)
 	return f.problems
 }
@@ -31,7 +31,7 @@ func (f fakeValidator) Validate(ctx context.Context, catalog *sourcing.SkillCata
 func initialize(sc *godog.ScenarioContext) {
 	var fakes map[string]*fakeValidator
 	var ran []string
-	var manager *validator.Manager
+	var manager *validator.Manager[*sourcing.SkillCatalog, issues.SkillIssue]
 	var registerErr error
 	var problems issues.SkillIssues
 
@@ -55,7 +55,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I register validators "([^"]*)"$`, func(ctx context.Context, names string) error {
-		var list []validator.Validator
+		var list []validator.Validator[*sourcing.SkillCatalog, issues.SkillIssue]
 		for _, name := range strings.Split(names, ",") {
 			f, ok := fakes[name]
 			if !ok {

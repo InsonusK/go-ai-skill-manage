@@ -12,7 +12,6 @@ Feature: Select the skills one source contributes
    | {"skills/a.skill.md":"---\\nname: a\\n---\\n"} | skills |  | a | |
    | {"a.skill.md":"---\\nname: a\\ntags: [go]\\n---\\n"} |  | go | a | |
    | {"a.skill.md":"---\\nname: a\\ntags: [go]\\n---\\n"} |  | cli |  | |
-   | {"a.skill.md":"---\\nname: a\\n---\\n"} | ../escape |  |  | unsafe subpath |
 
  Scenario: Every configured subpath is scanned and results are combined
   Given a source tree
@@ -78,18 +77,22 @@ Feature: Select the skills one source contributes
    [["missing-subpath","local:repo","missing"]]
    """
 
- Scenario: An invalid tag expression loads nothing from the source
+ Scenario: An invalid tag expression is a bug in the caller: the config validator rejects it
   Given a source tree
    """
    {"a/SKILL.md":"---\nname: one\n---\n"}
    """
   When I select from subpaths "a" with tags "(go"
-  Then discovered names are "" and discovery error contains "invalid tag expression"
-  And the selection issues are
-   """
-   [["invalid-tags","local:repo",""]]
-   """
+  Then selection panics with "invalid tags"
   And the source provider was not acquired
+
+ Scenario: A subpath leading out of the source is a bug in the caller: the config validator rejects it
+  Given a source tree
+   """
+   {"a.skill.md":"---\nname: a\n---\n"}
+   """
+  When I select from subpaths "../escape" with tags ""
+  Then selection panics with "leads out of it"
 
  Scenario: Issues found in a skill carry the source they come from
   Given a source tree

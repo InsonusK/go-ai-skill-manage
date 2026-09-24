@@ -44,6 +44,7 @@ func initialize(sc *godog.ScenarioContext) {
 	var problems issues.SkillIssues
 	var canceled bool
 	var acquireFailure string
+	var panicked string
 
 	sc.Step(`^a source tree$`, func(ctx context.Context, d *godog.DocString) error {
 		var files map[string]string
@@ -81,6 +82,13 @@ func initialize(sc *godog.ScenarioContext) {
 			ctx, cancel = context.WithCancel(ctx)
 			cancel()
 		}
+		panicked = ""
+		defer func() {
+			if r := recover(); r != nil {
+				panicked = fmt.Sprint(r)
+				testsupport.Log("panic=%s", panicked)
+			}
+		}()
 		skills, list := (skill_selector.SkillSelector{SkillCatalog: catalog}).Select(ctx, spec)
 		problems, failure = list, nil
 		if len(list) > 0 {
@@ -92,7 +100,16 @@ func initialize(sc *godog.ScenarioContext) {
 		}
 		return nil
 	})
+	sc.Step(`^selection panics with "([^"]*)"$`, func(ctx context.Context, text string) error {
+		if !strings.Contains(panicked, text) {
+			return fmt.Errorf("panic=%q; want one with %q", panicked, text)
+		}
+		return nil
+	})
 	sc.Step(`^discovered names are "([^"]*)" and discovery error contains "([^"]*)"$`, func(ctx context.Context, want, contains string) error {
+		if panicked != "" {
+			return fmt.Errorf("unexpected panic: %s", panicked)
+		}
 		if err := testsupport.Equal(strings.Join(names, ","), want); err != nil {
 			return err
 		}

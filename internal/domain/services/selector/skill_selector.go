@@ -26,10 +26,13 @@ type SkillSelector struct {
 // it. Select never acquires a Repository itself; its own job is only
 // filtering catalog's results by spec's tags.
 //
+// spec must have passed config/validator.Validate: an invalid tag
+// expression or a subpath leading out of the source reaching Select is a
+// bug in the caller, and Select panics on it.
+//
 // Problems never stop the other subpaths, except those that stop the whole
-// source: an invalid tag expression ("invalid-tags", nothing is loaded), a
-// source that can't be acquired ("source-acquire") and a canceled context.
-// Every problem carries the source it belongs to.
+// source: a source that can't be acquired ("source-acquire") and a
+// canceled context. Every problem carries the source it belongs to.
 //
 // Примеры (источник local:repo, subpaths ["a", "missing", "b"]):
 //   - всё есть -> скилы из "a" и "b", проблем нет
@@ -39,9 +42,8 @@ type SkillSelector struct {
 //     source-acquire (а не по одной на каждый subpath)
 func (d SkillSelector) Select(ctx context.Context, spec model.SourceSpec) ([]*entity.Skill, issues.SkillIssues) {
 	source := spec.Key().String()
-	// Compile invalid filters even if discovery produces no candidates.
 	if _, err := tags.Match(nil, spec.Tags); err != nil {
-		return nil, issues.SkillIssues{{Code: "invalid-tags", Source: source, Message: err.Error()}}
+		panic(fmt.Sprintf("skill_selector: invalid tags %q of source %s reached Select, config/validator.Validate must reject them: %v", spec.Tags, source, err))
 	}
 	var problems issues.SkillIssues
 	selected := []*entity.Skill{}
@@ -65,6 +67,11 @@ func (d SkillSelector) Select(ctx context.Context, spec model.SourceSpec) ([]*en
 		}
 		if err != nil {
 			list := asIssues(err, p)
+			for _, i := range list {
+				if i.Code == "unsafe-subpath" {
+					panic(fmt.Sprintf("skill_selector: subpath %q of source %s leads out of it, config/validator.Validate must reject it: %s", p, source, i.Message))
+				}
+			}
 			problems = append(problems, list...)
 			if stopsSource(ctx, list) {
 				break

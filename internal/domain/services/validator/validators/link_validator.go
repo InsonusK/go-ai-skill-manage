@@ -23,7 +23,10 @@ import (
 // e.g. "examples" holding a packaged example app).
 type LinkValidator struct{}
 
-var _ validator.Validator = LinkValidator{}
+// CatalogValidator is a validator of the skills loaded in a SkillCatalog.
+type CatalogValidator = validator.Validator[*sourcing.SkillCatalog, issues.SkillIssue]
+
+var _ CatalogValidator = LinkValidator{}
 
 func (LinkValidator) Name() string { return "link-validator" }
 
@@ -32,7 +35,7 @@ func (LinkValidator) DependsOn() []validator.Dependency { return nil }
 // Validate checks every loaded skill in load order, including the skills
 // loaded while following links -- catalog.Skills() lists them after the
 // skills loaded before, so walking it by index reaches them too.
-func (v LinkValidator) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) issues.SkillIssues {
+func (v LinkValidator) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) []issues.SkillIssue {
 	var problems issues.SkillIssues
 	for i := 0; i < len(catalog.Skills()); i++ {
 		if err := ctx.Err(); err != nil {

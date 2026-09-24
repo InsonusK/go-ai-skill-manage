@@ -99,7 +99,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I validate links and then skill names$`, func(ctx context.Context) error {
-		m, err := validator.NewManager(validators.LinkValidator{}, validators.SkillNameValidator{})
+		m, err := validator.NewManager[*sourcing.SkillCatalog, issues.SkillIssue](validators.LinkValidator{}, validators.SkillNameValidator{})
 		if err != nil {
 			return err
 		}
@@ -108,7 +108,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I register validators "([^"]*)"$`, func(ctx context.Context, names string) error {
-		var list []validator.Validator
+		var list []validators.CatalogValidator
 		for _, name := range strings.Split(names, ",") {
 			switch name {
 			case "link-validator":

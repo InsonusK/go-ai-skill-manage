@@ -119,13 +119,17 @@
 
 ## Валидаторы (`services/validator`)
 
-- `validator/validator.go`: `Validator{Name, DependsOn, Validate(ctx,
-  *sourcing.SkillCatalog) model.Issues}`, `Dependency{Name, IsRequired}`,
-  `Manager`. `NewManager` **не сортирует** (порядок задаёт человек) и
+- `validator/validator.go` — общий для каталога и конфига (одни правила,
+  не заводить второй менеджер): дженерики `Validator[T, I]{Name,
+  DependsOn, Validate(ctx, T) []I}`, `Manager[T, I]`, `Dependency{Name,
+  IsRequired}`. Для каталога `T=*sourcing.SkillCatalog, I=issues.SkillIssue`
+  (алиас `validators.CatalogValidator`). Тип-аргументы `NewManager` из
+  конкретных валидаторов не выводятся — передавать `[]Validator[T, I]`
+  или указывать явно. `NewManager` **не сортирует** (порядок задаёт человек) и
   отказывает всеми нарушениями сразу: повтор имени, обязательная
   зависимость не зарегистрирована, зарегистрированная зависимость стоит
   после зависящего. `Validate` запускает все валидаторы по порядку, даже
-  после найденных ошибок, и возвращает все `Issue`.
+  после найденных ошибок, и возвращает все проблемы.
 - Реализации — подпакет `validator/validators`:
   - `LinkValidator{}` (`link-validator`): идёт по
     `catalog.Skills()` по индексу, поэтому догруженные по ссылкам скилы
@@ -164,16 +168,27 @@
   имена (`sources[].skip_folder`, `settings.validation.rules.link.
   skip_folder`) читаются с warning; старое и новое на одном уровне —
   ошибка.
-- **Валидатор конфига** — `internal/config/validator` (как доменный:
-  `validator.go` + `validators/`), проверяет `model.Request` (значит, и
-  запрос из CLI-флагов). Проверки: `invalid-tags`, `duplicate-source`
-  (одинаковые SourceKey+Subpaths+Tags), `conflicting-exclude` (один
-  SourceKey с разными исключениями), `unsafe-subpath` (`..`, `\`),
-  `duplicate-target`. Запускается в `command` до обработчика (домен не
-  импортирует `config`). Логику `Manager` не дублировать — общий
-  дженерик `Manager[T]` для конфига и каталога.
-- **Проверки конфига**: `target paths overlap` уже ловится в
-  `config.Resolve` (ошибкой) — учесть при `duplicate-target`.
+- **Одно место проверки конфига.** `config.Parse` — только форма и
+  типы (граница пользовательского ввода, возвращает ошибки) →
+  `config.Resolve` — только преобразования (пути абсолютные), ничего не
+  проверяет → `config/validator.Validate(ctx, req) issues.ConfigIssues` —
+  **единственное** место смысловых проверок. Всё после него считает
+  запрос валидным: попасть туда с невалидным конфигом — ошибка в коде,
+  **panic**, а не Issue (сейчас: `invalid-tags` и `unsafe-subpath` в
+  selector). Вызывается в `command` между `Resolve` и обработчиком (домен
+  не импортирует `config`).
+- **Валидатор конфига** — `internal/config/validator/validator.go`
+  (список и порядок валидаторов) + `validators/`
+  (`T=model.Request, I=issues.ConfigIssue`, алиас `ConfigValidator`):
+  - `tags-validator`: `invalid-tags`, Setting `sources[i].tags[j]`;
+  - `subpath-validator`: `unsafe-subpath` (`..`, `\`, абсолютный вне
+    local-источника, абсолютный в github), без ФС;
+  - `source-validator` (источники одного SourceKey, каждый позже — с
+    первым): `duplicate-source` (те же subpath-множество и теги),
+    `conflicting-exclude` (разные `exclude_from_checks`);
+  - `target-validator`: `target-overlap` (тот же путь или вложенный) —
+    перенесён из `Resolve`.
+  Тесты идут через `Parse` → `Resolve("/project")` → `Validate`.
 - В `main.go` нужно вызвать `entity.SetDefaultLinkSearcher(
   links.NewDefaultLinkFactory())`, иначе `File.Links()` — ошибка.
 
@@ -183,7 +198,8 @@
 2. ✅ Модель ошибок `model/issues`, `source-acquire`/`missing-subpath`,
    `Source` в ошибках selector, `ExcludeFromChecks` (константа, карта в
    каталоге, новые ключи YAML + warning).
-3. Дженерик `Manager[T]` + валидатор конфига с проверками.
+3. ✅ Дженерик `Manager[T, I]` + валидатор конфига; `target-overlap` из
+   `Resolve` в валидатор; panic в selector на `invalid-tags`/`unsafe-subpath`.
 4. `handler/fetch_and_validate_skills.go` (`FetchAndValidateSkills`) +
    тесты (всё валидно; ошибки из нескольких источников; add_relations
    on/off; дубли имён между источниками); перенос `sync.go` в

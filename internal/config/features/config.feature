@@ -102,8 +102,6 @@ Feature: Effective synchronization configuration
    | {target: out, settings: {target: other}} | target cannot be defined both |
    | {target: {for_each: wrong}} | for_each must be a mapping |
    | {settings: {validation: wrong}} | validation must be a mapping |
-   | {target: {one: {path: out}, two: {path: out/nested}}} | target paths overlap |
-   | {target: {one: {path: /}, two: {path: /project/out}}} | target paths overlap |
  Scenario: Legacy settings target and source syntax are preserved
   Given configuration
    """

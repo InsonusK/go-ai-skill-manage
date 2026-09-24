@@ -17,7 +17,7 @@ import (
 // loads while following links are checked too.
 type SkillNameValidator struct{}
 
-var _ validator.Validator = SkillNameValidator{}
+var _ CatalogValidator = SkillNameValidator{}
 
 func (SkillNameValidator) Name() string { return "skill-name-validator" }
 
@@ -32,7 +32,7 @@ func (SkillNameValidator) DependsOn() []validator.Dependency {
 // "x/guide" -> два Issue "duplicate-name", по одному на каждый скил:
 //   - Source "local:a", SkillPath "guide":   "also defined at local:b x/guide"
 //   - Source "local:b", SkillPath "x/guide": "also defined at local:a guide"
-func (SkillNameValidator) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) issues.SkillIssues {
+func (SkillNameValidator) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) []issues.SkillIssue {
 	skills := catalog.Skills()
 	byName := map[string][]*entity.Skill{}
 	for _, s := range skills {
