@@ -22,14 +22,19 @@ Feature: SkillCatalog.FetchByPath finds every valid skill at or below a path
    | {"a.skill.md":"---\\nname: Bad Name\\n---\\n"}                                      |       | invalid-name     |
    | {"README.md":"ordinary"}                                                            |       |                  |
 
- Scenario: SkipFolders exempts a folder from nested-skill
+ Scenario Outline: A folder excluded from checks of the skill's source is exempt from nested-skill
   Given a source tree
    """
    {"a/SKILL.md":"---\nname: one\n---\n","a/examples/b/SKILL.md":"---\nname: example\n---\n"}
    """
-  And skip folders are "examples"
+  And folders excluded from checks of source "<source>" are "<folders>"
   When I fetch skills at "."
-  Then found names are "one" and catalog error contains ""
+  Then found names are "<names>" and catalog error contains "<error>"
+  Examples:
+   | source | folders  | names | error        |
+   | repo   | examples | one   |              |
+   | repo   |          |       | nested-skill |
+   | other  | examples |       | nested-skill |
 
  Scenario: Skills in several folders are all found
   Given a source tree

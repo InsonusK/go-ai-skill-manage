@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	link_parser "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/parser"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
@@ -48,7 +49,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return testsupport.Equal(parsed, model.ParsedLink{Text: text, Path: p, Fragment: fragment, Format: format, Image: image == "true"})
 	})
 	sc.Step(`^parsing fails with "([^"]*)"$`, func(ctx context.Context, code string) error {
-		var issue model.Issue
+		var issue issues.SkillIssue
 		if !errors.As(parseErr, &issue) {
 			return fmt.Errorf("error=%v; want Issue %s", parseErr, code)
 		}

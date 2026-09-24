@@ -6,6 +6,7 @@ import (
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	content_excluder "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/content_excluder"
 	link_parser "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/parser"
 )
@@ -55,7 +56,7 @@ func (f *LinkFactory) SearchLinks(content string) ([]model.ParsedLink, error) {
 	for _, p := range f.parsers {
 		for _, s := range p.Find(searchable) {
 			if s.Start < 0 || s.End > len(content) || s.Start >= s.End {
-				return nil, model.Issue{Code: "invalid-link-span", Message: fmt.Sprintf("span [%d,%d) outside content of length %d", s.Start, s.End, len(content))}
+				return nil, issues.SkillIssue{Code: "invalid-link-span", Message: fmt.Sprintf("span [%d,%d) outside content of length %d", s.Start, s.End, len(content))}
 			}
 			if intersects(s, excluded) {
 				continue
@@ -74,7 +75,7 @@ func (f *LinkFactory) SearchLinks(content string) ([]model.ParsedLink, error) {
 		prev, next := out[i-1], out[i]
 		if next.Start < prev.End {
 			nextRaw, prevRaw := content[next.Start:next.End], content[prev.Start:prev.End]
-			return nil, model.Issue{Code: "link-overlap", Link: nextRaw, Message: fmt.Sprintf("%s link %q at [%d,%d) overlaps %s link %q at [%d,%d)", next.Format, nextRaw, next.Start, next.End, prev.Format, prevRaw, prev.Start, prev.End)}
+			return nil, issues.SkillIssue{Code: "link-overlap", Link: nextRaw, Message: fmt.Sprintf("%s link %q at [%d,%d) overlaps %s link %q at [%d,%d)", next.Format, nextRaw, next.Start, next.End, prev.Format, prevRaw, prev.Start, prev.End)}
 		}
 	}
 	return out, nil

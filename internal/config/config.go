@@ -14,7 +14,7 @@ type Overrides struct {
 }
 
 func Parse(data []byte) (Config, error) {
-	req := model.Request{RemoveOrphans: true, Conflict: "error", LinkSkipFolders: []string{"examples"}}
+	req := model.Request{RemoveOrphans: true, Conflict: "error"}
 	var node yaml.Node
 	if err := yaml.Unmarshal(data, &node); err != nil {
 		return Config{}, fmt.Errorf("config: %w", err)
@@ -52,7 +52,7 @@ func Parse(data []byte) (Config, error) {
 	if req.Conflict != "error" && req.Conflict != "last_wins" {
 		return Config{}, fmt.Errorf("unknown on_conflict %q", req.Conflict)
 	}
-	if req.LinkSkipFolders, err = linkFolders(settings); err != nil {
+	if req.ExcludeFromChecks, err = globalExcludeFromChecks(settings); err != nil {
 		return Config{}, err
 	}
 	target, rootTarget := root["target"]

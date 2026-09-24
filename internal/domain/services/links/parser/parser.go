@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 )
 
 // Span is the [Start, End) byte range of one link inside a file's content.
@@ -24,7 +25,7 @@ type LinkParser interface {
 }
 
 func invalidLink(raw, format string) error {
-	return model.Issue{Code: "invalid-link", Link: raw, Message: "not a " + format + " link"}
+	return issues.SkillIssue{Code: "invalid-link", Link: raw, Message: "not a " + format + " link"}
 }
 
 func findSpans(re interface{ FindAllStringIndex(string, int) [][]int }, content string) []Span {

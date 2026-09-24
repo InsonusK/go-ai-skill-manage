@@ -38,9 +38,18 @@
     `PathInRepo` — единственное место перевода пути между видами, без ФС.
   - `ParsedLink` — что парсер прочитал из ссылки (start, end, text, path,
     fragment, format, image).
-  - `Issue{Code, Source, Skill, SkillPath, File, Link, Message}` — одна
-    проблема; хватает для вывода «скил (имя+путь) → файл → ссылка +
-    ошибка» (как `LinkValidationError`/`formatters.py` в `deprecated/`).
+  - `DefaultExcludeFromChecks = ["examples"]` — единственное место
+    умолчания; `SourceSpec.ExcludeFromChecks` и `Request.ExcludeFromChecks`
+    (глобальный) дополняют друг друга.
+- `model/issues`: интерфейс `Reportable{Report() IssueReportRow}` —
+  `IssueReportRow{Code, Message, Where []Location}` (одна проблема, `Where`
+  от общего к частному; `Location{Kind, Value}`, kinds: source, skill,
+  file, link, setting). Реализации сами выставляют `Where`:
+  `SkillIssue{Code, Source, Skill, SkillPath, File, Link, Message}` →
+  source → skill («имя (путь)») → file → link; `ConfigIssue{Code, Source,
+  Setting, Message}` → source → setting. Списки `SkillIssues`,
+  `ConfigIssues`. Печать — будущий общий сервис по `Report()`. Локальные
+  переменные-списки называть `problems`, не `issues` (перекрывают пакет).
 - `entity`: `Repository`, `Skill` (`FilesByPath` — чистый листер,
   `DirOrMarkerPath()`), `File` (`Content`, `Path(kind)`, `Links()`), `Link`
   (`MakeLink`, `Path(ctx, kind, resolver)`, `Skill(ctx, resolver)`),
@@ -48,9 +57,12 @@
   потому что `sourcing` импортирует `entity`).
 - `services/sourcing`: `Manager` (acquire по `SourceKey`, кеш, `TempDir`
   задаётся в `NewManager`), `SkillCatalog` (см. ниже).
-- `services/selector`: `SkillSelector{SkillCatalog}.Select(ctx, spec)` —
-  зовёт `GetOrFetchByPath` по `spec.Subpaths` (по умолчанию `"."`) и
-  фильтрует по тегам. Паникует на `entity.ErrSkillNotCached`: `Select` —
+- `services/selector`: `SkillSelector{SkillCatalog}.Select(ctx, spec)
+  ([]*Skill, issues.SkillIssues)` — зовёт `GetOrFetchByPath` по
+  `spec.Subpaths` (по умолчанию `"."`) и фильтрует по тегам. Проблема не
+  останавливает остальные subpath, кроме: `invalid-tags` (ничего не
+  грузится), `source-acquire` и отмены контекста (`canceled`) — они
+  прекращают источник. У каждой проблемы заполнен `Source`. Паникует на `entity.ErrSkillNotCached`: `Select` —
   первичная загрузка, ссылки в нём разрешаться не должны (panic = нарушен
   инвариант, а не бизнес-ошибка).
 - `services/links`: `parser` (markdown, wikilink → `ParsedLink`),
@@ -79,9 +91,13 @@
   догруженные позже идут в конец.
 - `AddRelations` — поле каталога (зеркало настройки `add_relations`).
 - Валидация при fetch: `pattern-conflict`, `invalid-name`/`invalid-skill`,
-  `nested-skill`. Папки из `SetSkipFoldersInNestedChecker` (по умолчанию
-  `examples`) освобождены от проверки `nested-skill`, но остаются частью
-  скила и копируются с ним.
+  `nested-skill`. Коды пути: `source-acquire` (провайдер не отдал
+  репозиторий), `missing-subpath`, `unsafe-subpath`. `Source` заполнен.
+- `ExcludeFromChecks map[SourceKey][]string` — папки верхнего уровня
+  скилов источника: загружаются и копируются со скилом, но не проверяются
+  (`nested-skill` здесь, ссылки в `LinkValidator`). Правило одно —
+  `IsExcludedFromChecks(skill, rel)`. Своего умолчания нет: источника нет
+  в карте — ничего не исключено (умолчание подставляет конфиг).
 - Примеры преобразований — в doc-комментариях `catalog.go`; тесты —
   `catalog.feature`, `catalog.fetchByPath.feature`,
   `catalog.fetchByPathUp.feature`.
@@ -111,10 +127,11 @@
   после зависящего. `Validate` запускает все валидаторы по порядку, даже
   после найденных ошибок, и возвращает все `Issue`.
 - Реализации — подпакет `validator/validators`:
-  - `LinkValidator{SkipFolders}` (`link-validator`): идёт по
+  - `LinkValidator{}` (`link-validator`): идёт по
     `catalog.Skills()` по индексу, поэтому догруженные по ссылкам скилы
     (`AddRelations=true`) проверяются тоже. Только `.md`-файлы, без
-    web-ссылок и без файлов в `SkipFolders` верхнего уровня. Коды:
+    web-ссылок и без файлов, исключённых из проверок
+    (`catalog.IsExcludedFromChecks`). Коды:
     `missing-link-target`, `path-escape`, `unselected-skill`, ошибки
     каталога как есть, `missing-anchor`.
   - Якоря (`anchors.go`): `#`-заголовки вне fenced-блоков (GitHub-slug с
@@ -139,20 +156,14 @@
   наполняет `SkillCatalog`. Обработчик логики поиска не содержит — зовёт
   selector по **всем** источникам, затем `validator.Manager`
   (`[link-validator, skill-name-validator]`).
-- **Ошибка загрузки источника** — `source-acquire` (`Source=key`), создаётся
-  в `catalog.acquire`; selector прекращает subpath только этого источника,
-  остальные источники работают. Несуществующий subpath — `missing-subpath`,
-  остальные subpath продолжаются. Код `discovery` уходит. `Source`
-  заполнен во всех ошибках selector.
-- **Папки, исключённые из проверок** (Go: `ExcludeFromChecks`): лежат в
-  каталоге и копируются со скилом, но ничего в них не проверяется (там
-  готовые примеры, часто со ссылками «в никуда»). Глобальная
-  `SetSkipFoldersInNestedChecker` удаляется; каталог получает
-  `ExcludeFromChecks map[SourceKey][]string`, без своего умолчания.
-  Умолчание `["examples"]` — одна константа в `model`, подставляется
-  слоем конфига, если раздела нет (с info-сообщением); пустой раздел —
-  ничего не исключать. Ключ YAML — новое понятное имя; старый
-  `skip_folder` читается с warning «устарело, переименуйте».
+- **Папки, исключённые из проверок** — конфиг:
+  `settings.validation.exclude_from_checks` (глобально) и
+  `sources[].exclude_from_checks`, дополняют друг друга (обработчик кладёт
+  объединение в `catalog.ExcludeFromChecks[key]`). Глобальный не задан →
+  `["examples"]` + info в лог; `[]`/пусто — ничего не исключать. Старые
+  имена (`sources[].skip_folder`, `settings.validation.rules.link.
+  skip_folder`) читаются с warning; старое и новое на одном уровне —
+  ошибка.
 - **Валидатор конфига** — `internal/config/validator` (как доменный:
   `validator.go` + `validators/`), проверяет `model.Request` (значит, и
   запрос из CLI-флагов). Проверки: `invalid-tags`, `duplicate-source`
@@ -161,23 +172,22 @@
   `duplicate-target`. Запускается в `command` до обработчика (домен не
   импортирует `config`). Логику `Manager` не дублировать — общий
   дженерик `Manager[T]` для конфига и каталога.
-- **Ошибки**: у ошибок конфига и скилов разный набор полей, печатать их
-  будет один (ещё не написанный) сервис — нужен общий интерфейс с методом,
-  отдающим унифицированный формат для вывода.
+- **Проверки конфига**: `target paths overlap` уже ловится в
+  `config.Resolve` (ошибкой) — учесть при `duplicate-target`.
 - В `main.go` нужно вызвать `entity.SetDefaultLinkSearcher(
   links.NewDefaultLinkFactory())`, иначе `File.Links()` — ошибка.
 
 Шаги (после каждого — стоп):
 1. ✅ Переименование: `services/validators` → `services/validator`,
    `validators/validator` → `validator/validators`.
-2. Модель ошибок (интерфейс), `source-acquire`/`missing-subpath`, `Source`
-   в ошибках selector, `ExcludeFromChecks` (константа, переименования,
-   карта в каталоге, новый ключ YAML + warning, правка
-   `command/configuration.go`).
+2. ✅ Модель ошибок `model/issues`, `source-acquire`/`missing-subpath`,
+   `Source` в ошибках selector, `ExcludeFromChecks` (константа, карта в
+   каталоге, новые ключи YAML + warning).
 3. Дженерик `Manager[T]` + валидатор конфига с проверками.
-4. `handler/FetchAndValidateSkills` + тесты (всё валидно; ошибки из
-   нескольких источников; add_relations on/off; дубли имён между
-   источниками); перенос `sync.go` в `handler`.
+4. `handler/fetch_and_validate_skills.go` (`FetchAndValidateSkills`) +
+   тесты (всё валидно; ошибки из нескольких источников; add_relations
+   on/off; дубли имён между источниками); перенос `sync.go` в
+   `handler/sync.go` (отдельный файл, не часть обработчика).
 
 ## Старые пакеты (ещё не переведены, не собираются)
 

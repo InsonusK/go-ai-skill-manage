@@ -72,20 +72,15 @@ func catalogSteps(sc *godog.ScenarioContext) {
 		}
 		catalog = newCatalog(tree)
 		found, failure = nil, nil
-		// Reset the package-level nested-skill exemption between scenarios --
-		// it's a package var (SetSkipFoldersInNestedChecker), not a per-catalog
-		// field, so a scenario that doesn't touch it must not inherit a
-		// previous scenario's override.
-		sourcing.SetSkipFoldersInNestedChecker([]string{"examples"})
 		testsupport.Log("files=%v", raw)
 		return nil
 	})
-	sc.Step(`^skip folders are "([^"]*)"$`, func(ctx context.Context, folders string) error {
-		var skip []string
+	sc.Step(`^folders excluded from checks of source "([^"]*)" are "([^"]*)"$`, func(ctx context.Context, source, folders string) error {
+		skip := []string{}
 		if folders != "" {
 			skip = strings.Split(folders, ",")
 		}
-		sourcing.SetSkipFoldersInNestedChecker(skip)
+		catalog.ExcludeFromChecks = map[model.SourceKey][]string{{Type: "local", Path: source}: skip}
 		return nil
 	})
 	sc.Step(`^I get or add skills at "([^"]*)"$`, func(ctx context.Context, p string) error {

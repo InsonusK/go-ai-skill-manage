@@ -6,6 +6,7 @@ import (
 	"path"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 )
 
 // LinkSearcher finds links inside a file's content.
@@ -55,7 +56,7 @@ func (f *File) Content() ([]byte, error) {
 // its own folder is just its name.
 func (f *File) Path(kind model.PathKind) (string, error) {
 	if kind == model.FileRelative {
-		return "", model.Problem("unsupported-path-kind", "a file has no path relative to itself")
+		return "", issues.Problem("unsupported-path-kind", "a file has no path relative to itself")
 	}
 	p, err := model.MakePathInRepo(f.skill.Repo.RootPath, f.path, model.SkillRelative, f.skill.SkillDirPath)
 	if err != nil {

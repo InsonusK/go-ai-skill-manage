@@ -55,7 +55,7 @@ sources:
     tree: master
     subpath: [skills/go]
     tags: ["stack/go & !deprecated"]
-    skip_folder: [examples]
+    exclude_from_checks: [demo]
 target:
   for_each:
     adapters: [link-adapter]
@@ -71,9 +71,7 @@ settings:
   add_relations: true
   on_conflict: error
   validation:
-    rules:
-      link:
-        skip_folder: [examples]
+    exclude_from_checks: [examples]
 ```
 
 ### Источники
@@ -85,12 +83,22 @@ settings:
 | `tree` | `master` | Ветка или тег Git |
 | `subpath` | GitHub: `skills`; local: корень | Строка или список; отсутствующий путь даёт пустой выбор |
 | `tags` | без фильтра | Строка или список выражений; список объединяется AND |
-| `skip_folder` | `examples` | Папки первого уровня, исключённые из проверки вложенных скилов |
+| `exclude_from_checks` | нет | Папки первого уровня скилов этого источника, исключённые из проверок; дополняют `settings.validation.exclude_from_checks` |
 | `name` | исходное имя | Override допустим при ровно одном выбранном скиле |
 
-`skip_folder` источника **не исключает файлы из копирования**.
-`settings.validation.rules.link.skip_folder` исключает проверку ссылок
-в файлах соответствующих папок; `[]` или `null` отключает это исключение.
+Папки из `exclude_from_checks` **загружаются и копируются вместе со скилом**,
+но не проверяются: ни на вложенные скилы, ни на битые ссылки. Обычно там
+лежит код примеров, ссылки в котором часто ведут «в никуда».
+
+Итоговый список для источника — объединение
+`settings.validation.exclude_from_checks` и `exclude_from_checks` источника.
+Если `settings.validation.exclude_from_checks` не задан, действует `[examples]`
+(с info-сообщением в логе); `[]` или пустое значение отключает исключение.
+
+Устаревшие имена читаются с warning в логе: `skip_folder` источника →
+`exclude_from_checks`, `settings.validation.rules.link.skip_folder` →
+`settings.validation.exclude_from_checks`. Старое и новое имя на одном уровне
+одновременно — ошибка конфигурации.
 
 ### Цели и настройки
 

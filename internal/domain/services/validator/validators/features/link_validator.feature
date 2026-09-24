@@ -132,7 +132,7 @@ Feature: LinkValidator checks that every link leads to an existing file and anch
    | [g](#outro)                                | missing-anchor |
    | [g](./docs/data.txt#data)                  | missing-anchor |
 
- Scenario: Links in skip folders and in non-markdown files are not checked
+ Scenario: Links in folders excluded from checks and in non-markdown files are not checked
   Given a source "repo" holding
    """
    {"one/SKILL.md":"---\nname: one\n---\n","one/examples/app/README.md":"[x](./missing.md)\n","one/data.txt":"[x](./missing.md)\n","one/docs/examples/page.md":"[x](./missing.md)\n"}

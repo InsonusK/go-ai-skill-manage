@@ -7,6 +7,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/relations"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
@@ -38,19 +39,19 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 	result.Skills = []string{}
 	result.Plans = []model.TargetPlan{}
 	catalog := &sourcing.SkillCatalog{}
-	var issues model.Issues
+	var problems issues.SkillIssues
 	for _, spec := range req.Sources {
 		slog.DebugContext(ctx, "acquiring source", "type", spec.Type, "path", spec.Path)
 		skillCatalog := &sourcing.SkillCatalog{Manager: s.Sources}
 		found, discoverErr := s.Detector.Select(ctx, skillCatalog, spec)
 		if discoverErr != nil {
-			issues = append(issues, model.Issue{Code: "discovery", File: spec.Path, Message: discoverErr.Error()})
+			problems = append(problems, issues.SkillIssue{Code: "discovery", File: spec.Path, Message: discoverErr.Error()})
 		}
 	}
-	if len(issues) > 0 {
-		return result, issues
+	if len(problems) > 0 {
+		return result, problems
 	}
-	if err = s.Relations.Expand(ctx, catalog, req.AddRelations, req.LinkSkipFolders); err != nil {
+	if err = s.Relations.Expand(ctx, catalog, req.AddRelations, req.ExcludeFromChecks); err != nil {
 		return result, err
 	}
 	slog.DebugContext(ctx, "catalog expanded", "skills", len(catalog.Skills))

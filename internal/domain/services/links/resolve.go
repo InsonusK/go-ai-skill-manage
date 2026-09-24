@@ -3,7 +3,7 @@ package links
 import (
 	"errors"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"io/fs"
 	"path"
 	"path/filepath"
@@ -47,18 +47,18 @@ func Resolve(repo *entity.Repository, from, raw string, knownOwner func(string) 
 		} else if strings.HasPrefix(p, root+"/") {
 			p = strings.TrimPrefix(p, root+"/")
 		} else {
-			return "", model.Problem("path-escape", raw)
+			return "", issues.Problem("path-escape", raw)
 		}
 	default:
 		p = path.Clean(p)
 	}
 	if !fs.ValidPath(p) {
-		return "", model.Problem("path-escape", raw)
+		return "", issues.Problem("path-escape", raw)
 	}
 	if _, err := fs.Stat(repo.FS, p); err == nil {
 		return p, nil
 	} else if !errors.Is(err, fs.ErrNotExist) {
-		return "", model.Problem("source-read", err.Error())
+		return "", issues.Problem("source-read", err.Error())
 	}
 	if _, err := fs.Stat(repo.FS, p+".md"); err == nil {
 		return p + ".md", nil
@@ -67,5 +67,5 @@ func Resolve(repo *entity.Repository, from, raw string, knownOwner func(string) 
 	if knownOwner != nil && knownOwner(p) {
 		return p, nil
 	}
-	return "", model.Problem("missing-link", raw)
+	return "", issues.Problem("missing-link", raw)
 }

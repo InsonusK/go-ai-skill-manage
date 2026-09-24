@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 )
 
 // ErrSkillNotCached reports that a cache-only SkillResolver lookup found no
@@ -66,7 +67,7 @@ func MakeLink(file *File, parsed model.ParsedLink) (*Link, error) {
 		return nil, err
 	}
 	if parsed.Start < 0 || parsed.End > len(content) || parsed.Start >= parsed.End {
-		return nil, model.Issue{Code: "invalid-link-span", Message: fmt.Sprintf("span [%d,%d) outside content of length %d", parsed.Start, parsed.End, len(content))}
+		return nil, issues.SkillIssue{Code: "invalid-link-span", Message: fmt.Sprintf("span [%d,%d) outside content of length %d", parsed.Start, parsed.End, len(content))}
 	}
 	external := false
 	lower := strings.ToLower(parsed.Path)
@@ -149,7 +150,7 @@ func (l *Link) resolveTarget() (*model.PathInRepo, error) {
 		return l.target, nil
 	}
 	if l.External {
-		return nil, model.Issue{Code: "web-link", Link: l.Raw, Message: "a web link has no path in the repository"}
+		return nil, issues.SkillIssue{Code: "web-link", Link: l.Raw, Message: "a web link has no path in the repository"}
 	}
 	repo := l.file.skill.Repo
 	from, err := l.file.Path(model.RepoAbsolute)
@@ -162,7 +163,7 @@ func (l *Link) resolveTarget() (*model.PathInRepo, error) {
 	}
 	target, err := model.MakePathInRepo(repo.RootPath, written, model.DetectPathKind(written), path.Dir(from))
 	if err != nil {
-		return nil, model.Issue{Code: "path-escape", Link: l.Raw, Message: err.Error()}
+		return nil, issues.SkillIssue{Code: "path-escape", Link: l.Raw, Message: err.Error()}
 	}
 	p, err := target.Path(model.RepoAbsolute, "")
 	if err != nil {
@@ -173,7 +174,7 @@ func (l *Link) resolveTarget() (*model.PathInRepo, error) {
 			return nil, err
 		}
 		if _, err := fs.Stat(repo.FS, p+".md"); err != nil {
-			return nil, model.Issue{Code: "missing-link-target", Link: l.Raw, File: p, Message: "link target does not exist"}
+			return nil, issues.SkillIssue{Code: "missing-link-target", Link: l.Raw, File: p, Message: "link target does not exist"}
 		}
 		if target, err = model.MakePathInRepo(repo.RootPath, p+".md", model.RepoAbsolute, ""); err != nil {
 			return nil, err

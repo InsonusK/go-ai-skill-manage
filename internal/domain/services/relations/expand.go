@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
 )
@@ -14,7 +15,7 @@ type Expander struct{ Detector discovery.SkillSelector }
 
 func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalogImpl, add bool, skip []string) error {
 	processed := map[string]bool{}
-	var issues model.Issues
+	var problems issues.SkillIssues
 	scan := func(s *model.SkillImpl, f *model.FileImpl, repoPath string, data []byte) {
 		if !strings.HasSuffix(strings.ToLower(f.Path), ".md") {
 			return
@@ -29,7 +30,7 @@ func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalogImpl, add b
 				candidate, err = e.Detector.Find(ctx, s.Repo, resolved)
 				if err == nil && candidate != nil {
 					if !add {
-						err = model.Problem("unselected-skill", candidate.Name)
+						err = issues.Problem("unselected-skill", candidate.Name)
 					} else {
 						err = cat.GetOrAdd(ctx, candidate)
 					}
@@ -37,11 +38,11 @@ func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalogImpl, add b
 			}
 			if err != nil {
 				code := "link-error"
-				var problem model.Issue
+				var problem issues.SkillIssue
 				if errors.As(err, &problem) {
 					code = problem.Code
 				}
-				issues = append(issues, model.Issue{Code: code, Skill: s.Name, File: f.Path, Link: link.Raw, Message: err.Error()})
+				problems = append(problems, issues.SkillIssue{Code: code, Skill: s.Name, File: f.Path, Link: link.Raw, Message: err.Error()})
 				continue
 			}
 			link.Target = model.OriginalKey(s.Repo.ID, resolved)
@@ -65,14 +66,14 @@ func (e Expander) Expand(ctx context.Context, cat *model.SkillCatalogImpl, add b
 			}
 			data, err := s.FileData(fi)
 			if err != nil {
-				issues = append(issues, model.Issue{Code: "source-read", Skill: s.Name, File: f.Path, Message: err.Error()})
+				problems = append(problems, issues.SkillIssue{Code: "source-read", Skill: s.Name, File: f.Path, Message: err.Error()})
 				continue
 			}
 			scan(s, f, model.NestedRepoPath(s.SkillDirPath, f.Path), data)
 		}
 	}
-	if len(issues) > 0 {
-		return issues
+	if len(problems) > 0 {
+		return problems
 	}
 	return nil
 }

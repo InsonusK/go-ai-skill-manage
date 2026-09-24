@@ -10,6 +10,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validator"
@@ -33,13 +34,13 @@ func (p sourcesProvider) Acquire(ctx context.Context, key model.SourceKey, optio
 func initialize(sc *godog.ScenarioContext) {
 	var trees map[string]fstest.MapFS
 	var catalog *sourcing.SkillCatalog
-	var issues model.Issues
+	var problems issues.SkillIssues
 	var registerErr error
 
 	sc.Before(func(ctx context.Context, s *godog.Scenario) (context.Context, error) {
 		trees = map[string]fstest.MapFS{}
 		catalog = &sourcing.SkillCatalog{Manager: sourcing.NewManager(map[string]interfaces.SourceProvider{"local": sourcesProvider{trees: trees}}, "")}
-		issues, registerErr = nil, nil
+		problems, registerErr = nil, nil
 		entity.SetDefaultLinkSearcher(links.NewDefaultLinkFactory())
 		return ctx, nil
 	})
@@ -59,6 +60,10 @@ func initialize(sc *godog.ScenarioContext) {
 			tree[p] = &fstest.MapFile{Data: []byte(v)}
 		}
 		trees[name] = tree
+		if catalog.ExcludeFromChecks == nil {
+			catalog.ExcludeFromChecks = map[model.SourceKey][]string{}
+		}
+		catalog.ExcludeFromChecks[model.SourceKey{Type: "local", Path: name}] = []string{"examples"}
 		testsupport.Log("source=%s files=%v", name, raw)
 		return nil
 	})
@@ -84,22 +89,22 @@ func initialize(sc *godog.ScenarioContext) {
 
 	// --- running validators
 	sc.Step(`^I validate links$`, func(ctx context.Context) error {
-		issues = validators.LinkValidator{SkipFolders: []string{"examples"}}.Validate(ctx, catalog)
-		testsupport.Log("issues=%v", issues)
+		problems = validators.LinkValidator{}.Validate(ctx, catalog)
+		testsupport.Log("issues=%v", problems)
 		return nil
 	})
 	sc.Step(`^I validate skill names$`, func(ctx context.Context) error {
-		issues = validators.SkillNameValidator{}.Validate(ctx, catalog)
-		testsupport.Log("issues=%v", issues)
+		problems = validators.SkillNameValidator{}.Validate(ctx, catalog)
+		testsupport.Log("issues=%v", problems)
 		return nil
 	})
 	sc.Step(`^I validate links and then skill names$`, func(ctx context.Context) error {
-		m, err := validator.NewManager(validators.LinkValidator{SkipFolders: []string{"examples"}}, validators.SkillNameValidator{})
+		m, err := validator.NewManager(validators.LinkValidator{}, validators.SkillNameValidator{})
 		if err != nil {
 			return err
 		}
-		issues = m.Validate(ctx, catalog)
-		testsupport.Log("issues=%v", issues)
+		problems = m.Validate(ctx, catalog)
+		testsupport.Log("issues=%v", problems)
 		return nil
 	})
 	sc.Step(`^I register validators "([^"]*)"$`, func(ctx context.Context, names string) error {
@@ -128,29 +133,29 @@ func initialize(sc *godog.ScenarioContext) {
 
 	// --- issues
 	sc.Step(`^there are no issues$`, func(ctx context.Context) error {
-		return testsupport.Equal(len(issues), 0)
+		return testsupport.Equal(len(problems), 0)
 	})
 	// Each issue as [Code, Source, Skill, SkillPath, File, Link]; Message is
 	// checked separately where it matters.
 	sc.Step(`^the issues are$`, func(ctx context.Context, d *godog.DocString) error {
 		actual := [][]string{}
-		for _, i := range issues {
+		for _, i := range problems {
 			actual = append(actual, []string{i.Code, i.Source, i.Skill, i.SkillPath, i.File, i.Link})
 		}
 		return testsupport.JSON(actual, d)
 	})
 	sc.Step(`^the issue codes are "([^"]*)"$`, func(ctx context.Context, want string) error {
 		var codes []string
-		for _, i := range issues {
+		for _, i := range problems {
 			codes = append(codes, i.Code)
 		}
 		return testsupport.Equal(strings.Join(codes, ","), want)
 	})
 	sc.Step(`^issue (\d+) message contains "([^"]*)"$`, func(ctx context.Context, n int, want string) error {
-		if n > len(issues) {
-			return fmt.Errorf("only %d issues", len(issues))
+		if n > len(problems) {
+			return fmt.Errorf("only %d issues", len(problems))
 		}
-		if msg := issues[n-1].Message; !strings.Contains(msg, want) {
+		if msg := problems[n-1].Message; !strings.Contains(msg, want) {
 			return fmt.Errorf("message %q does not contain %q", msg, want)
 		}
 		return nil

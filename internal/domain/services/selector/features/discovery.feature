@@ -44,6 +44,60 @@ Feature: Select the skills one source contributes
    {"a.skill.md":"---\nname: a\n---\n"}
    """
   And discovery is canceled
-  When I select from subpaths "." with tags ""
+  When I select from subpaths ".,a" with tags ""
   Then discovered names are "" and discovery error contains "context canceled"
+  And the selection issues are
+   """
+   [["canceled","local:repo","."]]
+   """
   And the source provider was not acquired
+
+ Scenario: A source that can't be acquired is one issue, not one per subpath
+  Given a source tree
+   """
+   {"a/SKILL.md":"---\nname: one\n---\n","b/SKILL.md":"---\nname: two\n---\n"}
+   """
+  And the source provider fails with "clone failed"
+  When I select from subpaths "a,b" with tags ""
+  Then discovered names are "" and discovery error contains "clone failed"
+  And the selection issues are
+   """
+   [["source-acquire","local:repo",""]]
+   """
+  And the source provider was acquired 1 time
+
+ Scenario: A missing subpath is reported and the other subpaths are still selected
+  Given a source tree
+   """
+   {"a/SKILL.md":"---\nname: one\n---\n","b/SKILL.md":"---\nname: two\n---\n"}
+   """
+  When I select from subpaths "a,missing,b" with tags ""
+  Then discovered names are "one,two" and discovery error contains "does not exist"
+  And the selection issues are
+   """
+   [["missing-subpath","local:repo","missing"]]
+   """
+
+ Scenario: An invalid tag expression loads nothing from the source
+  Given a source tree
+   """
+   {"a/SKILL.md":"---\nname: one\n---\n"}
+   """
+  When I select from subpaths "a" with tags "(go"
+  Then discovered names are "" and discovery error contains "invalid tag expression"
+  And the selection issues are
+   """
+   [["invalid-tags","local:repo",""]]
+   """
+  And the source provider was not acquired
+
+ Scenario: Issues found in a skill carry the source they come from
+  Given a source tree
+   """
+   {"a/SKILL.md":"---\nname: one\n---\n","a/b/SKILL.md":"---\nname: two\n---\n"}
+   """
+  When I select from subpaths "." with tags ""
+  Then the selection issues are
+   """
+   [["nested-skill","local:repo","b/SKILL.md"]]
+   """

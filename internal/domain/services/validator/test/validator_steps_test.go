@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validator"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
@@ -15,17 +15,17 @@ import (
 // fakeValidator declares a name and dependencies, returns preset issues and
 // records the order validators ran in.
 type fakeValidator struct {
-	name   string
-	deps   []validator.Dependency
-	issues model.Issues
-	ran    *[]string
+	name     string
+	deps     []validator.Dependency
+	problems issues.SkillIssues
+	ran      *[]string
 }
 
 func (f fakeValidator) Name() string                      { return f.name }
 func (f fakeValidator) DependsOn() []validator.Dependency { return f.deps }
-func (f fakeValidator) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) model.Issues {
+func (f fakeValidator) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) issues.SkillIssues {
 	*f.ran = append(*f.ran, f.name)
-	return f.issues
+	return f.problems
 }
 
 func initialize(sc *godog.ScenarioContext) {
@@ -33,10 +33,10 @@ func initialize(sc *godog.ScenarioContext) {
 	var ran []string
 	var manager *validator.Manager
 	var registerErr error
-	var issues model.Issues
+	var problems issues.SkillIssues
 
 	sc.Before(func(ctx context.Context, s *godog.Scenario) (context.Context, error) {
-		fakes, ran, manager, registerErr, issues = map[string]*fakeValidator{}, nil, nil, nil, nil
+		fakes, ran, manager, registerErr, problems = map[string]*fakeValidator{}, nil, nil, nil, nil
 		return ctx, nil
 	})
 	sc.Step(`^fake validator "([^"]*)" depending on "([^"]*)" \((required|optional)\) reports "([^"]*)"$`, func(ctx context.Context, name, deps, kind, codes string) error {
@@ -48,7 +48,7 @@ func initialize(sc *godog.ScenarioContext) {
 		}
 		for _, code := range strings.Split(codes, ",") {
 			if code != "" {
-				f.issues = append(f.issues, model.Issue{Code: code})
+				f.problems = append(f.problems, issues.SkillIssue{Code: code})
 			}
 		}
 		fakes[name] = f
@@ -79,7 +79,7 @@ func initialize(sc *godog.ScenarioContext) {
 			return registerErr
 		}
 		// The fakes don't read the catalog.
-		issues = manager.Validate(ctx, nil)
+		problems = manager.Validate(ctx, nil)
 		return nil
 	})
 	sc.Step(`^the validators ran in order "([^"]*)"$`, func(ctx context.Context, want string) error {
@@ -87,7 +87,7 @@ func initialize(sc *godog.ScenarioContext) {
 	})
 	sc.Step(`^the issue codes are "([^"]*)"$`, func(ctx context.Context, want string) error {
 		var codes []string
-		for _, i := range issues {
+		for _, i := range problems {
 			codes = append(codes, i.Code)
 		}
 		return testsupport.Equal(strings.Join(codes, ","), want)

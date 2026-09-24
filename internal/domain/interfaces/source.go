@@ -30,17 +30,9 @@ import (
 // Local/Fetcher, used only inside a sourcing.Manager's own dispatch map.
 // Takes only a SourceKey (identity: type/path/tree) -- Subpaths/Tags/Name
 // are a SourceSpec's selection concern, applied later by whoever selects
-// skills, not by acquisition.
-//
-// discovery.Rooted's deep walk still reads Repository.SkipFolders, which
-// is never set here (SourceSpec.SkipFolders has no way to reach a
-// Repository acquired via SourceProvider/Manager). That no longer affects
-// the main discovery pipeline: services.SourceSelector's implementation
-// threads SourceSpec.SkipFolders as an explicit parameter into
-// sourcing.SkillCatalog.GetOrAddByPath/model.Skill.FilesByPath instead of
-// relying on this field. It still affects relations.Expander, which still
-// resolves link targets via discovery.Detector.Find/Rooted -- a separate,
-// still-unscheduled gap, not fixed here.
+// skills, not by acquisition. Folders excluded from checks
+// (SourceSpec.ExcludeFromChecks) don't reach the Repository either: they
+// live in sourcing.SkillCatalog.ExcludeFromChecks.
 type SourceProvider interface {
 	Acquire(context.Context, model.SourceKey, model.AcquisitionOptions) (*entity.Repository, error)
 }

@@ -41,7 +41,7 @@ func parseSource(m map[string]any) (model.SourceSpec, error) {
 	if s.Tags, err = listValue(m["tags"], "tags", nil); err != nil {
 		return s, err
 	}
-	if s.SkipFolders, err = listValue(m["skip_folder"], "skip_folder", []string{"examples"}); err != nil {
+	if s.ExcludeFromChecks, err = sourceExcludeFromChecks(m, s.Path); err != nil {
 		return s, err
 	}
 	return s, nil

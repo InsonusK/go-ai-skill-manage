@@ -11,23 +11,10 @@ import (
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 )
 
 func isNotExist(err error) bool { return errors.Is(err, fs.ErrNotExist) }
-
-// DefaultSkipFolders names top-level folders exempt from nested-skill
-// validation -- they're still part of the owning skill and copied with it,
-// just never walked into for a skill marker of their own (e.g. a packaged
-// example app that happens to contain its own SKILL.md). Hardcoded for
-// now and passed at SkillCatalog construction (SourceSpec.SkipFolders,
-// read from each source's config, is not wired to this yet -- deferred,
-// see AGENTS.md).
-var defaultSkipFoldersInNestedChecker = []string{"examples"}
-
-// SetDefaultLinkSearcher вызывается ОДИН раз при старте приложения
-func SetSkipFoldersInNestedChecker(skipFolders []string) {
-	defaultSkipFoldersInNestedChecker = skipFolders
-}
 
 // SkillCatalog is the active, path-driven source of truth for skills found
 // in acquired repositories. Get* only look at skills already loaded,
@@ -39,6 +26,11 @@ type SkillCatalog struct {
 	// do on a cache miss: true fetches the skill, false fails with
 	// entity.ErrSkillNotCached -- mirrors the add_relations setting.
 	AddRelations bool
+	// ExcludeFromChecks maps a source to the top-level folders of its
+	// skills that are loaded and copied with the skill but never checked:
+	// no nested-skill check here, no link checks in validators. A source
+	// missing from the map excludes nothing. See IsExcludedFromChecks.
+	ExcludeFromChecks map[model.SourceKey][]string
 	// cachedByPath maps entity.GetSkillKey(repo, p) to the skills a lookup
 	// by path p answers: every skill at or below a requested path p, and
 	// for each loaded skill its own folder (or, for a flat skill, its
@@ -120,15 +112,15 @@ func (c *SkillCatalog) GetOrFetchByPath(ctx context.Context, key model.SourceKey
 	if err != nil {
 		return nil, err
 	}
-	skills, issues := c.FetchByPath(ctx, repo, start)
-	if len(issues) > 0 {
+	skills, problems := c.FetchByPath(ctx, repo, start)
+	if len(problems) > 0 {
 		// Not a complete answer for start: remember only each valid skill
 		// at its own location, so a repeat call fetches again and reports
 		// the same issues.
 		for _, skill := range skills {
 			c.addPath(skill.Repo.Key, skill.DirOrMarkerPath(), []*entity.Skill{skill})
 		}
-		return skills, issues
+		return skills, problems
 	}
 	c.addPath(repo.Key, start, skills)
 	return skills, nil
@@ -192,7 +184,8 @@ func (c *SkillCatalog) cachedRepoPath(ctx context.Context, key model.SourceKey, 
 }
 
 // acquire gets key's Repository via Manager (fetched once, then cached)
-// and resolves p inside it (see normalizePath).
+// and resolves p inside it (see normalizePath). A Repository the provider
+// can't give is a "source-acquire" issue.
 //
 // Пример: acquire(key, "/home/u/skills/a/guide") -> (репозиторий, "a/guide")
 // -- первый вызов для key загружает репозиторий, следующие берут его из
@@ -200,7 +193,7 @@ func (c *SkillCatalog) cachedRepoPath(ctx context.Context, key model.SourceKey, 
 func (c *SkillCatalog) acquire(ctx context.Context, key model.SourceKey, p string) (*entity.Repository, string, error) {
 	repo, err := c.Manager.Get(ctx, key)
 	if err != nil {
-		return nil, "", err
+		return nil, "", issues.SkillIssue{Code: "source-acquire", Source: key.String(), Message: err.Error()}
 	}
 	p, err = normalizePath(repo, p)
 	if err != nil {
@@ -277,13 +270,13 @@ func (c *SkillCatalog) skillAt(key model.SourceKey, p string) *entity.Skill {
 //   - FetchByPath("b.skill.md")   -> [flat]
 //   - FetchByPath("a/guide/docs") -> [] -- ищет только вниз; скил, в папке
 //     которого лежит start, ищет FetchByPathUp
-func (c *SkillCatalog) FetchByPath(ctx context.Context, repo *entity.Repository, start string) ([]*entity.Skill, model.Issues) {
+func (c *SkillCatalog) FetchByPath(ctx context.Context, repo *entity.Repository, start string) ([]*entity.Skill, issues.SkillIssues) {
 	out := []*entity.Skill{}
-	var issues model.Issues
+	var problems issues.SkillIssues
 	var scan func(string)
 	scan = func(p string) {
 		if err := ctx.Err(); err != nil {
-			issues = append(issues, model.Issue{Code: "canceled", File: p, Message: err.Error()})
+			problems = append(problems, issues.SkillIssue{Code: "canceled", Source: repo.Key.String(), File: p, Message: err.Error()})
 			return
 		}
 		if skill := c.skillAt(repo.Key, p); skill != nil {
@@ -293,7 +286,7 @@ func (c *SkillCatalog) FetchByPath(ctx context.Context, repo *entity.Repository,
 		info, err := fs.Stat(repo.FS, p)
 		if err != nil {
 			if !isNotExist(err) {
-				issues = append(issues, model.Issue{Code: "source-read", File: p, Message: err.Error()})
+				problems = append(problems, issues.SkillIssue{Code: "source-read", Source: repo.Key.String(), File: p, Message: err.Error()})
 			}
 			return
 		}
@@ -301,11 +294,11 @@ func (c *SkillCatalog) FetchByPath(ctx context.Context, repo *entity.Repository,
 			if strings.HasSuffix(p, ".skill.md") {
 				skill, err := entity.MakeSkill(repo, p, "", entity.FlatSkill)
 				if err != nil {
-					issues = append(issues, model.Issue{Code: "invalid-name", File: p, Message: err.Error()})
+					problems = append(problems, issues.SkillIssue{Code: "invalid-name", Source: repo.Key.String(), File: p, Message: err.Error()})
 					return
 				}
-				if err := validate(skill); err != nil {
-					issues = append(issues, *err)
+				if err := c.validate(skill); err != nil {
+					problems = append(problems, *err)
 					return
 				}
 				out = append(out, skill)
@@ -314,12 +307,12 @@ func (c *SkillCatalog) FetchByPath(ctx context.Context, repo *entity.Repository,
 		}
 		skill, err := c.isSkillDir(repo, p)
 		if err != nil {
-			issues = append(issues, model.Issue{Code: "invalid-skill", File: p, Message: err.Error()})
+			problems = append(problems, issues.SkillIssue{Code: "invalid-skill", Source: repo.Key.String(), File: p, Message: err.Error()})
 			return
 		}
 		if skill != nil {
-			if err := validate(skill); err != nil {
-				issues = append(issues, *err)
+			if err := c.validate(skill); err != nil {
+				problems = append(problems, *err)
 				return
 			}
 			out = append(out, skill)
@@ -327,7 +320,7 @@ func (c *SkillCatalog) FetchByPath(ctx context.Context, repo *entity.Repository,
 		}
 		entries, err := fs.ReadDir(repo.FS, p)
 		if err != nil {
-			issues = append(issues, model.Issue{Code: "source-read", File: p, Message: err.Error()})
+			problems = append(problems, issues.SkillIssue{Code: "source-read", Source: repo.Key.String(), File: p, Message: err.Error()})
 			return
 		}
 		for _, e := range entries {
@@ -337,7 +330,7 @@ func (c *SkillCatalog) FetchByPath(ctx context.Context, repo *entity.Repository,
 		}
 	}
 	scan(path.Clean(start))
-	return out, issues
+	return out, problems
 }
 
 // FetchByPathUp finds the valid skill whose folder holds p inside repo
@@ -377,23 +370,23 @@ func (c *SkillCatalog) FetchByPathUp(ctx context.Context, repo *entity.Repositor
 	for {
 		skill, err := c.isSkillDir(repo, dir)
 		if err != nil {
-			return nil, model.Issue{Code: "invalid-skill", File: dir, Message: err.Error()}
+			return nil, issues.SkillIssue{Code: "invalid-skill", Source: repo.Key.String(), File: dir, Message: err.Error()}
 		}
 		// A file that isn't claimed by its own folder's marker may still
 		// be a flat skill of its own.
 		if skill == nil && dir == path.Dir(p) && !info.IsDir() && strings.HasSuffix(p, ".skill.md") {
 			if skill, err = entity.MakeSkill(repo, p, "", entity.FlatSkill); err != nil {
-				return nil, model.Issue{Code: "invalid-name", File: p, Message: err.Error()}
+				return nil, issues.SkillIssue{Code: "invalid-name", Source: repo.Key.String(), File: p, Message: err.Error()}
 			}
 		}
 		if skill != nil {
-			if err := validate(skill); err != nil {
+			if err := c.validate(skill); err != nil {
 				return nil, *err
 			}
 			return skill, nil
 		}
 		if dir == "." {
-			return nil, model.Issue{Code: "skill-not-found", File: p, Message: "no skill holds this path"}
+			return nil, issues.SkillIssue{Code: "skill-not-found", Source: repo.Key.String(), File: p, Message: "no skill holds this path"}
 		}
 		dir = path.Dir(dir)
 	}
@@ -401,59 +394,67 @@ func (c *SkillCatalog) FetchByPathUp(ctx context.Context, repo *entity.Repositor
 
 // validate checks a skill fetch* just built: its files can be listed
 // (FilesByPath(""), which also warms that cache) and none of them is
-// another skill's marker outside the skip folders (nested-skill, see
-// nestedSkillPath).
-func validate(skill *entity.Skill) *model.Issue {
+// another skill's marker outside the folders excluded from checks
+// (nested-skill, see nestedSkillPath).
+func (c *SkillCatalog) validate(skill *entity.Skill) *issues.SkillIssue {
 	files, err := skill.FilesByPath("")
 	if err != nil {
-		return &model.Issue{Code: "source-read", Skill: skill.Name, File: skill.MainFilePath, Message: err.Error()}
+		return &issues.SkillIssue{Code: "source-read", Source: skill.Repo.Key.String(), Skill: skill.Name, SkillPath: skill.DirOrMarkerPath(), File: skill.MainFilePath, Message: err.Error()}
 	}
-	if nested := nestedSkillPath(files, defaultSkipFoldersInNestedChecker); nested != "" {
-		return &model.Issue{Code: "nested-skill", Skill: skill.Name, File: nested, Message: fmt.Sprintf("nested-skill: %s", nested)}
+	if nested := c.nestedSkillPath(skill, files); nested != "" {
+		return &issues.SkillIssue{Code: "nested-skill", Source: skill.Repo.Key.String(), Skill: skill.Name, SkillPath: skill.DirOrMarkerPath(), File: nested, Message: fmt.Sprintf("nested-skill: %s", nested)}
 	}
 	return nil
 }
 
 // nestedSkillPath returns the skill-relative Path of the first file in
 // files that looks like another skill's own marker (SKILL.md or
-// *.skill.md) and whose top-level folder isn't one of skipFolders, or ""
-// if none is found. A marker under skipFolders is deliberately not
-// flagged -- that folder is still part of the owning skill and copied
-// along with it (see DefaultSkipFolders), not a validation failure.
+// *.skill.md) and isn't excluded from checks, or "" if none is found. A
+// marker in an excluded folder is deliberately not flagged -- that folder
+// is still part of the owning skill and copied along with it, not a
+// validation failure.
 //
-// Примеры (пути файлов -- от папки скила, skipFolders = ["examples"]):
+// Примеры (пути файлов -- от папки скила, исключена папка "examples"):
 //   - ["docs/a.md", "b/SKILL.md"]   -> "b/SKILL.md"
 //   - ["docs/x.skill.md"]           -> "docs/x.skill.md"
-//   - ["examples/demo/SKILL.md"]    -> "" (верхняя папка "examples" пропущена)
-//   - ["docs/examples/SKILL.md"]    -> "docs/examples/SKILL.md" (пропускается
+//   - ["examples/demo/SKILL.md"]    -> "" (верхняя папка "examples" исключена)
+//   - ["docs/examples/SKILL.md"]    -> "docs/examples/SKILL.md" (исключается
 //     только папка верхнего уровня)
 //   - ["notSKILL.md", "a.skill.md.bak"] -> "" (имена не маркеры)
-func nestedSkillPath(files []*entity.File, skipFolders []string) string {
+func (c *SkillCatalog) nestedSkillPath(skill *entity.Skill, files []*entity.File) string {
 	for _, f := range files {
 		relPath, err := f.Path(model.SkillRelative)
 		if err != nil {
 			continue
 		}
-		name := relPath
-		if idx := strings.LastIndex(name, "/"); idx >= 0 {
-			name = name[idx+1:]
-		}
+		name := path.Base(relPath)
 		if name != "SKILL.md" && !strings.HasSuffix(name, ".skill.md") {
 			continue
 		}
-		first := strings.SplitN(relPath, "/", 2)[0]
-		exempt := false
-		for _, skip := range skipFolders {
-			if first == skip {
-				exempt = true
-				break
-			}
-		}
-		if !exempt {
+		if !c.IsExcludedFromChecks(skill, relPath) {
 			return relPath
 		}
 	}
 	return ""
+}
+
+// IsExcludedFromChecks reports whether rel, a path from skill's folder,
+// lies in a top-level folder excluded from checks for skill's source (see
+// ExcludeFromChecks).
+//
+// Примеры (для источника скила исключена "examples"):
+//   - "examples/app/README.md" -> true
+//   - "examples"               -> true (сама папка)
+//   - "docs/examples/page.md"  -> false: исключается только верхний уровень
+//   - "examples.md"            -> false: файл, а не папка "examples"
+func (c *SkillCatalog) IsExcludedFromChecks(skill *entity.Skill, rel string) bool {
+	first := strings.SplitN(rel, "/", 2)[0]
+	for _, folder := range c.ExcludeFromChecks[skill.Repo.Key] {
+		if first == folder {
+			return true
+		}
+	}
+	return false
 }
 
 // isSkillDir tests whether dir is a directory skill's root -- the shallow,
@@ -639,21 +640,21 @@ func (c *SkillCatalog) Destination(ctx context.Context, repoID, p string) (name,
 //   - "" или "."           -> "." (папка репозитория)
 //   - "/home/u/skills/a/b" -> "a/b" (путь ОС внутри репозитория)
 //   - "/home/u/skills"     -> "."
-//   - "../x"               -> ошибка `unsafe subpath "../x"`
-//   - "/home/u/other/x"    -> ошибка `unsafe subpath "../other/x"` (вне репозитория)
-//   - `a\b` (на Linux)     -> ошибка `unsafe subpath "a\\b"`
-//   - "/abs" при пустом пути репозитория в ОС -> ошибка filepath.Rel
+//   - "../x"               -> unsafe-subpath `unsafe subpath "../x"`
+//   - "/home/u/other/x"    -> unsafe-subpath `unsafe subpath "../other/x"` (вне репозитория)
+//   - `a\b` (на Linux)     -> unsafe-subpath `unsafe subpath "a\\b"`
+//   - "/abs" при пустом пути репозитория в ОС -> unsafe-subpath с ошибкой filepath.Rel
 func cleanRelative(repo *entity.Repository, start string) (string, error) {
 	if filepath.IsAbs(start) {
 		rel, err := filepath.Rel(repo.RootPath, start)
 		if err != nil {
-			return "", err
+			return "", issues.SkillIssue{Code: "unsafe-subpath", Source: repo.Key.String(), File: start, Message: err.Error()}
 		}
 		start = rel
 	}
 	start = filepath.ToSlash(filepath.Clean(start))
 	if !fs.ValidPath(start) || strings.Contains(start, "\\") {
-		return "", fmt.Errorf("unsafe subpath %q", start)
+		return "", issues.SkillIssue{Code: "unsafe-subpath", Source: repo.Key.String(), File: start, Message: fmt.Sprintf("unsafe subpath %q", start)}
 	}
 	return start, nil
 }
@@ -665,15 +666,15 @@ func cleanRelative(repo *entity.Repository, start string) (string, error) {
 // есть "a/guide/docs/x.md"):
 //   - "a/guide"                          -> "a/guide"
 //   - "/home/u/skills/a/guide/docs/x.md" -> "a/guide/docs/x.md"
-//   - "a/missing" -> ошибка `subpath "a/missing" does not exist in repository "local:repo"`
-//   - "../x"      -> ошибка `unsafe subpath "../x"` (как у cleanRelative)
+//   - "a/missing" -> missing-subpath `subpath "a/missing" does not exist in repository "local:repo"`
+//   - "../x"      -> unsafe-subpath `unsafe subpath "../x"` (как у cleanRelative)
 func normalizePath(repo *entity.Repository, start string) (string, error) {
 	start, err := cleanRelative(repo, start)
 	if err != nil {
 		return "", err
 	}
 	if _, err := fs.Stat(repo.FS, start); err != nil {
-		return "", fmt.Errorf("subpath %q does not exist in repository %q", start, repo.Key)
+		return "", issues.SkillIssue{Code: "missing-subpath", Source: repo.Key.String(), File: start, Message: fmt.Sprintf("subpath %q does not exist in repository %q", start, repo.Key)}
 	}
 	return start, nil
 }

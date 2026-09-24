@@ -42,12 +42,12 @@ Use the [complete annotated ai-skills.yaml](./examples/ai-skills.yaml) to see ev
 | `--profile-output` | path / ai-skill-manager.prof | Go pprof output |
 
 Configuration sources support `tree` (master), `subpath` (string/list),
-`tags` (AND of expressions), `skip_folder` (examples), and `name`
+`tags` (AND of expressions), `exclude_from_checks`, and `name`
 (single selected skill only). Local relative paths resolve from the config
 directory. Root `target` accepts a string path or named targets; legacy
 `settings.target` remains accepted when the root key is absent. Settings support
 `temp_dir`, `dry_run`, `remove_orphans`, `add_relations`,
-`on_conflict: error|last_wins`, and validation rules.
+`on_conflict: error|last_wins`, and `validation.exclude_from_checks` (default `[examples]`).
 A relative `temp_dir` resolves from the configuration file; omit it to use the operating system temp directory.
 Claude requires `adapters: [claude-property-adapter]`.
 Full schema: [reference](../../../api/reference.md).

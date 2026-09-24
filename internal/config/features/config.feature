@@ -8,8 +8,9 @@ Feature: Effective synchronization configuration
   When I resolve configuration
   Then the configuration is
    """
-   {"sources":[{"type":"local","path":"/project/skills","subpaths":[],"tags":[],"skip":["examples"]}],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":["link-adapter"]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"conflict":"error","linkSkip":["examples"]}
+   {"sources":[{"type":"local","path":"/project/skills","subpaths":[],"tags":[],"exclude":[]}],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":["link-adapter"]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"conflict":"error","exclude":["examples"]}
    """
+  And the config log has INFO "settings.validation.exclude_from_checks"
  Scenario: Named targets and global adapters
   Given configuration
    """
@@ -26,14 +27,12 @@ Feature: Effective synchronization configuration
      add_relations: true
      on_conflict: last_wins
      validation:
-       rules:
-         link:
-           skip_folder: []
+       exclude_from_checks: []
    """
   When I resolve configuration
   Then the configuration is
    """
-   {"sources":[],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":["link-adapter"]},{"name":"claude","path":"/project/.claude/skills","adapters":["link-adapter","claude-property-adapter"]}],"tempDir":"","dry":true,"orphans":false,"relations":true,"conflict":"last_wins","linkSkip":[]}
+   {"sources":[],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":["link-adapter"]},{"name":"claude","path":"/project/.claude/skills","adapters":["link-adapter","claude-property-adapter"]}],"tempDir":"","dry":true,"orphans":false,"relations":true,"conflict":"last_wins","exclude":[]}
    """
  Scenario Outline: Temporary directory resolves from the configuration directory
   Given configuration
@@ -45,7 +44,7 @@ Feature: Effective synchronization configuration
   When I resolve configuration
   Then the configuration is
    """
-   {"sources":[],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":["link-adapter"]}],"tempDir":"<resolved>","dry":false,"orphans":true,"relations":false,"conflict":"error","linkSkip":["examples"]}
+   {"sources":[],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":["link-adapter"]}],"tempDir":"<resolved>","dry":false,"orphans":true,"relations":false,"conflict":"error","exclude":["examples"]}
    """
   Examples:
    | temp_dir | resolved |
@@ -77,7 +76,7 @@ Feature: Effective synchronization configuration
   When I resolve configuration
   Then the configuration is
    """
-   {"sources":[],"targets":[{"name":"default","path":"/project/out","adapters":["link-adapter"]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"conflict":"error","linkSkip":["examples"]}
+   {"sources":[],"targets":[{"name":"default","path":"/project/out","adapters":["link-adapter"]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"conflict":"error","exclude":["examples"]}
    """
 
  Scenario Outline: Configuration rejects invalid public values
@@ -126,5 +125,53 @@ Feature: Effective synchronization configuration
   When I resolve configuration
   Then the configuration is
    """
-   {"sources":[{"type":"local","path":"/project/input","subpaths":["part"],"tags":["!deprecated"],"skip":["demo"]}],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":["claude-property-adapter"]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"conflict":"error","linkSkip":[]}
+   {"sources":[{"type":"local","path":"/project/input","subpaths":["part"],"tags":["!deprecated"],"exclude":["demo"]}],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":["claude-property-adapter"]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"conflict":"error","exclude":[]}
    """
+  And the config log has WARN "key=skip_folder use=exclude_from_checks"
+  And the config log has WARN "key=settings.validation.rules.link.skip_folder use=settings.validation.exclude_from_checks"
+  And the config log has no INFO
+
+ Scenario Outline: Folders excluded from checks come from settings and from each source
+  Given configuration
+   """
+   <config>
+   """
+  When I resolve configuration
+  Then the configuration is
+   """
+   {"sources":[{"type":"local","path":"/project/in","subpaths":[],"tags":[],"exclude":<source>}],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":["link-adapter"]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"conflict":"error","exclude":<global>}
+   """
+  And the config log has no WARN
+  Examples:
+   | config | source | global |
+   | {sources: [{path: in, exclude_from_checks: [demo]}], settings: {validation: {exclude_from_checks: [examples, docs]}}} | ["demo"] | ["examples","docs"] |
+   | {sources: [{path: in, exclude_from_checks: []}], settings: {validation: {exclude_from_checks: []}}} | [] | [] |
+   | {sources: [{path: in, exclude_from_checks: null}], settings: {validation: {exclude_from_checks: null}}} | [] | [] |
+   | {sources: [{path: in, exclude_from_checks: demo}], settings: {validation: {exclude_from_checks: docs}}} | ["demo"] | ["docs"] |
+
+ Scenario: An empty exclusion setting is not replaced by the default
+  Given configuration
+   """
+   settings:
+     validation:
+       exclude_from_checks:
+   """
+  When I resolve configuration
+  Then the configuration is
+   """
+   {"sources":[],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":["link-adapter"]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"conflict":"error","exclude":[]}
+   """
+  And the config log has no INFO
+
+ Scenario Outline: A new exclusion key and its deprecated name can't be set together
+  Given configuration
+   """
+   <config>
+   """
+  When I resolve configuration
+  Then the config error contains "<error>"
+  Examples:
+   | config | error |
+   | {sources: [{path: in, exclude_from_checks: [a], skip_folder: [b]}]} | exclude_from_checks cannot be defined both with deprecated skip_folder |
+   | {settings: {validation: {exclude_from_checks: [a], rules: {link: {skip_folder: [b]}}}}} | settings.validation.exclude_from_checks cannot be defined both |
+   | {sources: [{path: in, exclude_from_checks: [1]}]} | exclude_from_checks entries must be strings |

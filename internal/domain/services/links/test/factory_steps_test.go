@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
 	content_excluder "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/content_excluder"
 	link_parser "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/parser"
@@ -34,7 +35,7 @@ func (p *fakeParser) Find(content string) []link_parser.Span {
 func (p *fakeParser) Parse(raw string) (model.ParsedLink, error) {
 	p.parsed = append(p.parsed, raw)
 	if p.fails[raw] {
-		return model.ParsedLink{}, model.Issue{Code: "invalid-link", Link: raw, Message: "fake failure"}
+		return model.ParsedLink{}, issues.SkillIssue{Code: "invalid-link", Link: raw, Message: "fake failure"}
 	}
 	return model.ParsedLink{Path: raw, Format: p.name}, nil
 }
@@ -177,7 +178,7 @@ func initializeFactory(sc *godog.ScenarioContext) {
 
 // issueCode checks that err is a model.Issue carrying the given code.
 func issueCode(err error, code string) error {
-	var issue model.Issue
+	var issue issues.SkillIssue
 	if !errors.As(err, &issue) {
 		return fmt.Errorf("error=%v; want Issue %s", err, code)
 	}

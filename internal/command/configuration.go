@@ -41,7 +41,7 @@ func (a App) Request(opts Options, cwd string) (model.Request, error) {
 		if err != nil {
 			return model.Request{}, err
 		}
-		source := model.SourceSpec{Type: opts.SourceType, Path: opts.SourcePath, Tree: "master", SkipFolders: []string{"examples"}}
+		source := model.SourceSpec{Type: opts.SourceType, Path: opts.SourcePath, Tree: "master"}
 		if source.Type == "auto" || source.Type == "flat" || source.Type == "directory" {
 			fmt.Fprintf(a.Err, "Source type %s is deprecated; use local\n", source.Type)
 			source.Type = "local"

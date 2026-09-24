@@ -37,7 +37,7 @@
 
 | Область | Go |
 | --- | --- |
-| Настройки Python, не подключённые к pipeline | Применяются `dry_run`, `on_conflict`, link `skip_folder` и `source.name` |
+| Настройки Python, не подключённые к pipeline | Применяются `dry_run`, `on_conflict`, `exclude_from_checks` (бывший link `skip_folder`) и `source.name` |
 | Name override | Требует ровно один выбранный скил |
 | Managed hash | SHA-256 выходных файлов, режимов и вложений; версия преобразования `go-2` |
 | Старый Python marker | Скил считается управляемым, первый запуск Go обновляет его |

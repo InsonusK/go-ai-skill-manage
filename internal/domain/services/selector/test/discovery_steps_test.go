@@ -3,6 +3,7 @@ package skill_selector_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing/fstest"
@@ -10,6 +11,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	skill_selector "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/selector"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
@@ -22,10 +24,15 @@ import (
 type selectProvider struct {
 	tree  fstest.MapFS
 	calls *int
+	// fail, when set, is the error every Acquire returns.
+	fail string
 }
 
 func (p selectProvider) Acquire(ctx context.Context, key model.SourceKey, options model.AcquisitionOptions) (*entity.Repository, error) {
 	*p.calls++
+	if p.fail != "" {
+		return nil, errors.New(p.fail)
+	}
 	return &entity.Repository{Key: key, FS: p.tree}, nil
 }
 
@@ -34,7 +41,9 @@ func initialize(sc *godog.ScenarioContext) {
 	var acquireCalls int
 	var names []string
 	var failure error
+	var problems issues.SkillIssues
 	var canceled bool
+	var acquireFailure string
 
 	sc.Step(`^a source tree$`, func(ctx context.Context, d *godog.DocString) error {
 		var files map[string]string
@@ -42,6 +51,7 @@ func initialize(sc *godog.ScenarioContext) {
 			return err
 		}
 		canceled = false
+		acquireFailure = ""
 		acquireCalls = 0
 		tree = fstest.MapFS{}
 		for p, v := range files {
@@ -51,8 +61,12 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^discovery is canceled$`, func(ctx context.Context) error { canceled = true; return nil })
+	sc.Step(`^the source provider fails with "([^"]*)"$`, func(ctx context.Context, msg string) error {
+		acquireFailure = msg
+		return nil
+	})
 	sc.Step(`^I select from subpaths "([^"]*)" with tags "([^"]*)"$`, func(ctx context.Context, subpaths, tagsArg string) error {
-		spec := model.SourceSpec{Type: "local"}
+		spec := model.SourceSpec{Type: "local", Path: "repo"}
 		if subpaths != "" {
 			spec.Subpaths = strings.Split(subpaths, ",")
 		}
@@ -60,15 +74,18 @@ func initialize(sc *godog.ScenarioContext) {
 			spec.Tags = []string{tagsArg}
 		}
 		catalog := &sourcing.SkillCatalog{
-			Manager: sourcing.NewManager(map[string]interfaces.SourceProvider{"local": selectProvider{tree: tree, calls: &acquireCalls}}, ""),
+			Manager: sourcing.NewManager(map[string]interfaces.SourceProvider{"local": selectProvider{tree: tree, calls: &acquireCalls, fail: acquireFailure}}, ""),
 		}
 		if canceled {
 			var cancel context.CancelFunc
 			ctx, cancel = context.WithCancel(ctx)
 			cancel()
 		}
-		skills, err := (skill_selector.SkillSelector{SkillCatalog: catalog}).Select(ctx, spec)
-		failure = err
+		skills, list := (skill_selector.SkillSelector{SkillCatalog: catalog}).Select(ctx, spec)
+		problems, failure = list, nil
+		if len(list) > 0 {
+			failure = list
+		}
 		names = []string{}
 		for _, s := range skills {
 			names = append(names, s.Name)
@@ -90,5 +107,17 @@ func initialize(sc *godog.ScenarioContext) {
 	})
 	sc.Step(`^the source provider was not acquired$`, func(ctx context.Context) error {
 		return testsupport.Equal(acquireCalls, 0)
+	})
+	sc.Step(`^the source provider was acquired (\d+) times?$`, func(ctx context.Context, n int) error {
+		return testsupport.Equal(acquireCalls, n)
+	})
+	// the selection issues are: a JSON list of [code, source, file].
+	sc.Step(`^the selection issues are$`, func(ctx context.Context, d *godog.DocString) error {
+		got := [][]string{}
+		for _, i := range problems {
+			got = append(got, []string{i.Code, i.Source, i.File})
+		}
+		testsupport.Log("issues=%v", problems)
+		return testsupport.JSON(got, d)
 	})
 }

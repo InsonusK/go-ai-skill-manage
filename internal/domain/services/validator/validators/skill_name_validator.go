@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validator"
 )
@@ -32,13 +32,13 @@ func (SkillNameValidator) DependsOn() []validator.Dependency {
 // "x/guide" -> два Issue "duplicate-name", по одному на каждый скил:
 //   - Source "local:a", SkillPath "guide":   "also defined at local:b x/guide"
 //   - Source "local:b", SkillPath "x/guide": "also defined at local:a guide"
-func (SkillNameValidator) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) model.Issues {
+func (SkillNameValidator) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) issues.SkillIssues {
 	skills := catalog.Skills()
 	byName := map[string][]*entity.Skill{}
 	for _, s := range skills {
 		byName[s.Name] = append(byName[s.Name], s)
 	}
-	var issues model.Issues
+	var problems issues.SkillIssues
 	for _, s := range skills {
 		same := byName[s.Name]
 		if len(same) < 2 {
@@ -50,7 +50,7 @@ func (SkillNameValidator) Validate(ctx context.Context, catalog *sourcing.SkillC
 				others = append(others, o.Repo.Key.String()+" "+o.DirOrMarkerPath())
 			}
 		}
-		issues = append(issues, skillIssue(s, model.Issue{Code: "duplicate-name", Message: fmt.Sprintf("also defined at %s", strings.Join(others, ", "))}))
+		problems = append(problems, skillIssue(s, issues.SkillIssue{Code: "duplicate-name", Message: fmt.Sprintf("also defined at %s", strings.Join(others, ", "))}))
 	}
-	return issues
+	return problems
 }

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 )
 
@@ -16,7 +16,7 @@ type Validator interface {
 	Name() string
 	// DependsOn lists the validators that must run before this one.
 	DependsOn() []Dependency
-	Validate(ctx context.Context, catalog *sourcing.SkillCatalog) model.Issues
+	Validate(ctx context.Context, catalog *sourcing.SkillCatalog) issues.SkillIssues
 }
 
 // Dependency is one validator that must run before the validator declaring
@@ -75,10 +75,10 @@ func NewManager(validators ...Validator) (*Manager, error) {
 
 // Validate runs every validator in order -- each one even when an earlier
 // one found problems -- and returns all their issues together.
-func (m *Manager) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) model.Issues {
-	var issues model.Issues
+func (m *Manager) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) issues.SkillIssues {
+	var problems issues.SkillIssues
 	for _, v := range m.validators {
-		issues = append(issues, v.Validate(ctx, catalog)...)
+		problems = append(problems, v.Validate(ctx, catalog)...)
 	}
-	return issues
+	return problems
 }
