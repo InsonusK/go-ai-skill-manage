@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
@@ -19,12 +20,11 @@ import (
 // sourcing already imports interfaces (for SourceProvider/DocumentCodec),
 // so interfaces importing sourcing back would cycle.
 type SourceSelector interface {
-	Select(ctx context.Context, catalog *sourcing.SkillCatalog, spec model.SourceSpec) ([]*model.SkillImpl, error)
+	Select(ctx context.Context, catalog *sourcing.SkillCatalog, spec model.SourceSpec) ([]*entity.Skill, error)
 }
 
 type SyncService struct {
 	Sources   *sourcing.Manager
-	Codec     interfaces.DocumentCodec
 	Lookup    interfaces.RepositoryLookup
 	Detector  SourceSelector
 	Relations relations.Expander
@@ -37,19 +37,14 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (result model.R
 	result.DryRun = req.DryRun
 	result.Skills = []string{}
 	result.Plans = []model.TargetPlan{}
-	catalog := &model.SkillCatalogImpl{Conflict: req.Conflict}
+	catalog := &sourcing.SkillCatalog{}
 	var issues model.Issues
 	for _, spec := range req.Sources {
 		slog.DebugContext(ctx, "acquiring source", "type", spec.Type, "path", spec.Path)
-		skillCatalog := &sourcing.SkillCatalog{Manager: s.Sources, Codec: s.Codec, Conflict: req.Conflict, SkipFolders: sourcing.DefaultSkipFolders}
+		skillCatalog := &sourcing.SkillCatalog{Manager: s.Sources}
 		found, discoverErr := s.Detector.Select(ctx, skillCatalog, spec)
 		if discoverErr != nil {
 			issues = append(issues, model.Issue{Code: "discovery", File: spec.Path, Message: discoverErr.Error()})
-		}
-		for _, skill := range found {
-			if addErr := catalog.GetOrAdd(ctx, skill); addErr != nil {
-				issues = append(issues, model.Issue{Code: "duplicate-name", Skill: skill.Name, Message: addErr.Error()})
-			}
 		}
 	}
 	if len(issues) > 0 {

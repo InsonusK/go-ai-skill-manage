@@ -3,6 +3,7 @@ package sourcing_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"strconv"
@@ -18,7 +19,7 @@ import (
 )
 
 // catalogTreeFS wraps fstest.MapFS, counting Open calls per path so a test
-// can prove GetByPath warms a found skill's own FilesByPath("") cache
+// can prove GetOrFetchByPath warms a found skill's own FilesByPath("") cache
 // (no re-walk on a later, separate FilesByPath call).
 type catalogTreeFS struct {
 	files  fstest.MapFS
@@ -32,7 +33,7 @@ func (f catalogTreeFS) Open(name string) (fs.File, error) {
 
 // catalogProvider is a fake interfaces.SourceProvider returning a
 // Repository backed by catalogTreeFS, counting Acquire calls to prove
-// Manager's own caching is reused across GetByPath calls.
+// Manager's own caching is reused across GetOrFetchByPath calls.
 type catalogProvider struct {
 	calls *int
 	fs    catalogTreeFS
@@ -87,10 +88,45 @@ func catalogSteps(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I get or add skills at "([^"]*)"$`, func(ctx context.Context, p string) error {
-		skills, err := catalog.GetByPath(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
+		skills, err := catalog.GetOrFetchByPath(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
 		found = skills
 		failure = err
 		return nil
+	})
+	sc.Step(`^add relations is "(true|false)"$`, func(ctx context.Context, v string) error {
+		catalog.AddRelations = v == "true"
+		return nil
+	})
+	sc.Step(`^I get cached skills at "([^"]*)"$`, func(ctx context.Context, p string) error {
+		found, failure = catalog.GetByPath(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
+		return nil
+	})
+	sc.Step(`^I try to get or fetch skills at "([^"]*)"$`, func(ctx context.Context, p string) error {
+		found, failure = catalog.TryGetOrFetchByPath(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
+		return nil
+	})
+	sc.Step(`^I get the cached skill holding "([^"]*)"$`, func(ctx context.Context, p string) error {
+		skill, err := catalog.GetByPathUp(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
+		found, failure = nil, err
+		if skill != nil {
+			found = []*entity.Skill{skill}
+		}
+		return nil
+	})
+	sc.Step(`^I try to get or fetch the skill holding "([^"]*)"$`, func(ctx context.Context, p string) error {
+		owner, err := catalog.TryGetOrFetchByPathUp(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
+		found, failure = nil, err
+		if owner != nil {
+			found = []*entity.Skill{owner}
+		}
+		return nil
+	})
+	sc.Step(`^the catalog reports the skill is not cached$`, func(ctx context.Context) error {
+		testsupport.Log("error=%v", failure)
+		if !errors.Is(failure, entity.ErrSkillNotCached) {
+			return fmt.Errorf("error=%v, want ErrSkillNotCached", failure)
+		}
+		return testsupport.Equal(len(found), 0)
 	})
 	sc.Step(`^found names are "([^"]*)" and catalog error contains "([^"]*)"$`, func(ctx context.Context, want, contains string) error {
 		var names []string

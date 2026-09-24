@@ -413,3 +413,77 @@ configuration.go` (`request` → экспортирован как `Request`),
 - Если в процессе шага всплывает решение, которое меняет более раннее
   (например снова цикл импортов, снова вопрос "кто кому принадлежит") —
   сначала обсудить, потом код.
+
+## Имена: абстрактные термины, переименовать по ходу
+
+Имена вида root/main/owner не говорят, корень *чего*, главный *в чём*,
+владелец *чего*. Массово не переименовываем — правим, когда трогаем
+соответствующий код, или по вопросу пользователя. В новом коде такие имена
+не вводить.
+
+| Сейчас | Что значит на самом деле | Переименовать в |
+|---|---|---|
+| `Repository.RootPath` | абсолютный путь в ОС до папки, где лежит/куда скачан репозиторий | `RepoDirOsPath` |
+| `Skill.MainFilePath` / `Skill.MainFile` | файл-маркер (`SKILL.md` / `{name}.skill.md`), по которому папка распознаётся как скил | `MarkerFilePath` / `MarkerFile` |
+| `SkillCatalog.Owner` / `ownsPath` | найти скил, в папке которого лежит путь / лежит ли путь в папке скила | `GetSkillContainingPath` / `skillContainsPath` |
+
+`Skill.SkillDirPath` — конкретное, оставить.
+
+## Ссылки (`entity.Link`) — принятые решения
+
+Реализовано, ждёт ревью/коммита пользователем.
+
+- `model.Link` удалён. Парсеры и `LinkFactory` возвращают только
+  `model.ParsedLink` (start, end, text, path, fragment, format, image).
+  `entity.MakeLink(file, parsed)` сам вычисляет `Raw` (из содержимого
+  файла) и `External` (префиксы web-ссылок перенесены из `parser.go`).
+  `File.Links()` строит ссылки через `MakeLink`.
+- Путь «как записан в ссылке» — поле `Link.WrittenPath`: в Go поле и метод
+  не могут называться одинаково, а метод `Path(...)` нужен.
+- `entity.FilePathKind` → `model.PathKind`: `OsAbsolute` (`/a/b.md`),
+  `RepoAbsolute` (`a/b.md`, **без** `./`), `FileRelative` (всегда `./` или
+  `../`), `SkillRelative`. `model.DetectPathKind` определяет вид записанного
+  пути (`SkillRelative` в ссылках не пишется).
+- `model.PathInRepo` — единственное место, которое переводит путь между
+  видами (`MakePathInRepo` читает, `Path` пишет); не обращается к ФС.
+  `File.Path` и `Link.Path` делегируют в него. `File.Path(FileRelative)` —
+  ошибка (у файла нет пути относительно самого себя).
+- `Link.Path(ctx, kind, resolver)`: resolver нужен только для
+  `SkillRelative` (путь от папки скила, в котором лежит цель). Web-ссылка →
+  ошибка `web-link`. Пустой путь (`[x](#part)`) указывает на сам файл.
+  Ссылка без `.md` (`a/b/c`, если есть только `a/b/c.md`) разрешается в
+  `a/b/c.md` — расширение в результатах всегда явное. Цели нет →
+  `missing-link-target`; вышли за репозиторий → `path-escape`.
+- `Link.Skill(ctx, resolver)` → `resolver.TryGetOrFetchByPathUp`.
+- `entity.SkillResolver` (объявлен в `entity` из-за цикла импортов,
+  реализует `sourcing.SkillCatalog`): `GetByPath` / `GetByPathUp` — только
+  кэш, иначе `entity.ErrSkillNotCached`; `TryGetOrFetchByPath` /
+  `TryGetOrFetchByPathUp` — при `SkillCatalog.AddRelations` догружают,
+  иначе ведут себя как `Get*`. `*Up` поднимается по папкам вверх до первого
+  скила, соседние скилы не грузит. Бывший загружающий `GetByPath` —
+  теперь `GetOrFetchByPath`.
+- Устройство `SkillCatalog`: `Get*` (только кэш, поиск **по ключу**) →
+  при `ErrSkillNotCached` приватные `fetchByPath`/`fetchByPathUp` (найти и
+  провалидировать в `Repository`, ничего не запоминают) → `addPath`
+  (запомнить). `GetOrFetch*` = `Get*` + fetch + `addPath`;
+  `TryGetOrFetch*` = `Get*` при `AddRelations=false`, иначе `GetOrFetch*`.
+  Кэш `cachedByPath`: ключ `GetSkillKey(repo, путь)` → скилы. `addPath`
+  кладёт результат под **запрошенным путём** и каждый скил под его
+  собственным местом (папка; для flat — файл-маркер). Поэтому `GetByPath`
+  отвечает только на ранее запрошенный путь или папку скила — путь, под
+  которым скилы загружены, но который сам не запрашивали, это промах
+  (иначе `GetOrFetchByPath(".")` после `"a"` вернул бы неполный ответ).
+  `GetByPathUp` проверяет по ключу сам путь и его родительские папки
+  (строкой, без ФС). Загрузка с `Issues` не запоминается под запрошенным
+  путём (только валидные скилы под своими местами) — повторный вызов снова
+  сообщит о тех же проблемах.
+- `skill_selector.Select` паникует на `entity.ErrSkillNotCached`: `Select` —
+  первичная загрузка, ссылки в нём разрешаться не должны; panic = нарушен
+  инвариант, а не бизнес-ошибка.
+- **Не сделано / открыто**: `SkillCatalog.AddRelations` нигде не
+  проставляется (в `sync.go` — из `req.AddRelations`, когда дойдёт до этапа
+  связей). `transform/links.go` переведён на `[]*entity.Link`, но пакет
+  по-прежнему не собирается (`l.Target`, `model.SkillDocument` — было до
+  этой правки). `links.Resolve` (старое разрешение путей для
+  `relations`) — дублирует `Link.Path`, убрать вместе с переделкой
+  `relations`.

@@ -3,17 +3,17 @@ Feature: WikilinkParser finds and parses wikilinks
  # Gherkin table cells unescape "\|" to "|" and "\\" to "\".
  Scenario Outline: Parse a raw wikilink
   When I parse the wikilink <raw>
-  Then the parsed link has text "<text>" path "<path>" fragment "<fragment>" image <image> external <external>
+  Then the parsed link has text "<text>" path "<path>" fragment "<fragment>" image <image>
   Examples:
-   | raw                           | text        | path                | fragment | image | external |
-   | [[notes.skill#part]]          | notes.skill | notes.skill         | #part    | false | false    |
-   | [[docs/guide\|Guide]]         | Guide       | docs/guide          |          | false | false    |
-   | ![[images/a.png\|image]]      | image       | images/a.png        |          | true  | false    |
-   | [[docs/deep/page]]            | page        | docs/deep/page      |          | false | false    |
-   | [[#part]]                     |             |                     | #part    | false | false    |
-   | [[docs/a\\\|A]]               | A           | docs/a              |          | false | false    |
-   | [[a\|b\|c]]                   | c           | a\|b                |          | false | false    |
-   | [[https://example.com\|site]] | site        | https://example.com |          | false | true     |
+   | raw                           | text        | path                | fragment | image |
+   | [[notes.skill#part]]          | notes.skill | notes.skill         | #part    | false |
+   | [[docs/guide\|Guide]]         | Guide       | docs/guide          |          | false |
+   | ![[images/a.png\|image]]      | image       | images/a.png        |          | true  |
+   | [[docs/deep/page]]            | page        | docs/deep/page      |          | false |
+   | [[#part]]                     |             |                     | #part    | false |
+   | [[docs/a\\\|A]]               | A           | docs/a              |          | false |
+   | [[a\|b\|c]]                   | c           | a\|b                |          | false |
+   | [[https://example.com\|site]] | site        | https://example.com |          | false |
 
  Scenario Outline: Parse rejects text that is not exactly one wikilink
   When I parse the wikilink <raw>

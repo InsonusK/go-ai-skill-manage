@@ -2,30 +2,15 @@ package entity
 
 import (
 	"errors"
-	"fmt"
 	"io/fs"
 	"path"
-	"path/filepath"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 )
 
-// FilePathKind selects the coordinate system File.Path resolves a file's
-// path in.
-type FilePathKind string
-
-const (
-	// Absolute is a path relative to the filesystem root.
-	Absolute FilePathKind = "absolute"
-	// RepoAbsolute is a path relative to the repository folder.
-	RepoAbsolute FilePathKind = "repo-relative"
-	// SkillRelative is a path relative to the skill that owns the file.
-	SkillRelative FilePathKind = "skill-relative"
-)
-
 // LinkSearcher finds links inside a file's content.
 type LinkSearcher interface {
-	SearchLinks(content string) ([]*model.Link, error)
+	SearchLinks(content string) ([]model.ParsedLink, error)
 }
 
 // Поле приватное для пакета entity, чтобы никто снаружи не сломал его случайно
@@ -43,7 +28,7 @@ type File struct {
 	data []byte
 
 	path  string
-	links []*model.Link
+	links []*Link
 	skill *Skill
 }
 
@@ -65,19 +50,18 @@ func (f *File) Content() ([]byte, error) {
 	return f.data, nil
 }
 
-// Path returns this file's path in the requested coordinate system.
-func (f *File) Path(kind FilePathKind) (string, error) {
-	switch kind {
-	case SkillRelative:
-		return f.path, nil
-	case RepoAbsolute:
-		return path.Join(f.skill.SkillDirPath, f.path), nil
-	case Absolute:
-		repositoryPath := path.Join(f.skill.SkillDirPath, f.path)
-		return filepath.Join(f.skill.Repo.RootPath, filepath.FromSlash(repositoryPath)), nil
-	default:
-		return "", fmt.Errorf("unknown file path kind %q", kind)
+// Path returns this file's path in form kind; SkillRelative starts from
+// its skill's folder. FileRelative is refused: a file's path relative to
+// its own folder is just its name.
+func (f *File) Path(kind model.PathKind) (string, error) {
+	if kind == model.FileRelative {
+		return "", model.Problem("unsupported-path-kind", "a file has no path relative to itself")
 	}
+	p, err := model.MakePathInRepo(f.skill.Repo.RootPath, f.path, model.SkillRelative, f.skill.SkillDirPath)
+	if err != nil {
+		return "", err
+	}
+	return p.Path(kind, f.skill.SkillDirPath)
 }
 
 // Skill returns the skill that owns this file.
@@ -86,7 +70,7 @@ func (f *File) Skill() *Skill {
 }
 
 // Links returns the links discovered in this file.
-func (f *File) Links() ([]*model.Link, error) {
+func (f *File) Links() ([]*Link, error) {
 	if f.links == nil {
 		if defaultLinkSearcher == nil {
 			return nil, errors.New("entity: no LinkSearcher configured, call SetDefaultLinkSearcher first")
@@ -95,9 +79,17 @@ func (f *File) Links() ([]*model.Link, error) {
 		if err != nil {
 			return nil, err
 		}
-		links, err := defaultLinkSearcher.SearchLinks(string(content))
+		parsed, err := defaultLinkSearcher.SearchLinks(string(content))
 		if err != nil {
 			return nil, err
+		}
+		links := make([]*Link, 0, len(parsed))
+		for _, p := range parsed {
+			link, err := MakeLink(f, p)
+			if err != nil {
+				return nil, err
+			}
+			links = append(links, link)
 		}
 		f.links = links
 	}

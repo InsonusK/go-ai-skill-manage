@@ -1,8 +1,8 @@
 Feature: LinkFactory collects links from its registered parsers
 
  # Fake parsers report the spans they are told to and parse any raw text
- # into a Link whose Format is the parser's name and whose Path is the raw
- # text it received. Start, End and Raw are left empty by the fake, so the
+ # into a ParsedLink whose Format is the parser's name and whose Path is the raw
+ # text it received. Start and End are left empty by the fake, so the
  # factory is the only thing that can fill them.
 
  Scenario: Links from every registered parser are merged in content order
@@ -16,9 +16,9 @@ Feature: LinkFactory collects links from its registered parsers
   Then the searched links are
    """
    [
-    {"Start":0,"End":4,"Raw":"aaaa","Text":"","Path":"aaaa","Fragment":"","Format":"md","Image":false,"External":false},
-    {"Start":5,"End":9,"Raw":"bbbb","Text":"","Path":"bbbb","Fragment":"","Format":"wiki","Image":false,"External":false},
-    {"Start":10,"End":14,"Raw":"cccc","Text":"","Path":"cccc","Fragment":"","Format":"md","Image":false,"External":false}
+    {"Start":0,"End":4,"Text":"","Path":"aaaa","Fragment":"","Format":"md","Image":false},
+    {"Start":5,"End":9,"Text":"","Path":"bbbb","Fragment":"","Format":"wiki","Image":false},
+    {"Start":10,"End":14,"Text":"","Path":"cccc","Fragment":"","Format":"md","Image":false}
    ]
    """
 
@@ -50,8 +50,8 @@ Feature: LinkFactory collects links from its registered parsers
   Then the searched links are
    """
    [
-    {"Start":0,"End":4,"Raw":"aaaa","Text":"","Path":"aaaa","Fragment":"","Format":"md","Image":false,"External":false},
-    {"Start":4,"End":8,"Raw":"bbbb","Text":"","Path":"bbbb","Fragment":"","Format":"wiki","Image":false,"External":false}
+    {"Start":0,"End":4,"Text":"","Path":"aaaa","Fragment":"","Format":"md","Image":false},
+    {"Start":4,"End":8,"Text":"","Path":"bbbb","Fragment":"","Format":"wiki","Image":false}
    ]
    """
 
@@ -121,9 +121,9 @@ Feature: LinkFactory collects links from its registered parsers
   Then the searched links are
    """
    [
-    {"Start":0,"End":20,"Raw":"[[notes.skill#part]]","Text":"notes.skill","Path":"notes.skill","Fragment":"#part","Format":"wikilink","Image":false,"External":false},
-    {"Start":21,"End":46,"Raw":"[Guide](./guide.md#intro)","Text":"Guide","Path":"./guide.md","Fragment":"#intro","Format":"markdown","Image":false,"External":false},
-    {"Start":47,"End":70,"Raw":"![[images/a.png|image]]","Text":"image","Path":"images/a.png","Fragment":"","Format":"wikilink","Image":true,"External":false}
+    {"Start":0,"End":20,"Text":"notes.skill","Path":"notes.skill","Fragment":"#part","Format":"wikilink","Image":false},
+    {"Start":21,"End":46,"Text":"Guide","Path":"./guide.md","Fragment":"#intro","Format":"markdown","Image":false},
+    {"Start":47,"End":70,"Text":"image","Path":"images/a.png","Fragment":"","Format":"wikilink","Image":true}
    ]
    """
 

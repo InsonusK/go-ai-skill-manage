@@ -3,18 +3,18 @@ Feature: MarkdownParser finds and parses markdown links
  # Gherkin table cells unescape "\|" to "|" and "\\" to "\".
  Scenario Outline: Parse a raw markdown link
   When I parse the markdown link <raw>
-  Then the parsed link has text "<text>" path "<path>" fragment "<fragment>" image <image> external <external>
+  Then the parsed link has text "<text>" path "<path>" fragment "<fragment>" image <image>
   Examples:
-   | raw                               | text                | path                | fragment | image | external |
-   | [Guide](./guide.md#intro)         | Guide               | ./guide.md          | #intro   | false | false    |
-   | ![alt](img/a.png)                 | alt                 | img/a.png           |          | true  | false    |
-   | [](a.md)                          |                     | a.md                |          | false | false    |
-   | [anchor](#part)                   | anchor              |                     | #part    | false | false    |
-   | [x]()                             | x                   |                     |          | false | false    |
-   | [web](https://example.com/a#b)    | web                 | https://example.com/a | #b     | false | true     |
-   | [mail](MAILTO:a@b.c)              | mail                | MAILTO:a@b.c        |          | false | true     |
-   | [see [x] here](a.md)              | see [x] here        | a.md                |          | false | false    |
-   | [![build](badge.svg)](docs/ci.md) | ![build](badge.svg) | docs/ci.md          |          | false | false    |
+   | raw                               | text                | path                | fragment | image |
+   | [Guide](./guide.md#intro)         | Guide               | ./guide.md          | #intro   | false |
+   | ![alt](img/a.png)                 | alt                 | img/a.png           |          | true  |
+   | [](a.md)                          |                     | a.md                |          | false |
+   | [anchor](#part)                   | anchor              |                     | #part    | false |
+   | [x]()                             | x                   |                     |          | false |
+   | [web](https://example.com/a#b)    | web                 | https://example.com/a | #b     | false |
+   | [mail](MAILTO:a@b.c)              | mail                | MAILTO:a@b.c        |          | false |
+   | [see [x] here](a.md)              | see [x] here        | a.md                |          | false |
+   | [![build](badge.svg)](docs/ci.md) | ![build](badge.svg) | docs/ci.md          |          | false |
 
  Scenario Outline: Parse rejects text that is not exactly one markdown link
   When I parse the markdown link <raw>

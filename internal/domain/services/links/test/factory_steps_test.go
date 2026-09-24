@@ -15,9 +15,9 @@ import (
 	"github.com/cucumber/godog"
 )
 
-// fakeParser reports preset spans and parses any raw text into a Link whose
-// Format is its name and whose Path is the raw text, leaving Start, End and
-// Raw for the factory to fill. It records the content it was asked to search.
+// fakeParser reports preset spans and parses any raw text into a
+// ParsedLink whose Format is its name and whose Path is the raw text,
+// leaving Start and End for the factory to fill. It records the content it was asked to search.
 type fakeParser struct {
 	name     string
 	spans    []link_parser.Span
@@ -31,12 +31,12 @@ func (p *fakeParser) Find(content string) []link_parser.Span {
 	return p.spans
 }
 
-func (p *fakeParser) Parse(raw string) (model.Link, error) {
+func (p *fakeParser) Parse(raw string) (model.ParsedLink, error) {
 	p.parsed = append(p.parsed, raw)
 	if p.fails[raw] {
-		return model.Link{}, model.Issue{Code: "invalid-link", Link: raw, Message: "fake failure"}
+		return model.ParsedLink{}, model.Issue{Code: "invalid-link", Link: raw, Message: "fake failure"}
 	}
-	return model.Link{Path: raw, Format: p.name}, nil
+	return model.ParsedLink{Path: raw, Format: p.name}, nil
 }
 
 // fakeExcluder hides preset spans and records the content it was asked to
@@ -85,7 +85,8 @@ func initializeFactory(sc *godog.ScenarioContext) {
 	var parsers []link_parser.LinkParser
 	var excluderFakes map[string]*fakeExcluder
 	var excluders []content_excluder.ContentExcluder
-	var found []*model.Link
+	var found []model.ParsedLink
+	var searched string
 	var searchErr error
 	sc.Step(`^fake parsers "([^"]*)" are registered$`, func(ctx context.Context, names string) error {
 		fakes = map[string]*fakeParser{}
@@ -136,6 +137,7 @@ func initializeFactory(sc *godog.ScenarioContext) {
 		if factory == nil {
 			factory = links.NewLinkFactory(excluders, parsers)
 		}
+		searched = d.Content
 		found, searchErr = factory.SearchLinks(d.Content)
 		testsupport.Log("content=%s error=%v", d.Content, searchErr)
 		return nil
@@ -161,7 +163,7 @@ func initializeFactory(sc *godog.ScenarioContext) {
 		}
 		raws := []string{}
 		for _, l := range found {
-			raws = append(raws, l.Raw)
+			raws = append(raws, searched[l.Start:l.End])
 		}
 		return testsupport.JSON(raws, d)
 	})

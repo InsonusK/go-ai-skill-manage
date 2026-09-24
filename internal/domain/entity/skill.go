@@ -167,7 +167,7 @@ func filterFiles(files []*File, filters []*regexp.Regexp) ([]*File, error) {
 	}
 	var filtered []*File
 	for _, file := range files {
-		filePath, err := file.Path(SkillRelative)
+		filePath, err := file.Path(model.SkillRelative)
 		if err != nil {
 			return nil, err
 		}

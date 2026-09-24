@@ -30,52 +30,195 @@ func SetSkipFoldersInNestedChecker(skipFolders []string) {
 }
 
 // SkillCatalog is the active, path-driven source of truth for skills found
-// in acquired repositories: given a source identity and a starting path,
-// GetOrAddByPath acquires the Repository (via Manager, lazily, cached),
-// recursively finds every skill at or below that path, validates each one
-// (including nested-skill, checked by immediately warming the found
-// Skill's own FilesByPath("") cache), and adds every valid one to itself.
+// in acquired repositories. Get* only look at skills already loaded,
+// fetch* find and validate skills in a Repository (acquired lazily via
+// Manager), and addPath remembers what fetch* found.
 type SkillCatalog struct {
-	Manager        *Manager
-	cachedSkillMap map[string]*entity.Skill
+	Manager *Manager
+	// AddRelations selects what TryGetOrFetchByPath/TryGetOrFetchByPathUp
+	// do on a cache miss: true fetches the skill, false fails with
+	// entity.ErrSkillNotCached -- mirrors the add_relations setting.
+	AddRelations bool
+	// cachedByPath maps entity.GetSkillKey(repo, p) to the skills a lookup
+	// by path p answers: every skill at or below a requested path p, and
+	// for each loaded skill its own folder (or, for a flat skill, its
+	// marker file) -> that one skill. See addPath.
+	cachedByPath map[string][]*entity.Skill
 }
 
-// GetByPath fetches key's Repository via Manager (lazily, cached by
-// SourceKey), normalizes start against it (a single-file source ignores
-// start entirely; otherwise start is resolved relative to the Repository's
-// Root and validated), then recursively finds every skill at or below the
-// normalized path inside it -- the same semantics Detector.DiscoverByPath
-// has today (a directory that's a skill root becomes one Skill and is not
-// searched further inside; a directory that isn't a skill root is
-// searched into) -- validates each (pattern-conflict / invalid-name /
-// nested-skill, exempting c.SkipFolders), and adds every valid one to the
-// catalog, deduping by name per c.Conflict. Returns every valid skill
-// found; invalid candidates are collected into the returned model.Issues.
+var _ entity.SkillResolver = (*SkillCatalog)(nil)
+
+// GetByPath returns the skills an earlier GetOrFetchByPath found at or
+// below start, or the skill whose own folder (or flat marker file) start
+// is. It never acquires a Repository nor reads a file; a start never
+// requested before -- even one with loaded skills below it -- fails with
+// entity.ErrSkillNotCached, since only a fetch knows it found them all.
 func (c *SkillCatalog) GetByPath(ctx context.Context, key model.SourceKey, start string) ([]*entity.Skill, error) {
-	if err := ctx.Err(); err != nil {
+	start, err := c.cachedRepoPath(ctx, key, start)
+	if err != nil {
 		return nil, err
 	}
-	if c.cachedSkillMap == nil {
-		c.cachedSkillMap = map[string]*entity.Skill{}
+	if skills, ok := c.cachedByPath[entity.GetSkillKey(key, start)]; ok {
+		return skills, nil
 	}
+	return nil, fmt.Errorf("%w: %s in %s", entity.ErrSkillNotCached, start, key)
+}
+
+// GetByPathUp returns the loaded skill whose folder holds repo-relative
+// path p -- unlike GetByPath, which answers for a path and below, it
+// searches up: p is usually a file inside some skill. It checks p and each
+// of its parent folders by key, without reading the filesystem. Nothing
+// found fails with entity.ErrSkillNotCached.
+func (c *SkillCatalog) GetByPathUp(ctx context.Context, key model.SourceKey, p string) (*entity.Skill, error) {
+	p, err := c.cachedRepoPath(ctx, key, p)
+	if err != nil {
+		return nil, err
+	}
+	for dir := p; ; dir = path.Dir(dir) {
+		if skill := c.skillAt(key, dir); skill != nil && ownsPath(skill, p) {
+			return skill, nil
+		}
+		if dir == "." {
+			return nil, fmt.Errorf("%w: no skill holds %s in %s", entity.ErrSkillNotCached, p, key)
+		}
+	}
+}
+
+// GetOrFetchByPath is GetByPath; on a cache miss it acquires key's
+// Repository, fetches every valid skill at or below start (fetchByPath)
+// and remembers them (addPath). Invalid candidates are returned as
+// model.Issues next to the valid skills.
+func (c *SkillCatalog) GetOrFetchByPath(ctx context.Context, key model.SourceKey, start string) ([]*entity.Skill, error) {
+	skills, err := c.GetByPath(ctx, key, start)
+	if !errors.Is(err, entity.ErrSkillNotCached) {
+		return skills, err
+	}
+	repo, start, err := c.acquire(ctx, key, start)
+	if err != nil {
+		return nil, err
+	}
+	skills, issues := c.fetchByPath(ctx, repo, start)
+	if len(issues) > 0 {
+		// Not a complete answer for start: remember only each valid skill
+		// at its own location, so a repeat call fetches again and reports
+		// the same issues.
+		for _, skill := range skills {
+			c.addPath(skill.Repo.Key, ownPath(skill), []*entity.Skill{skill})
+		}
+		return skills, issues
+	}
+	c.addPath(repo.Key, start, skills)
+	return skills, nil
+}
+
+// GetOrFetchByPathUp is GetByPathUp; on a cache miss it acquires key's
+// Repository, fetches the skill whose folder holds p (fetchByPathUp) and
+// remembers it (addPath).
+func (c *SkillCatalog) GetOrFetchByPathUp(ctx context.Context, key model.SourceKey, p string) (*entity.Skill, error) {
+	skill, err := c.GetByPathUp(ctx, key, p)
+	if !errors.Is(err, entity.ErrSkillNotCached) {
+		return skill, err
+	}
+	repo, p, err := c.acquire(ctx, key, p)
+	if err != nil {
+		return nil, err
+	}
+	skill, err = c.fetchByPathUp(ctx, repo, p)
+	if err != nil {
+		return nil, err
+	}
+	c.addPath(repo.Key, ownPath(skill), []*entity.Skill{skill})
+	return skill, nil
+}
+
+// TryGetOrFetchByPath is GetOrFetchByPath when c.AddRelations is set, and
+// GetByPath -- failing with entity.ErrSkillNotCached on a miss -- otherwise.
+func (c *SkillCatalog) TryGetOrFetchByPath(ctx context.Context, key model.SourceKey, start string) ([]*entity.Skill, error) {
+	if !c.AddRelations {
+		return c.GetByPath(ctx, key, start)
+	}
+	return c.GetOrFetchByPath(ctx, key, start)
+}
+
+// TryGetOrFetchByPathUp is GetOrFetchByPathUp when c.AddRelations is set,
+// and GetByPathUp -- failing with entity.ErrSkillNotCached on a miss --
+// otherwise.
+func (c *SkillCatalog) TryGetOrFetchByPathUp(ctx context.Context, key model.SourceKey, p string) (*entity.Skill, error) {
+	if !c.AddRelations {
+		return c.GetByPathUp(ctx, key, p)
+	}
+	return c.GetOrFetchByPathUp(ctx, key, p)
+}
+
+// cachedRepoPath cleans p against key's already-acquired Repository
+// without acquiring it; a Repository not acquired yet holds no loaded
+// skill, so it fails with entity.ErrSkillNotCached.
+func (c *SkillCatalog) cachedRepoPath(ctx context.Context, key model.SourceKey, p string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	repo, ok := c.Manager.LookupKey(ctx, key)
+	if !ok {
+		return "", fmt.Errorf("%w: source %s is not acquired", entity.ErrSkillNotCached, key)
+	}
+	return cleanRelative(repo, p)
+}
+
+// acquire gets key's Repository via Manager (fetched once, then cached)
+// and resolves p inside it (see normalizePath).
+func (c *SkillCatalog) acquire(ctx context.Context, key model.SourceKey, p string) (*entity.Repository, string, error) {
 	repo, err := c.Manager.Get(ctx, key)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	start, err = cleanRelative(repo, start)
+	p, err = normalizePath(repo, p)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	// A start path already resolved by an earlier call is served straight
-	// from the cache -- skip normalizePath's own fs.Stat too, so a repeat
-	// call for the same path costs zero additional filesystem reads.
-	if skill, ok := c.cachedSkillMap[entity.GetSkillKey(repo.Key, start)]; ok {
-		return []*entity.Skill{skill}, nil
+	return repo, p, nil
+}
+
+// addPath remembers skills as the answer for path p of repository key, and
+// each skill as the answer for its own location (ownPath) -- so GetByPath
+// finds them by p or by a skill's folder, and GetByPathUp by any path
+// inside a skill's folder.
+func (c *SkillCatalog) addPath(key model.SourceKey, p string, skills []*entity.Skill) {
+	if c.cachedByPath == nil {
+		c.cachedByPath = map[string][]*entity.Skill{}
 	}
-	start, err = normalizePath(repo, start)
-	if err != nil {
-		return nil, err
+	c.cachedByPath[entity.GetSkillKey(key, p)] = skills
+	for _, skill := range skills {
+		c.cachedByPath[entity.GetSkillKey(key, ownPath(skill))] = []*entity.Skill{skill}
 	}
+}
+
+// skillAt returns the loaded skill whose own location (ownPath) is exactly
+// p, or nil -- an entry for a requested path above skills is not one.
+func (c *SkillCatalog) skillAt(key model.SourceKey, p string) *entity.Skill {
+	for _, skill := range c.cachedByPath[entity.GetSkillKey(key, p)] {
+		if ownPath(skill) == p {
+			return skill
+		}
+	}
+	return nil
+}
+
+// ownPath is a skill's own location: its folder, or its marker file for a
+// flat skill, which has no folder.
+func ownPath(s *entity.Skill) string {
+	if s.SkillDirPath != "" {
+		return s.SkillDirPath
+	}
+	return s.MainFilePath
+}
+
+// fetchByPath finds every valid skill at or below start inside repo: a
+// folder that is a skill's folder becomes one skill and is not searched
+// further, any other folder is searched into, a "*.skill.md" file outside
+// a skill's folder is a flat skill. A skill already loaded at its own
+// location is reused, not built again. Invalid candidates are returned as
+// issues; nothing is remembered (see addPath).
+func (c *SkillCatalog) fetchByPath(ctx context.Context, repo *entity.Repository, start string) ([]*entity.Skill, model.Issues) {
 	out := []*entity.Skill{}
 	var issues model.Issues
 	var scan func(string)
@@ -84,13 +227,10 @@ func (c *SkillCatalog) GetByPath(ctx context.Context, key model.SourceKey, start
 			issues = append(issues, model.Issue{Code: "canceled", File: p, Message: err.Error()})
 			return
 		}
-
-		//lookup in cachedSkillMap first
-		if skill, ok := c.cachedSkillMap[entity.GetSkillKey(repo.Key, p)]; ok {
+		if skill := c.skillAt(repo.Key, p); skill != nil {
 			out = append(out, skill)
 			return
 		}
-
 		info, err := fs.Stat(repo.FS, p)
 		if err != nil {
 			if !isNotExist(err) {
@@ -98,8 +238,6 @@ func (c *SkillCatalog) GetByPath(ctx context.Context, key model.SourceKey, start
 			}
 			return
 		}
-
-		// A single-file source ignores start entirely, so the only path it can
 		if !info.IsDir() {
 			if strings.HasSuffix(p, ".skill.md") {
 				skill, err := entity.MakeSkill(repo, p, "", entity.FlatSkill)
@@ -107,22 +245,27 @@ func (c *SkillCatalog) GetByPath(ctx context.Context, key model.SourceKey, start
 					issues = append(issues, model.Issue{Code: "invalid-name", File: p, Message: err.Error()})
 					return
 				}
-				c.validateAndAdd(skill, &out, &issues)
+				if err := validate(skill); err != nil {
+					issues = append(issues, *err)
+					return
+				}
+				out = append(out, skill)
 			}
 			return
 		}
-
-		// A directory that's a skill root becomes one Skill and is not searched
 		skill, err := c.isSkillDir(repo, p)
 		if err != nil {
 			issues = append(issues, model.Issue{Code: "invalid-skill", File: p, Message: err.Error()})
 			return
 		}
 		if skill != nil {
-			c.validateAndAdd(skill, &out, &issues)
+			if err := validate(skill); err != nil {
+				issues = append(issues, *err)
+				return
+			}
+			out = append(out, skill)
 			return
 		}
-
 		entries, err := fs.ReadDir(repo.FS, p)
 		if err != nil {
 			issues = append(issues, model.Issue{Code: "source-read", File: p, Message: err.Error()})
@@ -135,51 +278,63 @@ func (c *SkillCatalog) GetByPath(ctx context.Context, key model.SourceKey, start
 		}
 	}
 	scan(path.Clean(start))
-	if len(issues) > 0 {
-		return out, issues
-	}
-	return out, nil
+	return out, issues
 }
 
-// accept is scan's per-candidate pipeline for a skill it just built: warm
-// its FilesByPath("") cache (FilesByPath itself is a pure lister -- this is
-// where the returned list is checked for a nested-skill marker not covered
-// by c.SkipFolders, see nestedSkillPath), resolve name collisions via add,
-// and -- once both succeed -- remember it by path and append it to out. A
-// failure at either step is recorded into issues instead of the skill
-// being returned; add itself only does the narrow name-collision part
-// (skip/replace/reject, no file validation, no memoization, no issues
-// collection -- reusable on its own terms).
-//
-// It also copies the warmed FilesByPath("") result into skill.Files --
-// the old, eager []model.File field discovery.Rooted used to populate --
-// since planning.Plan and relations.Expander still read it, not
-// FilesByPath, and are out of scope for this step.
-func (c *SkillCatalog) validateAndAdd(skill *entity.Skill, out *[]*entity.Skill, issues *model.Issues) {
+// fetchByPathUp finds the valid skill whose folder holds p inside repo: it
+// walks p's parent folders up to the repository folder until the first
+// skill's folder (or takes p itself when it is a flat "*.skill.md" skill).
+// Its neighbours are not loaded; nothing is remembered (see addPath).
+func (c *SkillCatalog) fetchByPathUp(ctx context.Context, repo *entity.Repository, p string) (*entity.Skill, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	info, err := fs.Stat(repo.FS, p)
+	if err != nil {
+		return nil, err
+	}
+	dir := p
+	if !info.IsDir() {
+		dir = path.Dir(p)
+	}
+	for {
+		skill, err := c.isSkillDir(repo, dir)
+		if err != nil {
+			return nil, model.Issue{Code: "invalid-skill", File: dir, Message: err.Error()}
+		}
+		// A file that isn't claimed by its own folder's marker may still
+		// be a flat skill of its own.
+		if skill == nil && dir == path.Dir(p) && !info.IsDir() && strings.HasSuffix(p, ".skill.md") {
+			if skill, err = entity.MakeSkill(repo, p, "", entity.FlatSkill); err != nil {
+				return nil, model.Issue{Code: "invalid-name", File: p, Message: err.Error()}
+			}
+		}
+		if skill != nil {
+			if err := validate(skill); err != nil {
+				return nil, *err
+			}
+			return skill, nil
+		}
+		if dir == "." {
+			return nil, model.Issue{Code: "skill-not-found", File: p, Message: "no skill holds this path"}
+		}
+		dir = path.Dir(dir)
+	}
+}
+
+// validate checks a skill fetch* just built: its files can be listed
+// (FilesByPath(""), which also warms that cache) and none of them is
+// another skill's marker outside the skip folders (nested-skill, see
+// nestedSkillPath).
+func validate(skill *entity.Skill) *model.Issue {
 	files, err := skill.FilesByPath("")
 	if err != nil {
-		*issues = append(*issues, model.Issue{Code: "source-read", Skill: skill.Name, File: skill.MainFilePath, Message: err.Error()})
-		return
+		return &model.Issue{Code: "source-read", Skill: skill.Name, File: skill.MainFilePath, Message: err.Error()}
 	}
 	if nested := nestedSkillPath(files, defaultSkipFoldersInNestedChecker); nested != "" {
-		*issues = append(*issues, model.Issue{Code: "nested-skill", Skill: skill.Name, File: nested, Message: fmt.Sprintf("nested-skill: %s", nested)})
-		return
+		return &model.Issue{Code: "nested-skill", Skill: skill.Name, File: nested, Message: fmt.Sprintf("nested-skill: %s", nested)}
 	}
-
-	exist_key, is_exist := c.cachedSkillMap[skill.Key()]
-	if is_exist {
-		*issues = append(*issues, model.Issue{Code: "duplicate-name", Skill: skill.Name, File: skill.MainFilePath, Message: fmt.Sprintf("also defined at %s", exist_key.MainFilePath)})
-		return
-	}
-
-	c.cachedSkillMap[skill.Key()] = skill
-	if skill.SkillDirPath != "" {
-		// A directory skill is looked up again by its own directory path,
-		// not its main file's path, when a later scan() revisits the same
-		// starting path -- remember it under both so that repeat lookup hits.
-		c.cachedSkillMap[entity.GetSkillKey(skill.Repo.Key, skill.SkillDirPath)] = skill
-	}
-	*out = append(*out, skill)
+	return nil
 }
 
 // nestedSkillPath returns the skill-relative Path of the first file in
@@ -190,7 +345,7 @@ func (c *SkillCatalog) validateAndAdd(skill *entity.Skill, out *[]*entity.Skill,
 // along with it (see DefaultSkipFolders), not a validation failure.
 func nestedSkillPath(files []*entity.File, skipFolders []string) string {
 	for _, f := range files {
-		relPath, err := f.Path(entity.SkillRelative)
+		relPath, err := f.Path(model.SkillRelative)
 		if err != nil {
 			continue
 		}
@@ -328,10 +483,10 @@ func relativePath(s *entity.Skill, p string) string {
 	return strings.TrimPrefix(p, path.Clean(s.SkillDirPath)+"/")
 }
 
-// Owner ищет среди уже найденных (через GetByPath) скилов репозитория
+// Owner ищет среди уже найденных (через GetOrFetchByPath) скилов репозитория
 // repoID тот единственный, которому принадлежит repo-relative путь p (см.
 // ownsPath), и возвращает его. Если ни один известный скил не владеет этим
-// путём -- например путь ещё не был обнаружен через GetByPath, или
+// путём -- например путь ещё не был обнаружен через GetOrFetchByPath, или
 // принадлежит другому репозиторию -- возвращает nil.
 //
 // repoID сравнивается со строковым представлением идентичности репозитория
@@ -340,18 +495,17 @@ func relativePath(s *entity.Skill, p string) string {
 // этот же репозиторий") не нужно знать структуру SourceKey, только её
 // строковую форму, уже известную по Link.Target/OriginalKey.
 //
-// Пример: после GetByPath нашёл скил "guide" с SkillDirPath="a/guide" в
+// Пример: после GetOrFetchByPath нашёл скил "guide" с SkillDirPath="a/guide" в
 // репозитории с Key.String()=="local:repo":
 //   - Owner(ctx, "local:repo", "a/guide/docs/intro.md") -> скил "guide"
 //   - Owner(ctx, "local:repo", "b/other.md")             -> nil (не найден)
 //   - Owner(ctx, "other:repo", "a/guide/docs/intro.md")  -> nil (другой репозиторий)
 func (c *SkillCatalog) Owner(ctx context.Context, repoID, p string) *entity.Skill {
-	for _, s := range c.cachedSkillMap {
-		if s.Repo.Key.String() != repoID {
-			continue
-		}
-		if ownsPath(s, p) {
-			return s
+	for _, skills := range c.cachedByPath {
+		for _, s := range skills {
+			if s.Repo.Key.String() == repoID && ownsPath(s, p) {
+				return s
+			}
 		}
 	}
 	return nil

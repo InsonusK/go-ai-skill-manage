@@ -23,7 +23,7 @@ func registerFileSteps(sc *godog.ScenarioContext) {
 	var contractErr error
 	var requestedFilePath string
 	var requestedFilePathErr error
-	var contractLinks []*model.Link
+	var contractLinks []*entity.Link
 	var linksErr error
 
 	sc.Step(`^a file "([^"]*)" containing "([^"]*)" attached to a mocked skill rooted at "([^"]*)" in repository "([^"]*)"$`,
@@ -68,7 +68,7 @@ func registerFileSteps(sc *godog.ScenarioContext) {
 		return testsupport.Equal(contractCounts[contractRepoPath], want)
 	})
 	sc.Step(`^I request the contract file path as "([^"]*)"$`, func(ctx context.Context, kind string) error {
-		requestedFilePath, requestedFilePathErr = assertedFile.Path(entity.FilePathKind(kind))
+		requestedFilePath, requestedFilePathErr = assertedFile.Path(model.PathKind(kind))
 		return nil
 	})
 	sc.Step(`^the requested file path is "([^"]*)"$`, func(ctx context.Context, want string) error {
@@ -100,7 +100,7 @@ func registerFileSteps(sc *godog.ScenarioContext) {
 		}
 		var paths []string
 		for _, link := range contractLinks {
-			paths = append(paths, link.Path)
+			paths = append(paths, link.WrittenPath)
 		}
 		return testsupport.Equal(strings.Join(paths, ","), want)
 	})

@@ -23,10 +23,10 @@ var _ LinkParser = WikilinkParser{}
 
 func (WikilinkParser) Find(content string) []Span { return findSpans(wikilinkFind, content) }
 
-func (WikilinkParser) Parse(raw string) (model.Link, error) {
+func (WikilinkParser) Parse(raw string) (model.ParsedLink, error) {
 	m := wikilinkExact.FindStringSubmatch(raw)
 	if m == nil {
-		return model.Link{}, invalidLink(raw, "wikilink")
+		return model.ParsedLink{}, invalidLink(raw, "wikilink")
 	}
 	target, label := m[1], ""
 	pipe := strings.LastIndex(target, "|")

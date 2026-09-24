@@ -12,12 +12,12 @@ import (
 )
 
 func initialize(sc *godog.ScenarioContext) {
-	var raw, format string
-	var parsed model.Link
+	var format string
+	var parsed model.ParsedLink
 	var parseErr error
 	var spans []link_parser.Span
 	parse := func(p link_parser.LinkParser, f, r string) {
-		raw, format = r, f
+		format = f
 		parsed, parseErr = p.Parse(r)
 		testsupport.Log("raw=%s link=%+v error=%v", r, parsed, parseErr)
 	}
@@ -41,11 +41,11 @@ func initialize(sc *godog.ScenarioContext) {
 		find(link_parser.WikilinkParser{}, d.Content)
 		return nil
 	})
-	sc.Step(`^the parsed link has text "([^"]*)" path "([^"]*)" fragment "([^"]*)" image (true|false) external (true|false)$`, func(ctx context.Context, text, p, fragment, image, external string) error {
+	sc.Step(`^the parsed link has text "([^"]*)" path "([^"]*)" fragment "([^"]*)" image (true|false)$`, func(ctx context.Context, text, p, fragment, image string) error {
 		if parseErr != nil {
 			return parseErr
 		}
-		return testsupport.Equal(parsed, model.Link{Raw: raw, Text: text, Path: p, Fragment: fragment, Format: format, Image: image == "true", External: external == "true"})
+		return testsupport.Equal(parsed, model.ParsedLink{Text: text, Path: p, Fragment: fragment, Format: format, Image: image == "true"})
 	})
 	sc.Step(`^parsing fails with "([^"]*)"$`, func(ctx context.Context, code string) error {
 		var issue model.Issue

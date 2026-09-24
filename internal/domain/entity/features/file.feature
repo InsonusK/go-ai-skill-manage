@@ -15,18 +15,23 @@ Feature: Access a skill file through the File contract
 
  Scenario: Path returns a path relative to the repository
   Given a file "docs/intro.md" containing "intro" attached to a mocked skill rooted at "a" in repository "/source"
-  When I request the contract file path as "repo-relative"
+  When I request the contract file path as "repo-absolute"
   Then the requested file path is "a/docs/intro.md"
 
  Scenario: Path returns an absolute filesystem path
   Given a file "docs/intro.md" containing "intro" attached to a mocked skill rooted at "a" in repository "/source"
-  When I request the contract file path as "absolute"
+  When I request the contract file path as "os-absolute"
   Then the requested file path is "/source/a/docs/intro.md"
+
+ Scenario: Path refuses a path relative to the file itself
+  Given a file "docs/intro.md" containing "intro" attached to a mocked skill rooted at "a" in repository "/source"
+  When I request the contract file path as "file-relative"
+  Then requesting the file path fails with "unsupported-path-kind"
 
  Scenario: Path rejects an unknown path kind
   Given a file "docs/intro.md" containing "intro" attached to a mocked skill rooted at "a" in repository "/source"
   When I request the contract file path as "unknown"
-  Then requesting the file path fails with "unknown file path kind"
+  Then requesting the file path fails with "unknown path kind"
 
  Scenario: Skill returns the file's owning skill
   Given a file "docs/intro.md" containing "intro" attached to a mocked skill rooted at "a" in repository "/source"

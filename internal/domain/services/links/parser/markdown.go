@@ -29,14 +29,14 @@ func (MarkdownParser) Find(content string) []Span {
 	return out
 }
 
-func (MarkdownParser) Parse(raw string) (model.Link, error) {
+func (MarkdownParser) Parse(raw string) (model.ParsedLink, error) {
 	open := 0
 	if strings.HasPrefix(raw, "!") {
 		open = 1
 	}
 	label, target, end, ok := markdownAt(raw, open)
 	if !ok || end != len(raw) {
-		return model.Link{}, invalidLink(raw, "markdown")
+		return model.ParsedLink{}, invalidLink(raw, "markdown")
 	}
 	return newLink(raw, label, target, "markdown"), nil
 }

@@ -38,13 +38,13 @@ func NewDefaultLinkFactory() *LinkFactory {
 }
 
 // SearchLinks returns the links of all registered parsers ordered by
-// Start, with Start, End and Raw taken from the span each parser found. A
-// link touching excluded text (e.g. "[`x`](y)") is dropped.
+// Start, with Start and End taken from the span each parser found. A link
+// touching excluded text (e.g. "[`x`](y)") is dropped.
 // Fails with "invalid-link-span" if a parser reports a span that is empty
 // or outside content, with the parser's own error if it cannot parse a span
 // it found, and with "link-overlap" if two found spans share any text.
-func (f *LinkFactory) SearchLinks(content string) ([]*model.Link, error) {
-	out := []*model.Link{}
+func (f *LinkFactory) SearchLinks(content string) ([]model.ParsedLink, error) {
+	out := []model.ParsedLink{}
 	searchable := content
 	var excluded []link_parser.Span
 	for _, e := range f.excluders {
@@ -60,13 +60,12 @@ func (f *LinkFactory) SearchLinks(content string) ([]*model.Link, error) {
 			if intersects(s, excluded) {
 				continue
 			}
-			raw := content[s.Start:s.End]
-			l, err := p.Parse(raw)
+			l, err := p.Parse(content[s.Start:s.End])
 			if err != nil {
 				return nil, err
 			}
-			l.Start, l.End, l.Raw = s.Start, s.End, raw
-			out = append(out, &l)
+			l.Start, l.End = s.Start, s.End
+			out = append(out, l)
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Start < out[j].Start })
@@ -74,7 +73,8 @@ func (f *LinkFactory) SearchLinks(content string) ([]*model.Link, error) {
 	for i := 1; i < len(out); i++ {
 		prev, next := out[i-1], out[i]
 		if next.Start < prev.End {
-			return nil, model.Issue{Code: "link-overlap", Link: next.Raw, Message: fmt.Sprintf("%s link %q at [%d,%d) overlaps %s link %q at [%d,%d)", next.Format, next.Raw, next.Start, next.End, prev.Format, prev.Raw, prev.Start, prev.End)}
+			nextRaw, prevRaw := content[next.Start:next.End], content[prev.Start:prev.End]
+			return nil, model.Issue{Code: "link-overlap", Link: nextRaw, Message: fmt.Sprintf("%s link %q at [%d,%d) overlaps %s link %q at [%d,%d)", next.Format, nextRaw, next.Start, next.End, prev.Format, prevRaw, prev.Start, prev.End)}
 		}
 	}
 	return out, nil

@@ -2,13 +2,14 @@ package transform
 
 import (
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"sort"
 	"strings"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 )
 
-func Rewrite(content string, links []model.Link, destinations map[string]string) (string, error) {
-	ordered := append([]model.Link{}, links...)
+func Rewrite(content string, links []*entity.Link, destinations map[string]string) (string, error) {
+	ordered := append([]*entity.Link{}, links...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Start < ordered[j].Start })
 	var b strings.Builder
 	cursor := 0

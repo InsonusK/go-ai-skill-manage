@@ -37,7 +37,7 @@ func registerSkillSteps(sc *godog.ScenarioContext) {
 	listPaths := func() ([]string, error) {
 		paths := make([]string, 0, len(listedFiles))
 		for _, file := range listedFiles {
-			filePath, err := file.Path(entity.SkillRelative)
+			filePath, err := file.Path(model.SkillRelative)
 			if err != nil {
 				return nil, err
 			}

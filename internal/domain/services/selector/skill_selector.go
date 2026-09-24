@@ -3,6 +3,7 @@ package skill_selector
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"strings"
 
@@ -37,7 +38,18 @@ func (d SkillSelector) Select(ctx context.Context, spec model.SourceSpec) ([]*en
 		paths = []string{"."}
 	}
 	for _, p := range paths {
-		found, err := d.SkillCatalog.GetByPath(ctx, spec.Key(), p)
+		found, err := d.SkillCatalog.GetOrFetchByPath(ctx, spec.Key(), p)
+		if errors.Is(err, entity.ErrSkillNotCached) {
+			// Not an error to report but a broken invariant: Select is the
+			// initial load, it only fetches -- following a Link to another
+			// skill (Link -> entity.SkillResolver, whose cache-only lookups
+			// are the only producers of ErrSkillNotCached) belongs to the later
+			// relations stage, which runs after every source is selected. If
+			// this fires, something reachable from GetOrFetchByPath started
+			// resolving links during Select; move that call out of Select
+			// rather than turning this panic into an Issue.
+			panic(fmt.Sprintf("skill_selector: cache-only skill lookup reached during Select (source %s, path %q): %v", spec.Key(), p, err))
+		}
 		if err != nil {
 			if list, ok := err.(model.Issues); ok {
 				issues = append(issues, list...)
