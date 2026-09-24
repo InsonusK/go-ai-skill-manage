@@ -12,36 +12,24 @@ import (
 )
 
 func initialize(sc *godog.ScenarioContext) {
-	var input string
-	var actual []any
+	initializeFactory(sc)
 	var tree fstest.MapFS
 	var target string
 	var failure error
 	var knownRoot string
-	sc.Step(`^link document$`, func(ctx context.Context, d *godog.DocString) error {
-		input = d.Content
-		testsupport.Log("document=%s", input)
+	var skipped bool
+	sc.Step(`^I check whether "([^"]*)" is in skip folders "([^"]*)"$`, func(ctx context.Context, file, skip string) error {
+		folders := []string{}
+		if skip != "" {
+			folders = strings.Split(skip, ",")
+		}
+		skipped = links.InSkippedFolder(file, folders)
+		testsupport.Log("file=%s skip=%v skipped=%v", file, folders, skipped)
 		return nil
 	})
-	sc.Step(`^I extract links from "([^"]*)"$`, func(ctx context.Context, p string) error {
-		actual = []any{}
-		for _, l := range links.Extract(input) {
-			actual = append(actual, map[string]any{"text": l.Text, "path": l.Path, "fragment": l.Fragment, "image": l.Image, "excluded": links.Excluded(input, p, l, []string{"examples"})})
-		}
-		return nil
+	sc.Step(`^the file is skipped: (true|false)$`, func(ctx context.Context, want string) error {
+		return testsupport.Equal(skipped, want == "true")
 	})
-	sc.Step(`^I search links via the entity\.LinkSearcher contract$`, func(ctx context.Context) error {
-		found, err := links.Searcher{}.SearchLinks(input)
-		if err != nil {
-			return err
-		}
-		actual = []any{}
-		for _, l := range found {
-			actual = append(actual, map[string]any{"text": l.Text, "path": l.Path, "fragment": l.Fragment, "image": l.Image})
-		}
-		return nil
-	})
-	sc.Step(`^references are$`, func(ctx context.Context, d *godog.DocString) error { return testsupport.JSON(actual, d) })
 	sc.Step(`^source paths "([^"]*)"$`, func(ctx context.Context, s string) error {
 		knownRoot = ""
 		tree = fstest.MapFS{}

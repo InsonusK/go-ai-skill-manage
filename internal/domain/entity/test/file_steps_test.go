@@ -51,7 +51,7 @@ func registerFileSteps(sc *godog.ScenarioContext) {
 			contractContent, contractErr = nil, nil
 			requestedFilePath, requestedFilePathErr = "", nil
 			contractLinks, linksErr = nil, nil
-			entity.SetDefaultLinkSearcher(links.Searcher{})
+			entity.SetDefaultLinkSearcher(links.NewDefaultLinkFactory())
 			return nil
 		})
 	sc.Step(`^I read the contract file content$`, func(ctx context.Context) error {

@@ -10,6 +10,31 @@ import (
 	"strings"
 )
 
+// Deferred: everything here decides where a found link leads inside the
+// repository and whether that target belongs to the current catalog -- not
+// what the link is (that is link_parser's job) nor where it is in the text
+// (LinkFactory's). Only relations.Expander uses it, and relations is not
+// wired to the new SkillCatalog yet (see AGENTS.md); revisit together.
+
+// InSkippedFolder reports whether file (the file a link is written in) lies
+// under one of the skip folders (e.g. "examples"), whose links are not
+// followed.
+func InSkippedFolder(file string, skip []string) bool {
+	for _, segment := range strings.Split(strings.ReplaceAll(file, "\\", "/"), "/") {
+		for _, folder := range skip {
+			if segment == folder {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Resolve turns a link path written in from into a repository-relative
+// path: "./" and "../" are relative to from's folder, an absolute path must
+// lie under repo.RootPath, and a bare path is relative to the repository
+// root. A missing target is retried with ".md" appended, then accepted if
+// knownOwner says it lies inside an already selected skill.
 func Resolve(repo *entity.Repository, from, raw string, knownOwner func(string) bool) (string, error) {
 	p := strings.ReplaceAll(raw, "\\", "/")
 	switch {
