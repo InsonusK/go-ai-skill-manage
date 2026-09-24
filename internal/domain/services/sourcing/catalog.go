@@ -118,7 +118,7 @@ func (c *SkillCatalog) GetOrFetchByPath(ctx context.Context, key model.SourceKey
 		// at its own location, so a repeat call fetches again and reports
 		// the same issues.
 		for _, skill := range skills {
-			c.addPath(skill.Repo.Key, skill.DirOrMarkerPath(), []*entity.Skill{skill})
+			c.addSkill(skill)
 		}
 		return skills, problems
 	}
@@ -223,6 +223,11 @@ func (c *SkillCatalog) addPath(key model.SourceKey, p string, skills []*entity.S
 		c.cachedByPath[entity.GetSkillKey(key, skill.DirOrMarkerPath())] = []*entity.Skill{skill}
 	}
 	c.cachedByPath[entity.GetSkillKey(key, p)] = skills
+}
+
+// addSkill remembers skill at its own location only (see addPath).
+func (c *SkillCatalog) addSkill(skill *entity.Skill) {
+	c.addPath(skill.Repo.Key, skill.DirOrMarkerPath(), []*entity.Skill{skill})
 }
 
 // Skills returns every loaded skill once, in the order it was loaded: a

@@ -7,7 +7,7 @@ Feature: Every tag expression of every source parses
      - path: skills
        tags: <tags>
    """
-  Then the config issues are
+  Then the config issues with codes "invalid-tags" are
    """
    <issues>
    """

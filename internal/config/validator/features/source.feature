@@ -7,7 +7,7 @@ Feature: Sources of the same repository don't contradict each other
      - {path: skills, <first>}
      - {path: skills, <second>}
    """
-  Then the config issues are
+  Then the config issues with codes "duplicate-source,conflicting-exclude" are
    """
    <issues>
    """

@@ -21,6 +21,18 @@
   Для новых сценариев проверять, что они ловят поломку (временно сломать
   код → сценарий падает → вернуть).
 
+## `context.Context`: где нужен
+
+`ctx` нужен там, где отмена даёт выигрыш: ввод-вывод и внешние
+провайдеры (получение репозитория), циклы по заранее неизвестному
+объёму данных (обход репозитория, проход по всем скилам и источникам),
+логирование через `slog.*Context`. Мелким функциям в памяти (`Name()`,
+геттеры, разбор/маскирование содержимого одного файла, проверка пути)
+`ctx` не нужен: отмену проверяет цикл над ними, между единицами работы
+(`fs.FS` всё равно не прерывается посреди чтения). Если `ctx` есть — он
+первый параметр; это проверяет `services/test` (architecture.feature),
+обязательность `ctx` — на ревью.
+
 ## Зачем переделка
 
 Раньше `sync` заранее загружал все источники и собирал все скилы, попавшие
@@ -58,13 +70,24 @@
 - `services/sourcing`: `Manager` (acquire по `SourceKey`, кеш, `TempDir`
   задаётся в `NewManager`), `SkillCatalog` (см. ниже).
 - `services/selector`: `SkillSelector{SkillCatalog}.Select(ctx, spec)
-  ([]*Skill, issues.SkillIssues)` — зовёт `GetOrFetchByPath` по
-  `spec.Subpaths` (по умолчанию `"."`) и фильтрует по тегам. Проблема не
-  останавливает остальные subpath, кроме: `invalid-tags` (ничего не
-  грузится), `source-acquire` и отмены контекста (`canceled`) — они
-  прекращают источник. У каждой проблемы заполнен `Source`. Паникует на `entity.ErrSkillNotCached`: `Select` —
-  первичная загрузка, ссылки в нём разрешаться не должны (panic = нарушен
-  инвариант, а не бизнес-ошибка).
+  ([]*Skill, issues.SkillIssues)` — наполняет каталог: `GetOrFetchByPath`
+  по `spec.Subpaths` (по умолчанию `"."`). **Теги пока не применяются**
+  (см. «Отложено: фильтр по тегам»). Проблема не
+  останавливает остальные subpath, кроме `source-acquire` и отмены
+  контекста (`canceled`) — они прекращают источник. У каждой проблемы
+  заполнен `Source`. `unsafe-subpath` — panic (его отсекает валидатор
+  конфига); `ErrSkillNotCached` — panic (Select ссылки не разрешает).
+- `handler`: обработчики команд — только оркестрация.
+  `FetchAndValidateSkills(ctx, *sourcing.Manager, req) (*SkillCatalog,
+  issues.SkillIssues)`: каталог (`AddRelations`, `ExcludeFromChecks` =
+  глобальные + источника по `SourceKey`) → `Select` по **всем**
+  источникам → `[link-validator, skill-name-validator]` (даже после
+  ошибок выбора) → каталог и все проблемы. `req` уже прошёл
+  `config/validator.Validate`.
+  `handler/sync.go`: `SyncService{Sources}.Run` — заглушка: вызывает
+  `FetchAndValidateSkills`, при проблемах возвращает их, иначе
+  `panic("not implemented")`. Старый конвейер — в истории git; его
+  `sync.feature` лежит в `handler/features` под `@todo` как спецификация.
 - `services/links`: `parser` (markdown, wikilink → `ParsedLink`),
   `content_excluder` (inline code, example-fence; `CodeFences`),
   `LinkFactory` (реализует `entity.LinkSearcher`).
@@ -181,6 +204,8 @@
   (список и порядок валидаторов) + `validators/`
   (`T=model.Request, I=issues.ConfigIssue`, алиас `ConfigValidator`):
   - `tags-validator`: `invalid-tags`, Setting `sources[i].tags[j]`;
+  - `unsupported-tags-validator`: `unsupported-tags`, Setting
+    `sources[i].tags` — временно, пока нет фильтра по тегам;
   - `subpath-validator`: `unsafe-subpath` (`..`, `\`, абсолютный вне
     local-источника, абсолютный в github), без ФС;
   - `source-validator` (источники одного SourceKey, каждый позже — с
@@ -188,7 +213,8 @@
     `conflicting-exclude` (разные `exclude_from_checks`);
   - `target-validator`: `target-overlap` (тот же путь или вложенный) —
     перенесён из `Resolve`.
-  Тесты идут через `Parse` → `Resolve("/project")` → `Validate`.
+  Тесты идут через `Parse` → `Resolve("/project")` → `Validate`; фича
+  валидатора сверяет только свои коды (`the config issues with codes`).
 - В `main.go` нужно вызвать `entity.SetDefaultLinkSearcher(
   links.NewDefaultLinkFactory())`, иначе `File.Links()` — ошибка.
 
@@ -200,20 +226,44 @@
    каталоге, новые ключи YAML + warning).
 3. ✅ Дженерик `Manager[T, I]` + валидатор конфига; `target-overlap` из
    `Resolve` в валидатор; panic в selector на `invalid-tags`/`unsafe-subpath`.
-4. `handler/fetch_and_validate_skills.go` (`FetchAndValidateSkills`) +
-   тесты (всё валидно; ошибки из нескольких источников; add_relations
-   on/off; дубли имён между источниками); перенос `sync.go` в
-   `handler/sync.go` (отдельный файл, не часть обработчика).
+4. ✅ `handler/fetch_and_validate_skills.go` + тесты; `sync.go` →
+   `handler/sync.go` (заглушка). Фильтр тегов отложен.
 
 ## Старые пакеты (ещё не переведены, не собираются)
 
-`relations`, `planning`, `transform`, `services` (`sync.go`),
-`services/test`, `command`, `cmd/ai-skill-manager`,
+`relations`, `planning`, `transform`, `command`, `cmd/ai-skill-manager`,
 `infrastructure/filesystem`. Причины: пакеты `services/discovery` и
 `infrastructure/document` удалены; `relations`/`planning` работают со
 старым `model.SkillCatalogImpl` и `Skill.FileData`; `transform/links.go`
 обращается к `Link.Target` и `model.SkillDocument`, которых нет.
 `relations.Expander` по смыслу заменяется `LinkValidator` + `SkillCatalog`.
+
+`services/test` (проверка архитектуры домена) с переездом `sync.go`
+снова собирается и проходит. Внешние библиотеки домену запрещены, кроме
+`allowedExternal` в `architecture_steps_test.go`: `go.yaml.in/yaml/v3` —
+только в `entity` (frontmatter скила — YAML, разбор часть сущности).
+
+## Отложено: фильтр по тегам
+
+Сейчас выбор только по путям, selector `SourceSpec.Tags` не применяет.
+Чтобы теги не игнорировались молча, валидатор конфига отказывает
+источнику с `tags` (`unsupported-tags-validator`, код `unsupported-tags`);
+`tags-validator` (синтаксис) остаётся зарегистрированным. Когда фильтр
+вернётся — удалить `unsupported-tags-validator`, снять `@todo` со
+сценариев с тегами (selector, handler).
+Требование: после `FetchAndValidateSkills` в каталоге только скилы,
+прошедшие фильтры пути **и** тегов, плюс связанные при `add_relations`;
+валидируются только они. Отвергнуто/проблемы:
+- фильтр-поле каталога: теги у каждого источника свои (один репозиторий
+  может быть в двух источниках с разными тегами), а догрузка по ссылкам
+  фильтр обходит;
+- фильтр в `GetOrFetchByPath`: кэш по пути не знает, какой фильтр
+  применялся;
+- `accept func` в каталоге: пользователю не нравится; лучше набор
+  объектов-фильтров, каждый знает, как фильтровать.
+Идея пользователя: два кэша — по путям (все найденные скилы) и
+прошедших фильтр; в будущем поиск по тегам вместо путей, тогда кэш путей
+становится контейнером всех скилов репозитория.
 
 ## Открытые вопросы
 

@@ -15,6 +15,8 @@ import (
 // manager runs every config validator, in this order.
 var manager = mustManager(
 	validators.TagsValidator{},
+	// Until the tag filter is back; then remove it (see its doc).
+	validators.UnsupportedTagsValidator{},
 	validators.SubpathValidator{},
 	validators.SourceValidator{},
 	validators.TargetValidator{},

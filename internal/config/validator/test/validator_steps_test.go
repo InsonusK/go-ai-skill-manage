@@ -3,6 +3,7 @@ package validator_test
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/config"
@@ -46,6 +47,17 @@ func initialize(sc *godog.ScenarioContext) {
 		return testsupport.JSON(got, d)
 	})
 	// The text runs to the last quote; \" inside it is a quote.
+	// Only the issues with the given comma-separated codes, as above: a
+	// feature checks its own validator's issues.
+	sc.Step(`^the config issues with codes "([^"]*)" are$`, func(ctx context.Context, codes string, d *godog.DocString) error {
+		got := [][]string{}
+		for _, i := range problems {
+			if slices.Contains(strings.Split(codes, ","), i.Code) {
+				got = append(got, []string{i.Code, i.Source, i.Setting})
+			}
+		}
+		return testsupport.JSON(got, d)
+	})
 	sc.Step(`^config issue (\d+) message contains "(.*)"$`, func(ctx context.Context, n int, text string) error {
 		text = strings.ReplaceAll(text, `\"`, `"`)
 		if n >= len(problems) || !strings.Contains(problems[n].Message, text) {

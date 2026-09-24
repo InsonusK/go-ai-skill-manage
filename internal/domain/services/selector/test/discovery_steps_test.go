@@ -45,6 +45,7 @@ func initialize(sc *godog.ScenarioContext) {
 	var canceled bool
 	var acquireFailure string
 	var panicked string
+	var catalog *sourcing.SkillCatalog
 
 	sc.Step(`^a source tree$`, func(ctx context.Context, d *godog.DocString) error {
 		var files map[string]string
@@ -74,7 +75,7 @@ func initialize(sc *godog.ScenarioContext) {
 		if tagsArg != "" {
 			spec.Tags = []string{tagsArg}
 		}
-		catalog := &sourcing.SkillCatalog{
+		catalog = &sourcing.SkillCatalog{
 			Manager: sourcing.NewManager(map[string]interfaces.SourceProvider{"local": selectProvider{tree: tree, calls: &acquireCalls, fail: acquireFailure}}, ""),
 		}
 		if canceled {
@@ -121,6 +122,13 @@ func initialize(sc *godog.ScenarioContext) {
 			return fmt.Errorf("error=%v; want %q", failure, contains)
 		}
 		return nil
+	})
+	sc.Step(`^the catalog holds "([^"]*)"$`, func(ctx context.Context, want string) error {
+		var loaded []string
+		for _, s := range catalog.Skills() {
+			loaded = append(loaded, s.Name)
+		}
+		return testsupport.Equal(strings.Join(loaded, ","), want)
 	})
 	sc.Step(`^the source provider was not acquired$`, func(ctx context.Context) error {
 		return testsupport.Equal(acquireCalls, 0)

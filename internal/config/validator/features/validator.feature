@@ -6,7 +6,6 @@ Feature: A resolved configuration is checked by every config validator at once
    sources:
      - path: skills
        subpath: [a, /project/skills/b]
-       tags: ["stack/go & !deprecated"]
        exclude_from_checks: [demo]
      - path: skills
        subpath: [c]
@@ -37,6 +36,8 @@ Feature: A resolved configuration is checked by every config validator at once
    """
    [["invalid-tags","local:/project/skills@master","sources[0].tags[0]"],
     ["invalid-tags","local:/project/skills@master","sources[1].tags[0]"],
+    ["unsupported-tags","local:/project/skills@master","sources[0].tags"],
+    ["unsupported-tags","local:/project/skills@master","sources[1].tags"],
     ["unsafe-subpath","local:/project/skills@master","sources[0].subpath[0]"],
     ["unsafe-subpath","local:/project/skills@master","sources[1].subpath[0]"],
     ["duplicate-source","local:/project/skills@master","sources[1]"],

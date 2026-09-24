@@ -14,6 +14,15 @@ import (
 	"strings"
 )
 
+// allowedExternal maps an external library the domain may import to the
+// only domain folder allowed to import it.
+var allowedExternal = map[string]string{
+	// A skill's frontmatter is YAML: parsing it is part of what a skill is
+	// (entity.MakeSkillDocument), not an infrastructure concern, and a port
+	// in front of a pure parser would buy nothing.
+	"go.yaml.in/yaml/v3": "/entity/",
+}
+
 func architectureSteps(sc *godog.ScenarioContext) {
 	var forbidden []string
 	sc.Step(`^I inspect domain package imports$`, func(ctx context.Context) error {
@@ -41,27 +50,25 @@ func architectureSteps(sc *godog.ScenarioContext) {
 					return err
 				}
 				local := strings.HasPrefix(name, "github.com/InsonusK/go-ai-skill-manage/")
-				if local && !strings.Contains(name, "/internal/domain/") || name == "os" || name == "os/exec" || name == "net/http" || !local && strings.Contains(strings.Split(name, "/")[0], ".") {
+				external := !local && strings.Contains(strings.Split(name, "/")[0], ".")
+				if external && allowedExternal[name] != "" && strings.Contains(filepath.ToSlash(p), allowedExternal[name]) {
+					external = false
+				}
+				if local && !strings.Contains(name, "/internal/domain/") || name == "os" || name == "os/exec" || name == "net/http" || external {
 					forbidden = append(forbidden, filepath.ToSlash(p)+": "+name)
 				}
 			}
-			if strings.Contains(filepath.ToSlash(p), "/services/") {
-				for _, decl := range file.Decls {
-					method, ok := decl.(*ast.FuncDecl)
-					if !ok || method.Recv == nil || !method.Name.IsExported() {
-						continue
-					}
-					valid := false
-					if len(method.Type.Params.List) > 0 {
-						if typ, ok := method.Type.Params.List[0].Type.(*ast.SelectorExpr); ok {
-							if pkg, ok := typ.X.(*ast.Ident); ok {
-								valid = pkg.Name == "context" && typ.Sel.Name == "Context"
-							}
-						}
-					}
-					if !valid {
-						forbidden = append(forbidden, filepath.ToSlash(p)+": "+method.Name.Name+" must accept context.Context first")
-					}
+			// context.Context is required only where cancellation pays off
+			// (I/O, providers, loops over unbounded data -- see AGENTS.md),
+			// which a parser can't tell; what it can check is Go's
+			// convention: a function taking a context takes it first.
+			for _, decl := range file.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if !ok {
+					continue
+				}
+				if i := contextParam(fn.Type.Params); i > 0 {
+					forbidden = append(forbidden, filepath.ToSlash(p)+": "+fn.Name.Name+" must take context.Context first")
 				}
 			}
 
@@ -72,4 +79,20 @@ func architectureSteps(sc *godog.ScenarioContext) {
 		return err
 	})
 	sc.Step(`^forbidden domain imports are$`, func(ctx context.Context, d *godog.DocString) error { return testsupport.JSON(forbidden, d) })
+}
+
+// contextParam returns the position of the first context.Context
+// parameter, or -1 if there is none.
+func contextParam(params *ast.FieldList) int {
+	i := 0
+	for _, field := range params.List {
+		n := max(len(field.Names), 1)
+		if typ, ok := field.Type.(*ast.SelectorExpr); ok {
+			if pkg, ok := typ.X.(*ast.Ident); ok && pkg.Name == "context" && typ.Sel.Name == "Context" {
+				return i
+			}
+		}
+		i += n
+	}
+	return -1
 }

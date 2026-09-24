@@ -1,3 +1,6 @@
+# The previous synchronization pipeline's behavior, kept as the spec to
+# bring back while sync is rebuilt (see AGENTS.md); its steps are gone.
+@todo
 Feature: Synchronization orchestration
  Scenario Outline: Dry run and validation gate all writes
   Given sync source content "<content>" and dry run "<dry>"

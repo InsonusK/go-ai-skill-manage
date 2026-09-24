@@ -11,24 +11,24 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/tags"
 )
 
 type SkillSelector struct {
 	SkillCatalog *sourcing.SkillCatalog
 }
 
-// Select resolves spec's configured subpaths (defaulting to ".") by
-// calling catalog.GetOrFetchByPath once per path with spec's SourceKey --
-// catalog itself acquires the Repository (via its Manager, lazily/cached),
-// normalizes the path (a single-file source collapses every path to that
-// one file), and recursively finds/validates/adds every skill at or below
-// it. Select never acquires a Repository itself; its own job is only
-// filtering catalog's results by spec's tags.
+// Select loads into the catalog the skills spec selects by path: for each
+// of its subpaths (defaulting to ".") it calls catalog.GetOrFetchByPath
+// with spec's SourceKey -- catalog itself acquires the Repository (via its
+// Manager, lazily/cached), normalizes the path, and finds, validates and
+// remembers every skill at or below it. Select returns them, each once.
 //
-// spec must have passed config/validator.Validate: an invalid tag
-// expression or a subpath leading out of the source reaching Select is a
-// bug in the caller, and Select panics on it.
+// spec.Tags are not applied yet: selecting by tags is postponed (see
+// AGENTS.md), every skill under the subpaths is selected.
+//
+// spec must have passed config/validator.Validate: a subpath leading out
+// of the source reaching Select is a bug in the caller, and Select panics
+// on it.
 //
 // Problems never stop the other subpaths, except those that stop the whole
 // source: a source that can't be acquired ("source-acquire") and a
@@ -42,9 +42,6 @@ type SkillSelector struct {
 //     source-acquire (а не по одной на каждый subpath)
 func (d SkillSelector) Select(ctx context.Context, spec model.SourceSpec) ([]*entity.Skill, issues.SkillIssues) {
 	source := spec.Key().String()
-	if _, err := tags.Match(nil, spec.Tags); err != nil {
-		panic(fmt.Sprintf("skill_selector: invalid tags %q of source %s reached Select, config/validator.Validate must reject them: %v", spec.Tags, source, err))
-	}
 	var problems issues.SkillIssues
 	selected := []*entity.Skill{}
 	seen := map[string]bool{}
@@ -59,7 +56,7 @@ func (d SkillSelector) Select(ctx context.Context, spec model.SourceSpec) ([]*en
 			// initial load, it only fetches -- following a Link to another
 			// skill (Link -> entity.SkillResolver, whose cache-only lookups
 			// are the only producers of ErrSkillNotCached) belongs to the later
-			// relations stage, which runs after every source is selected. If
+			// validation stage, which runs after every source is selected. If
 			// this fires, something reachable from GetOrFetchByPath started
 			// resolving links during Select; move that call out of Select
 			// rather than turning this panic into an Issue.
@@ -78,8 +75,7 @@ func (d SkillSelector) Select(ctx context.Context, spec model.SourceSpec) ([]*en
 			}
 		}
 		for _, s := range found {
-			// The expressions compiled above, so matching can't fail here.
-			if match, _ := tags.Match(Tags(s), spec.Tags); match && !seen[s.Key()] {
+			if !seen[s.Key()] {
 				selected = append(selected, s)
 				seen[s.Key()] = true
 			}
