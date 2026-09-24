@@ -51,6 +51,7 @@ func catalogSteps(sc *godog.ScenarioContext) {
 	var found []*entity.Skill
 	var failure error
 	var openSnapshot int
+	var remembered map[string]*entity.Skill
 
 	newCatalog := func(tree fstest.MapFS) *sourcing.SkillCatalog {
 		acquireCalls = 0
@@ -91,6 +92,70 @@ func catalogSteps(sc *godog.ScenarioContext) {
 		skills, err := catalog.GetOrFetchByPath(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
 		found = skills
 		failure = err
+		return nil
+	})
+	sc.Step(`^I fetch skills at "([^"]*)"$`, func(ctx context.Context, p string) error {
+		repo, err := catalog.Manager.Get(ctx, model.SourceKey{Type: "local", Path: "repo"})
+		if err != nil {
+			return err
+		}
+		skills, issues := catalog.FetchByPath(ctx, repo, p)
+		found, failure = skills, nil
+		if len(issues) > 0 {
+			failure = issues
+		}
+		return nil
+	})
+	sc.Step(`^I fetch the skill holding "([^"]*)"$`, func(ctx context.Context, p string) error {
+		repo, err := catalog.Manager.Get(ctx, model.SourceKey{Type: "local", Path: "repo"})
+		if err != nil {
+			return err
+		}
+		skill, err := catalog.FetchByPathUp(ctx, repo, p)
+		found, failure = nil, err
+		if skill != nil {
+			found = []*entity.Skill{skill}
+		}
+		return nil
+	})
+	sc.Step(`^the found skill is "([^"]*)" at "([^"]*)" in format "([^"]*)"$`, func(ctx context.Context, name, location, format string) error {
+		if failure != nil {
+			return failure
+		}
+		if len(found) != 1 {
+			return fmt.Errorf("found %d skills, want 1", len(found))
+		}
+		s := found[0]
+		at := s.SkillDirPath
+		if at == "" {
+			at = s.MainFilePath
+		}
+		return testsupport.Equal([]string{s.Name, at, string(s.Format)}, []string{name, location, format})
+	})
+	sc.Step(`^the found skills are remembered$`, func(ctx context.Context) error {
+		remembered = map[string]*entity.Skill{}
+		for _, s := range found {
+			remembered[s.Name] = s
+		}
+		return nil
+	})
+	sc.Step(`^the found skill "([^"]*)" is the one remembered$`, func(ctx context.Context, name string) error {
+		for _, s := range found {
+			if s.Name == name {
+				if s != remembered[name] {
+					return fmt.Errorf("skill %q was built again, not reused", name)
+				}
+				return nil
+			}
+		}
+		return fmt.Errorf("skill %q not found", name)
+	})
+	sc.Step(`^no directory under "([^"]*)" was read$`, func(ctx context.Context, dir string) error {
+		for p, n := range openCounts {
+			if n > 0 && (p == dir || strings.HasPrefix(p, dir+"/")) {
+				return fmt.Errorf("%s was opened %d times", p, n)
+			}
+		}
 		return nil
 	})
 	sc.Step(`^add relations is "(true|false)"$`, func(ctx context.Context, v string) error {

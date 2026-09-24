@@ -53,6 +53,14 @@ var _ entity.SkillResolver = (*SkillCatalog)(nil)
 // is. It never acquires a Repository nor reads a file; a start never
 // requested before -- even one with loaded skills below it -- fails with
 // entity.ErrSkillNotCached, since only a fetch knows it found them all.
+//
+// Примеры (репозиторий: скил guide в папке "a/guide", flat-скил
+// "b.skill.md"; ранее был вызов GetOrFetchByPath("."), см. addPath):
+//   - GetByPath(".")          -> [guide, flat] (запрошенный ранее путь)
+//   - GetByPath("a/guide")    -> [guide]       (папка скила)
+//   - GetByPath("b.skill.md") -> [flat]        (файл-маркер flat-скила)
+//   - GetByPath("a")          -> ErrSkillNotCached: "a" не запрашивали,
+//     и это не папка скила, хотя guide лежит ниже него
 func (c *SkillCatalog) GetByPath(ctx context.Context, key model.SourceKey, start string) ([]*entity.Skill, error) {
 	start, err := c.cachedRepoPath(ctx, key, start)
 	if err != nil {
@@ -69,6 +77,19 @@ func (c *SkillCatalog) GetByPath(ctx context.Context, key model.SourceKey, start
 // searches up: p is usually a file inside some skill. It checks p and each
 // of its parent folders by key, without reading the filesystem. Nothing
 // found fails with entity.ErrSkillNotCached.
+//
+// Примеры (загружены guide с папкой "a/guide" и flat-скил "b.skill.md";
+// репозиторий в ОС лежит в "/home/u/skills"):
+//   - GetByPathUp("a/guide/docs/x.md") -> guide: проверены ключи
+//     "a/guide/docs/x.md", "a/guide/docs", "a/guide" -- найден на последнем
+//   - GetByPathUp("a/guide/SKILL.md")  -> guide (файл-маркер в папке скила)
+//   - GetByPathUp("a/guide")           -> guide (сама папка скила)
+//   - GetByPathUp("b.skill.md")        -> flat (файл-маркер flat-скила)
+//   - GetByPathUp("/home/u/skills/a/guide/docs/x.md") -> guide (путь ОС
+//     сначала переводится в "a/guide/docs/x.md", см. cleanRelative)
+//   - GetByPathUp("a")          -> ErrSkillNotCached ("a" выше скила, а не в нём)
+//   - GetByPathUp("x/notes.md") -> ErrSkillNotCached (ни одна папка-родитель
+//     не папка загруженного скила)
 func (c *SkillCatalog) GetByPathUp(ctx context.Context, key model.SourceKey, p string) (*entity.Skill, error) {
 	p, err := c.cachedRepoPath(ctx, key, p)
 	if err != nil {
@@ -85,7 +106,7 @@ func (c *SkillCatalog) GetByPathUp(ctx context.Context, key model.SourceKey, p s
 }
 
 // GetOrFetchByPath is GetByPath; on a cache miss it acquires key's
-// Repository, fetches every valid skill at or below start (fetchByPath)
+// Repository, fetches every valid skill at or below start (FetchByPath)
 // and remembers them (addPath). Invalid candidates are returned as
 // model.Issues next to the valid skills.
 func (c *SkillCatalog) GetOrFetchByPath(ctx context.Context, key model.SourceKey, start string) ([]*entity.Skill, error) {
@@ -97,7 +118,7 @@ func (c *SkillCatalog) GetOrFetchByPath(ctx context.Context, key model.SourceKey
 	if err != nil {
 		return nil, err
 	}
-	skills, issues := c.fetchByPath(ctx, repo, start)
+	skills, issues := c.FetchByPath(ctx, repo, start)
 	if len(issues) > 0 {
 		// Not a complete answer for start: remember only each valid skill
 		// at its own location, so a repeat call fetches again and reports
@@ -112,7 +133,7 @@ func (c *SkillCatalog) GetOrFetchByPath(ctx context.Context, key model.SourceKey
 }
 
 // GetOrFetchByPathUp is GetByPathUp; on a cache miss it acquires key's
-// Repository, fetches the skill whose folder holds p (fetchByPathUp) and
+// Repository, fetches the skill whose folder holds p (FetchByPathUp) and
 // remembers it (addPath).
 func (c *SkillCatalog) GetOrFetchByPathUp(ctx context.Context, key model.SourceKey, p string) (*entity.Skill, error) {
 	skill, err := c.GetByPathUp(ctx, key, p)
@@ -123,7 +144,7 @@ func (c *SkillCatalog) GetOrFetchByPathUp(ctx context.Context, key model.SourceK
 	if err != nil {
 		return nil, err
 	}
-	skill, err = c.fetchByPathUp(ctx, repo, p)
+	skill, err = c.FetchByPathUp(ctx, repo, p)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +174,10 @@ func (c *SkillCatalog) TryGetOrFetchByPathUp(ctx context.Context, key model.Sour
 // cachedRepoPath cleans p against key's already-acquired Repository
 // without acquiring it; a Repository not acquired yet holds no loaded
 // skill, so it fails with entity.ErrSkillNotCached.
+//
+// Примеры: для загруженного репозитория -- как cleanRelative
+// ("./a//b/" -> "a/b"); для незагруженного -- на любой путь
+// ErrSkillNotCached "source local:repo is not acquired".
 func (c *SkillCatalog) cachedRepoPath(ctx context.Context, key model.SourceKey, p string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -166,6 +191,10 @@ func (c *SkillCatalog) cachedRepoPath(ctx context.Context, key model.SourceKey, 
 
 // acquire gets key's Repository via Manager (fetched once, then cached)
 // and resolves p inside it (see normalizePath).
+//
+// Пример: acquire(key, "/home/u/skills/a/guide") -> (репозиторий, "a/guide")
+// -- первый вызов для key загружает репозиторий, следующие берут его из
+// кэша Manager.
 func (c *SkillCatalog) acquire(ctx context.Context, key model.SourceKey, p string) (*entity.Repository, string, error) {
 	repo, err := c.Manager.Get(ctx, key)
 	if err != nil {
@@ -182,6 +211,12 @@ func (c *SkillCatalog) acquire(ctx context.Context, key model.SourceKey, p strin
 // each skill as the answer for its own location (ownPath) -- so GetByPath
 // finds them by p or by a skill's folder, and GetByPathUp by any path
 // inside a skill's folder.
+//
+// Пример: addPath(key, ".", [guide (папка "a/guide"), flat ("b.skill.md")])
+// записывает три ключа:
+//   - "."          -> [guide, flat] (ответ на запрошенный путь)
+//   - "a/guide"    -> [guide]       (собственное место guide)
+//   - "b.skill.md" -> [flat]        (собственное место flat-скила)
 func (c *SkillCatalog) addPath(key model.SourceKey, p string, skills []*entity.Skill) {
 	if c.cachedByPath == nil {
 		c.cachedByPath = map[string][]*entity.Skill{}
@@ -192,8 +227,17 @@ func (c *SkillCatalog) addPath(key model.SourceKey, p string, skills []*entity.S
 	}
 }
 
-// skillAt returns the loaded skill whose own location (ownPath) is exactly
+// skillAt returns cached skill which register ad this SourceKey and repo path
 // p, or nil -- an entry for a requested path above skills is not one.
+//
+// Примеры (после addPath из примера выше):
+//   - skillAt("a/guide")      -> guide
+//   - skillAt("b.skill.md")   -> flat
+//   - skillAt(".")            -> nil: ключ есть, но это ответ на запрошенный
+//     путь, а не место какого-то скила
+//   - skillAt("a")            -> nil: ключа нет
+//   - skillAt("a/guide/docs") -> nil: папка внутри скила -- не его место
+//     (для этого есть GetByPathUp)
 func (c *SkillCatalog) skillAt(key model.SourceKey, p string) *entity.Skill {
 	for _, skill := range c.cachedByPath[entity.GetSkillKey(key, p)] {
 		if ownPath(skill) == p {
@@ -205,6 +249,15 @@ func (c *SkillCatalog) skillAt(key model.SourceKey, p string) *entity.Skill {
 
 // ownPath is a skill's own location: its folder, or its marker file for a
 // flat skill, which has no folder.
+// - for flat skill - it is path to skill file
+// - for dir skill - it is path to skill directory
+//
+// Примеры:
+//   - agent-dir скил, маркер "a/guide/SKILL.md"    -> "a/guide"
+//   - human-dir скил, маркер "h.skill/h.skill.md"  -> "h.skill"
+//   - flat-скил "b.skill.md"                       -> "b.skill.md"
+//   - flat-скил "f/f.skill.md"                     -> "f/f.skill.md"
+//   - скил в папке репозитория, маркер "SKILL.md"  -> "."
 func ownPath(s *entity.Skill) string {
 	if s.SkillDirPath != "" {
 		return s.SkillDirPath
@@ -212,13 +265,24 @@ func ownPath(s *entity.Skill) string {
 	return s.MainFilePath
 }
 
-// fetchByPath finds every valid skill at or below start inside repo: a
+// FetchByPath finds every valid skill at or below start inside repo --
+// start is a path from the repository folder, already resolved (see
+// normalizePath; GetOrFetchByPath does that before calling it): a
 // folder that is a skill's folder becomes one skill and is not searched
 // further, any other folder is searched into, a "*.skill.md" file outside
 // a skill's folder is a flat skill. A skill already loaded at its own
 // location is reused, not built again. Invalid candidates are returned as
 // issues; nothing is remembered (see addPath).
-func (c *SkillCatalog) fetchByPath(ctx context.Context, repo *entity.Repository, start string) ([]*entity.Skill, model.Issues) {
+//
+// Примеры (в репозитории: "a/guide/SKILL.md", "a/guide/docs/x.md",
+// "b.skill.md", "x/notes.md"):
+//   - FetchByPath(".")            -> [guide, flat] ("x" обойдена, скилов нет)
+//   - FetchByPath("a")            -> [guide]
+//   - FetchByPath("a/guide")      -> [guide] (start сам -- папка скила)
+//   - FetchByPath("b.skill.md")   -> [flat]
+//   - FetchByPath("a/guide/docs") -> [] -- ищет только вниз; скил, в папке
+//     которого лежит start, ищет FetchByPathUp
+func (c *SkillCatalog) FetchByPath(ctx context.Context, repo *entity.Repository, start string) ([]*entity.Skill, model.Issues) {
 	out := []*entity.Skill{}
 	var issues model.Issues
 	var scan func(string)
@@ -281,11 +345,29 @@ func (c *SkillCatalog) fetchByPath(ctx context.Context, repo *entity.Repository,
 	return out, issues
 }
 
-// fetchByPathUp finds the valid skill whose folder holds p inside repo: it
+// FetchByPathUp finds the valid skill whose folder holds p inside repo
+// -- p is a path from the repository folder, already resolved (see
+// normalizePath; GetOrFetchByPathUp does that before calling it): it
 // walks p's parent folders up to the repository folder until the first
 // skill's folder (or takes p itself when it is a flat "*.skill.md" skill).
 // Its neighbours are not loaded; nothing is remembered (see addPath).
-func (c *SkillCatalog) fetchByPathUp(ctx context.Context, repo *entity.Repository, p string) (*entity.Skill, error) {
+//
+// Примеры (в репозитории: "a/guide/SKILL.md", "a/guide/docs/x.md",
+// "b.skill.md", "h.skill/h.skill.md", "f/f.skill.md", "x/one/SKILL.md",
+// "x/notes.md"):
+//   - FetchByPathUp("a/guide/docs/x.md") -> guide: проверены папки
+//     "a/guide/docs" (не скил), "a/guide" (скил)
+//   - FetchByPathUp("a/guide/SKILL.md") -> guide: первой проверяется папка
+//     файла, "a/guide" -- agent-dir скил
+//   - FetchByPathUp("a/guide")          -> guide (папка сама -- скил)
+//   - FetchByPathUp("h.skill/h.skill.md") -> human-dir скил в папке
+//     "h.skill": файл назван по папке, значит это её маркер, а не flat-скил
+//   - FetchByPathUp("b.skill.md")   -> flat-скил "b.skill.md"
+//   - FetchByPathUp("f/f.skill.md") -> flat-скил "f/f.skill.md": папка "f"
+//     не "*.skill", значит "f.skill.md" в ней -- не маркер human-dir скила
+//   - FetchByPathUp("x/notes.md")   -> "skill-not-found": проверены "x" и
+//     "."; "x/one" -- соседняя папка, а не родитель
+func (c *SkillCatalog) FetchByPathUp(ctx context.Context, repo *entity.Repository, p string) (*entity.Skill, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -343,6 +425,14 @@ func validate(skill *entity.Skill) *model.Issue {
 // if none is found. A marker under skipFolders is deliberately not
 // flagged -- that folder is still part of the owning skill and copied
 // along with it (see DefaultSkipFolders), not a validation failure.
+//
+// Примеры (пути файлов -- от папки скила, skipFolders = ["examples"]):
+//   - ["docs/a.md", "b/SKILL.md"]   -> "b/SKILL.md"
+//   - ["docs/x.skill.md"]           -> "docs/x.skill.md"
+//   - ["examples/demo/SKILL.md"]    -> "" (верхняя папка "examples" пропущена)
+//   - ["docs/examples/SKILL.md"]    -> "docs/examples/SKILL.md" (пропускается
+//     только папка верхнего уровня)
+//   - ["notSKILL.md", "a.skill.md.bak"] -> "" (имена не маркеры)
 func nestedSkillPath(files []*entity.File, skipFolders []string) string {
 	for _, f := range files {
 		relPath, err := f.Path(model.SkillRelative)
@@ -374,9 +464,22 @@ func nestedSkillPath(files []*entity.File, skipFolders []string) string {
 // isSkillDir tests whether dir is a directory skill's root -- the shallow,
 // single-level marker check only (mirrors Detector.Rooted's first
 // fs.ReadDir loop); the deep nested-file walk is Skill.FilesByPath's job
-// (a pure lister) and nested-skill detection is accept's own job over its
-// result (nestedSkillPath), both triggered by accept once the Skill
+// (a pure lister) and nested-skill detection is validate's own job over its
+// result (nestedSkillPath), both triggered by validate once the Skill
 // exists.
+//
+// Примеры (содержимое папки dir -> результат):
+//   - "a/guide" с "SKILL.md"           -> agent-dir скил, маркер "a/guide/SKILL.md"
+//   - "h.skill" с "h.skill.md"         -> human-dir скил, маркер "h.skill/h.skill.md"
+//   - "o.skill" только с "other.skill.md" -> nil: маркер human-dir должен
+//     называться по папке ("o.skill.md")
+//   - "f" с "f.skill.md"               -> nil: папка не "*.skill", это flat-скил,
+//     его находит обход как файл
+//   - "p" только с подпапкой "q/SKILL.md" -> nil: вглубь не смотрит
+//   - "c1.skill" с "SKILL.md" и "c1.skill.md" -> "pattern-conflict: multiple
+//     directory markers"
+//   - "c2" с "SKILL.md" и "other.skill.md"    -> "pattern-conflict: directory
+//     marker and flat skill"
 func (c *SkillCatalog) isSkillDir(repo *entity.Repository, dir string) (*entity.Skill, error) {
 	entries, err := fs.ReadDir(repo.FS, dir)
 	if err != nil {
@@ -535,6 +638,18 @@ func (c *SkillCatalog) Destination(ctx context.Context, repoID, p string) (name,
 // cleanRelative resolves start into a clean, valid, repo-relative path --
 // pure path arithmetic, no filesystem access, so a cache hit on the result
 // costs nothing beyond it.
+//
+// Примеры (репозиторий в ОС лежит в "/home/u/skills"):
+//   - "a/b"                -> "a/b"
+//   - "./a//b/"            -> "a/b"
+//   - "a/../b"             -> "b"
+//   - "" или "."           -> "." (папка репозитория)
+//   - "/home/u/skills/a/b" -> "a/b" (путь ОС внутри репозитория)
+//   - "/home/u/skills"     -> "."
+//   - "../x"               -> ошибка `unsafe subpath "../x"`
+//   - "/home/u/other/x"    -> ошибка `unsafe subpath "../other/x"` (вне репозитория)
+//   - `a\b` (на Linux)     -> ошибка `unsafe subpath "a\\b"`
+//   - "/abs" при пустом пути репозитория в ОС -> ошибка filepath.Rel
 func cleanRelative(repo *entity.Repository, start string) (string, error) {
 	if filepath.IsAbs(start) {
 		rel, err := filepath.Rel(repo.RootPath, start)
@@ -552,6 +667,13 @@ func cleanRelative(repo *entity.Repository, start string) (string, error) {
 
 // normalizePath resolves start into a clean, valid, repo-relative path safe to
 // pass to repo.FS, additionally confirming it exists.
+//
+// Примеры (репозиторий "local:repo" в ОС лежит в "/home/u/skills", в нём
+// есть "a/guide/docs/x.md"):
+//   - "a/guide"                          -> "a/guide"
+//   - "/home/u/skills/a/guide/docs/x.md" -> "a/guide/docs/x.md"
+//   - "a/missing" -> ошибка `subpath "a/missing" does not exist in repository "local:repo"`
+//   - "../x"      -> ошибка `unsafe subpath "../x"` (как у cleanRelative)
 func normalizePath(repo *entity.Repository, start string) (string, error) {
 	start, err := cleanRelative(repo, start)
 	if err != nil {

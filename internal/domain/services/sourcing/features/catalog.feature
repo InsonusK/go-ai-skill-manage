@@ -1,48 +1,4 @@
-Feature: SkillCatalog finds and validates skills by path
- Scenario Outline: Skill formats and structural validation
-  Given a source tree
-   """
-   <files>
-   """
-  When I get or add skills at "."
-  Then found names are "<names>" and catalog error contains "<error>"
-  Examples:
-   | files | names | error |
-   | {"one.skill.md":"---\\nname: one\\n---\\nBody"} | one | |
-   | {"a/SKILL.md":"---\\nname: one\\n---\\nBody","a/data.txt":"data"} | one | |
-   | {"a/a.skill.md":"---\\nname: one\\n---\\nBody"} | one | |
-   | {"a/SKILL.md":"---\\nname: one\\n---\\n","a/a.skill.md":"---\\nname: two\\n---\\n"} | | pattern-conflict |
-   | {"a/SKILL.md":"---\\nname: one\\n---\\n","a/b/SKILL.md":"---\\nname: two\\n---\\n"} | | nested-skill |
-   | {"a.skill.md":"---\\nname: Bad Name\\n---\\n"} | | invalid-name |
-   | {"README.md":"ordinary"} | | |
-
- Scenario: SkipFolders exempts a folder from nested-skill
-  Given a source tree
-   """
-   {"a/SKILL.md":"---\nname: one\n---\n","a/examples/b/SKILL.md":"---\nname: example\n---\n"}
-   """
-  And skip folders are "examples"
-  When I get or add skills at "."
-  Then found names are "one" and catalog error contains ""
-
- Scenario: Recursive discovery finds multiple skills and does not search inside a found skill's own directory
-  Given a source tree
-   """
-   {"a/SKILL.md":"---\nname: one\n---\n","b/SKILL.md":"---\nname: two\n---\n"}
-   """
-  When I get or add skills at "."
-  Then found names are "one,two" and catalog error contains ""
-
- Scenario: The found skill's file-list cache is already warm
-  Given a source tree
-   """
-   {"a/SKILL.md":"---\nname: one\n---\n","a/notes.md":"hi"}
-   """
-  When I get or add skills at "."
-  Then total directory reads so far are remembered
-  When I list files by path "" for skill "one"
-  Then no additional directories were read
-
+Feature: SkillCatalog answers from its cache and fetches on a miss
  Scenario: A repeated GetOrFetchByPath call for the same path reuses the already-resolved skill
   Given a source tree
    """
@@ -223,25 +179,25 @@ Feature: SkillCatalog finds and validates skills by path
   When I try to get or fetch the skill holding "a/docs/x.md"
   Then the catalog reports the skill is not cached
 
- Scenario Outline: TryGetOrFetchByPathUp with add relations on walks up to the first skill root
+ Scenario: TryGetOrFetchByPathUp with add relations on fetches the skill whose folder holds the path
   Given a source tree
    """
-   <files>
+   {"a/SKILL.md":"---\nname: one\n---\n","a/docs/x.md":"hi"}
    """
   And add relations is "true"
-  When I try to get or fetch the skill holding "<path>"
-  Then found names are "<names>" and catalog error contains "<error>"
-  Examples:
-   | files | path | names | error |
-   | {"a/SKILL.md":"---\\nname: one\\n---\\n","a/docs/deep/x.md":"hi"} | a/docs/deep/x.md | one | |
-   | {"a/SKILL.md":"---\\nname: one\\n---\\n","a/docs/x.md":"hi"} | a/docs | one | |
-   | {"a/SKILL.md":"---\\nname: one\\n---\\n"} | a/SKILL.md | one | |
-   | {"a.skill/a.skill.md":"---\\nname: one\\n---\\n"} | a.skill/a.skill.md | one | |
-   | {"one.skill.md":"---\\nname: one\\n---\\n"} | one.skill.md | one | |
-   | {"SKILL.md":"---\\nname: one\\n---\\n","x.md":"hi"} | x.md | one | |
-   | {"README.md":"hi"} | README.md | | skill-not-found |
-   | {"a/SKILL.md":"---\\nname: one\\n---\\n","a/b/SKILL.md":"---\\nname: two\\n---\\n","a/x.md":"hi"} | a/x.md | | nested-skill |
-   | {"a/SKILL.md":"---\\nname: one\\n---\\n"} | a/missing.md | | does not exist |
+  When I try to get or fetch the skill holding "a/docs/x.md"
+  Then found names are "one" and catalog error contains ""
+  When I get the cached skill holding "a/docs/x.md"
+  Then found names are "one" and catalog error contains ""
+
+ Scenario: TryGetOrFetchByPathUp with add relations on refuses a path missing from the repository
+  Given a source tree
+   """
+   {"a/SKILL.md":"---\nname: one\n---\n"}
+   """
+  And add relations is "true"
+  When I try to get or fetch the skill holding "a/missing.md"
+  Then found names are "" and catalog error contains "does not exist"
 
  Scenario: TryGetOrFetchByPathUp fetches only the skill holding the path, not its neighbours
   Given a source tree

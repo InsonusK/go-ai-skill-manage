@@ -463,7 +463,7 @@ configuration.go` (`request` → экспортирован как `Request`),
   скила, соседние скилы не грузит. Бывший загружающий `GetByPath` —
   теперь `GetOrFetchByPath`.
 - Устройство `SkillCatalog`: `Get*` (только кэш, поиск **по ключу**) →
-  при `ErrSkillNotCached` приватные `fetchByPath`/`fetchByPathUp` (найти и
+  при `ErrSkillNotCached` публичные `FetchByPath`/`FetchByPathUp` (найти и
   провалидировать в `Repository`, ничего не запоминают) → `addPath`
   (запомнить). `GetOrFetch*` = `Get*` + fetch + `addPath`;
   `TryGetOrFetch*` = `Get*` при `AddRelations=false`, иначе `GetOrFetch*`.
@@ -487,3 +487,8 @@ configuration.go` (`request` → экспортирован как `Request`),
   этой правки). `links.Resolve` (старое разрешение путей для
   `relations`) — дублирует `Link.Path`, убрать вместе с переделкой
   `relations`.
+- **Открыто**: невалидное имя скила даёт разные коды: flat-скил —
+  `invalid-name`, скил-папка — `invalid-skill` (`isSkillDir` заворачивает
+  ошибку `MakeSkill` в общий код вместе с `pattern-conflict`). Тесты
+  `catalog.fetchByPath*.feature` проверяют текст `invalid skill name`,
+  общий для обоих; унифицировать код — отдельное решение.
