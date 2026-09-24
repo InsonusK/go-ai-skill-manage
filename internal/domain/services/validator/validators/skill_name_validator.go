@@ -1,4 +1,4 @@
-package validator
+package validators
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validators"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validator"
 )
 
 // SkillNameValidator checks that no two loaded skills share a name --
@@ -17,12 +17,12 @@ import (
 // loads while following links are checked too.
 type SkillNameValidator struct{}
 
-var _ validators.Validator = SkillNameValidator{}
+var _ validator.Validator = SkillNameValidator{}
 
 func (SkillNameValidator) Name() string { return "skill-name-validator" }
 
-func (SkillNameValidator) DependsOn() []validators.Dependency {
-	return []validators.Dependency{{Name: LinkValidator{}.Name(), IsRequired: false}}
+func (SkillNameValidator) DependsOn() []validator.Dependency {
+	return []validator.Dependency{{Name: LinkValidator{}.Name(), IsRequired: false}}
 }
 
 // Validate reports every skill whose name another loaded skill also has,

@@ -1,4 +1,4 @@
-package validator_test
+package validators_test
 
 import (
 	"context"
@@ -12,8 +12,8 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validators"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validators/validator"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validator"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validator/validators"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
 )
@@ -84,17 +84,17 @@ func initialize(sc *godog.ScenarioContext) {
 
 	// --- running validators
 	sc.Step(`^I validate links$`, func(ctx context.Context) error {
-		issues = validator.LinkValidator{SkipFolders: []string{"examples"}}.Validate(ctx, catalog)
+		issues = validators.LinkValidator{SkipFolders: []string{"examples"}}.Validate(ctx, catalog)
 		testsupport.Log("issues=%v", issues)
 		return nil
 	})
 	sc.Step(`^I validate skill names$`, func(ctx context.Context) error {
-		issues = validator.SkillNameValidator{}.Validate(ctx, catalog)
+		issues = validators.SkillNameValidator{}.Validate(ctx, catalog)
 		testsupport.Log("issues=%v", issues)
 		return nil
 	})
 	sc.Step(`^I validate links and then skill names$`, func(ctx context.Context) error {
-		m, err := validators.NewManager(validator.LinkValidator{SkipFolders: []string{"examples"}}, validator.SkillNameValidator{})
+		m, err := validator.NewManager(validators.LinkValidator{SkipFolders: []string{"examples"}}, validators.SkillNameValidator{})
 		if err != nil {
 			return err
 		}
@@ -103,18 +103,18 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I register validators "([^"]*)"$`, func(ctx context.Context, names string) error {
-		var list []validators.Validator
+		var list []validator.Validator
 		for _, name := range strings.Split(names, ",") {
 			switch name {
 			case "link-validator":
-				list = append(list, validator.LinkValidator{})
+				list = append(list, validators.LinkValidator{})
 			case "skill-name-validator":
-				list = append(list, validator.SkillNameValidator{})
+				list = append(list, validators.SkillNameValidator{})
 			default:
 				return fmt.Errorf("unknown validator %q", name)
 			}
 		}
-		_, registerErr = validators.NewManager(list...)
+		_, registerErr = validator.NewManager(list...)
 		testsupport.Log("error=%v", registerErr)
 		return nil
 	})

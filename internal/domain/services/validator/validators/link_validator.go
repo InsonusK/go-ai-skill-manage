@@ -1,4 +1,4 @@
-package validator
+package validators
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validators"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validator"
 )
 
 // LinkValidator checks that every link in the markdown files of the loaded
@@ -25,11 +25,11 @@ type LinkValidator struct {
 	SkipFolders []string
 }
 
-var _ validators.Validator = LinkValidator{}
+var _ validator.Validator = LinkValidator{}
 
 func (LinkValidator) Name() string { return "link-validator" }
 
-func (LinkValidator) DependsOn() []validators.Dependency { return nil }
+func (LinkValidator) DependsOn() []validator.Dependency { return nil }
 
 // Validate checks every loaded skill in load order, including the skills
 // loaded while following links -- catalog.Skills() lists them after the

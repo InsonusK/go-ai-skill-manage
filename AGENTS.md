@@ -58,7 +58,7 @@
   `LinkFactory` (реализует `entity.LinkSearcher`).
   `links.Resolve`/`InSkippedFolder` — старое разрешение путей для
   `relations`, дублирует `Link.Path`; убрать вместе с `relations`.
-- `services/validators`: см. раздел ниже.
+- `services/validator`: см. раздел ниже.
 
 ## `SkillCatalog`
 
@@ -101,16 +101,16 @@
   `path-escape`.
 - `Link.Skill` → `resolver.TryGetOrFetchByPathUp`.
 
-## Валидаторы (`services/validators`)
+## Валидаторы (`services/validator`)
 
-- `validators/validator.go`: `Validator{Name, DependsOn, Validate(ctx,
+- `validator/validator.go`: `Validator{Name, DependsOn, Validate(ctx,
   *sourcing.SkillCatalog) model.Issues}`, `Dependency{Name, IsRequired}`,
   `Manager`. `NewManager` **не сортирует** (порядок задаёт человек) и
   отказывает всеми нарушениями сразу: повтор имени, обязательная
   зависимость не зарегистрирована, зарегистрированная зависимость стоит
   после зависящего. `Validate` запускает все валидаторы по порядку, даже
   после найденных ошибок, и возвращает все `Issue`.
-- Реализации — подпакет `validators/validator`:
+- Реализации — подпакет `validator/validators`:
   - `LinkValidator{SkipFolders}` (`link-validator`): идёт по
     `catalog.Skills()` по индексу, поэтому догруженные по ссылкам скилы
     (`AddRelations=true`) проверяются тоже. Только `.md`-файлы, без
@@ -124,32 +124,60 @@
     каждый скил с неуникальным именем по всем источникам. Зависит от
     `link-validator` (`IsRequired=false`).
 
-## Следующий шаг: `services/validate.go` ⏳
+## Текущая задача: загрузка и проверка скилов по конфигу ⏳
 
-Задача пользователя: рядом с `sync.go` собрать `validate.go`, который по
-настройкам строит `SkillCatalog`, загружает скилы и валидирует их; на
-выходе — собранный каталог и список ошибок. Затем `validate.go` становится
-первой частью `sync.go`, и появляется отдельная команда для проверки
-конфигов без формирования итогового каталога скилов.
+Цель: обработчик, который по `model.Request` наполняет `SkillCatalog` и
+проверяет его; на выходе — каталог и все ошибки. Потом он становится
+первой частью `sync`, и появляется отдельная команда `validate` (вывод
+ошибок деревом, код выхода 1 при ошибках) — имя/флаги ещё обсудить.
 
-Что уже известно:
-- Вход — `model.Request` (`command.App.Request` резолвит его из опций и
-  конфига). Нужное из него: `Sources []SourceSpec` (`Subpaths`, `Tags`),
-  `AddRelations` → `SkillCatalog.AddRelations`, `LinkSkipFolders`
-  (по умолчанию `["examples"]`) → `LinkValidator.SkipFolders`.
-- Порядок: для каждого `SourceSpec` — `selector.Select` (первичная
-  загрузка), затем `validators.Manager` с `[link-validator,
-  skill-name-validator]`. `Select` должен отработать по **всем**
-  источникам до валидации (ссылки между источниками, дубли имён).
-- `SourceSelector` в `sync.go` объявлен как `Select(ctx, catalog, spec)`,
-  а реальный `selector.SkillSelector` — `Select(ctx, spec)` с каталогом в
-  поле: сигнатуры разошлись, привести к одной — часть шага.
+Принятые решения:
+- **Обработчики команд** — `internal/domain/handler`: только оркестрация
+  вызовов services/entity, минимум логики. Сюда переезжают `sync.go` и
+  новый `FetchAndValidateSkills` (не «Validate…»: это не чистый валидатор).
+- **`SourceSelector`** остаётся отдельным классом: ищет скилы по конфигу и
+  наполняет `SkillCatalog`. Обработчик логики поиска не содержит — зовёт
+  selector по **всем** источникам, затем `validator.Manager`
+  (`[link-validator, skill-name-validator]`).
+- **Ошибка загрузки источника** — `source-acquire` (`Source=key`), создаётся
+  в `catalog.acquire`; selector прекращает subpath только этого источника,
+  остальные источники работают. Несуществующий subpath — `missing-subpath`,
+  остальные subpath продолжаются. Код `discovery` уходит. `Source`
+  заполнен во всех ошибках selector.
+- **Папки, исключённые из проверок** (Go: `ExcludeFromChecks`): лежат в
+  каталоге и копируются со скилом, но ничего в них не проверяется (там
+  готовые примеры, часто со ссылками «в никуда»). Глобальная
+  `SetSkipFoldersInNestedChecker` удаляется; каталог получает
+  `ExcludeFromChecks map[SourceKey][]string`, без своего умолчания.
+  Умолчание `["examples"]` — одна константа в `model`, подставляется
+  слоем конфига, если раздела нет (с info-сообщением); пустой раздел —
+  ничего не исключать. Ключ YAML — новое понятное имя; старый
+  `skip_folder` читается с warning «устарело, переименуйте».
+- **Валидатор конфига** — `internal/config/validator` (как доменный:
+  `validator.go` + `validators/`), проверяет `model.Request` (значит, и
+  запрос из CLI-флагов). Проверки: `invalid-tags`, `duplicate-source`
+  (одинаковые SourceKey+Subpaths+Tags), `conflicting-exclude` (один
+  SourceKey с разными исключениями), `unsafe-subpath` (`..`, `\`),
+  `duplicate-target`. Запускается в `command` до обработчика (домен не
+  импортирует `config`). Логику `Manager` не дублировать — общий
+  дженерик `Manager[T]` для конфига и каталога.
+- **Ошибки**: у ошибок конфига и скилов разный набор полей, печатать их
+  будет один (ещё не написанный) сервис — нужен общий интерфейс с методом,
+  отдающим унифицированный формат для вывода.
 - В `main.go` нужно вызвать `entity.SetDefaultLinkSearcher(
   links.NewDefaultLinkFactory())`, иначе `File.Links()` — ошибка.
-- Открыто: `SourceSpec.SkipFolders` (per-source, конфиг `skip_folder`) не
-  используется нигде; `sourcing.SetSkipFoldersInNestedChecker` —
-  глобальная переменная пакета, в `main.go` не вызывается (действует
-  значение по умолчанию `["examples"]`). Решить, откуда её брать.
+
+Шаги (после каждого — стоп):
+1. ✅ Переименование: `services/validators` → `services/validator`,
+   `validators/validator` → `validator/validators`.
+2. Модель ошибок (интерфейс), `source-acquire`/`missing-subpath`, `Source`
+   в ошибках selector, `ExcludeFromChecks` (константа, переименования,
+   карта в каталоге, новый ключ YAML + warning, правка
+   `command/configuration.go`).
+3. Дженерик `Manager[T]` + валидатор конфига с проверками.
+4. `handler/FetchAndValidateSkills` + тесты (всё валидно; ошибки из
+   нескольких источников; add_relations on/off; дубли имён между
+   источниками); перенос `sync.go` в `handler`.
 
 ## Старые пакеты (ещё не переведены, не собираются)
 

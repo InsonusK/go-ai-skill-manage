@@ -1,4 +1,4 @@
-package validators_test
+package validator_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validators"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validator"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
 )
@@ -16,13 +16,13 @@ import (
 // records the order validators ran in.
 type fakeValidator struct {
 	name   string
-	deps   []validators.Dependency
+	deps   []validator.Dependency
 	issues model.Issues
 	ran    *[]string
 }
 
-func (f fakeValidator) Name() string                       { return f.name }
-func (f fakeValidator) DependsOn() []validators.Dependency { return f.deps }
+func (f fakeValidator) Name() string                      { return f.name }
+func (f fakeValidator) DependsOn() []validator.Dependency { return f.deps }
 func (f fakeValidator) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) model.Issues {
 	*f.ran = append(*f.ran, f.name)
 	return f.issues
@@ -31,7 +31,7 @@ func (f fakeValidator) Validate(ctx context.Context, catalog *sourcing.SkillCata
 func initialize(sc *godog.ScenarioContext) {
 	var fakes map[string]*fakeValidator
 	var ran []string
-	var manager *validators.Manager
+	var manager *validator.Manager
 	var registerErr error
 	var issues model.Issues
 
@@ -43,7 +43,7 @@ func initialize(sc *godog.ScenarioContext) {
 		f := &fakeValidator{name: name, ran: &ran}
 		for _, dep := range strings.Split(deps, ",") {
 			if dep != "" {
-				f.deps = append(f.deps, validators.Dependency{Name: dep, IsRequired: kind == "required"})
+				f.deps = append(f.deps, validator.Dependency{Name: dep, IsRequired: kind == "required"})
 			}
 		}
 		for _, code := range strings.Split(codes, ",") {
@@ -55,7 +55,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I register validators "([^"]*)"$`, func(ctx context.Context, names string) error {
-		var list []validators.Validator
+		var list []validator.Validator
 		for _, name := range strings.Split(names, ",") {
 			f, ok := fakes[name]
 			if !ok {
@@ -63,7 +63,7 @@ func initialize(sc *godog.ScenarioContext) {
 			}
 			list = append(list, *f)
 		}
-		manager, registerErr = validators.NewManager(list...)
+		manager, registerErr = validator.NewManager(list...)
 		testsupport.Log("error=%v", registerErr)
 		return nil
 	})
