@@ -1,12 +1,15 @@
 package entity
 
-import "maps"
+import "fmt"
 
 // TargetSkill is a skill as it is going to be written into a target. It is
 // a layer over the skill below it -- the source Skill, or, in a catalog
 // cloned for one target, the base catalog's TargetSkill -- and holds only
 // what a transformer changed; everything else is read through the layer
 // below. Nothing of the source is copied or read until asked for.
+//
+// The skill's document (frontmatter and body) is not a field of its own:
+// it is always its marker file's content, so the two can't disagree.
 //
 // Пример: базовый слой переложил скил "guide" из "a/guide" в "guide"
 // (SetSkillDirPath); слой для .claude/skills поверх него поменял только
@@ -18,7 +21,6 @@ type TargetSkill struct {
 
 	name, mainFilePath, skillDirPath *string
 	format                           *SkillFormat
-	document                         *SkillDocument
 
 	// mainFile and files are this layer's files, built on first access from
 	// the layer below; nil until then.
@@ -55,19 +57,32 @@ func (s *TargetSkill) Format() SkillFormat {
 	return layered(s.format, s.parent, (*TargetSkill).Format, s.origin.Format)
 }
 
-// Document returns the skill's frontmatter and body. Its Properties map is
-// a copy: changing it changes nothing until SetDocument.
-func (s *TargetSkill) Document() SkillDocument {
-	doc := layered(s.document, s.parent, (*TargetSkill).Document, s.origin.Document)
-	doc.Properties = maps.Clone(doc.Properties)
-	return doc
+// Document parses the skill's marker file as it is now into its
+// frontmatter and body. Changing the result changes nothing until
+// SetDocument.
+func (s *TargetSkill) Document() (SkillDocument, error) {
+	content, err := s.MainFile().Content()
+	if err != nil {
+		return SkillDocument{}, err
+	}
+	return MakeSkillDocument(content)
 }
 
-func (s *TargetSkill) SetName(name string)           { s.name = &name }
-func (s *TargetSkill) SetMainFilePath(p string)      { s.mainFilePath = &p }
-func (s *TargetSkill) SetSkillDirPath(p string)      { s.skillDirPath = &p }
-func (s *TargetSkill) SetFormat(format SkillFormat)  { s.format = &format }
-func (s *TargetSkill) SetDocument(doc SkillDocument) { s.document = &doc }
+// SetDocument writes doc into the skill's marker file. The frontmatter is
+// encoded anew: its keys come out sorted, YAML comments are lost.
+func (s *TargetSkill) SetDocument(doc SkillDocument) error {
+	content, err := doc.Encode()
+	if err != nil {
+		return fmt.Errorf("skill %s: %w", s.Name(), err)
+	}
+	s.MainFile().SetContent(content)
+	return nil
+}
+
+func (s *TargetSkill) SetName(name string)          { s.name = &name }
+func (s *TargetSkill) SetMainFilePath(p string)     { s.mainFilePath = &p }
+func (s *TargetSkill) SetSkillDirPath(p string)     { s.skillDirPath = &p }
+func (s *TargetSkill) SetFormat(format SkillFormat) { s.format = &format }
 
 // MainFile is the skill's marker file in this layer.
 func (s *TargetSkill) MainFile() *TargetFile {

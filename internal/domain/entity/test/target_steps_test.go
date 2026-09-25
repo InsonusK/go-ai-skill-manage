@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"path"
+	"strconv"
 	"strings"
 	"testing/fstest"
 
@@ -24,6 +26,7 @@ type targetSkillView struct {
 
 func registerTargetSteps(sc *godog.ScenarioContext) {
 	var sources []*entity.Skill
+	var sourceTree fstest.MapFS
 	var counts map[string]int
 	var openedBefore int
 	catalogs := map[string]*entity.TargetSkillCatalog{}
@@ -74,8 +77,9 @@ func registerTargetSteps(sc *godog.ScenarioContext) {
 		}
 		tree := fstest.MapFS{}
 		for p, v := range raw {
-			tree[p] = &fstest.MapFile{Data: []byte(v)}
+			tree[p] = &fstest.MapFile{Data: []byte(v), Mode: 0o644}
 		}
+		sourceTree = tree
 		counts = map[string]int{}
 		repo := &entity.Repository{Key: model.SourceKey{Type: "local", Path: "repo"}, RootPath: "/repo", FS: countingFS{files: tree, counts: counts}}
 		sources = nil
@@ -96,6 +100,46 @@ func registerTargetSteps(sc *godog.ScenarioContext) {
 		}
 		testsupport.Log("files=%v", raw)
 		return nil
+	})
+	sc.Step(`^source file "([^"]*)" has mode "([0-7]+)"$`, func(ctx context.Context, p, mode string) error {
+		m, err := strconv.ParseUint(mode, 8, 32)
+		if err != nil {
+			return err
+		}
+		sourceTree[p].Mode = fs.FileMode(m)
+		return nil
+	})
+	sc.Step(`^in the "([^"]*)" catalog I set the mode of file "([^"]*)" of "([^"]*)" to "([0-7]+)"$`, func(ctx context.Context, layer, p, name, mode string) error {
+		f, err := targetFile(layer, name, p)
+		if err != nil {
+			return err
+		}
+		m, err := strconv.ParseUint(mode, 8, 32)
+		if err != nil {
+			return err
+		}
+		f.SetMode(fs.FileMode(m))
+		return nil
+	})
+	// the file modes are: "{path}" -> octal mode, for every file of the skill.
+	sc.Step(`^in the "([^"]*)" catalog the file modes of "([^"]*)" are$`, func(ctx context.Context, layer, name string, d *godog.DocString) error {
+		s, err := targetSkill(layer, name)
+		if err != nil {
+			return err
+		}
+		files, err := s.Files()
+		if err != nil {
+			return err
+		}
+		got := map[string]string{}
+		for _, f := range append([]*entity.TargetFile{s.MainFile()}, files...) {
+			mode, err := f.Mode()
+			if err != nil {
+				return err
+			}
+			got[f.Path()] = fmt.Sprintf("%o", mode.Perm())
+		}
+		return testsupport.JSON(got, d)
 	})
 	sc.Step(`^I remember how many files were opened$`, func(ctx context.Context) error {
 		openedBefore = opened()
@@ -136,17 +180,23 @@ func registerTargetSteps(sc *godog.ScenarioContext) {
 		if err != nil {
 			return err
 		}
-		doc := s.Document()
+		doc, err := s.Document()
+		if err != nil {
+			return err
+		}
 		doc.Properties["description"] = value
-		s.SetDocument(doc)
-		return nil
+		return s.SetDocument(doc)
 	})
 	sc.Step(`^in the "([^"]*)" catalog I change the description of "([^"]*)" to "([^"]*)" without setting the document$`, func(ctx context.Context, layer, name, value string) error {
 		s, err := targetSkill(layer, name)
 		if err != nil {
 			return err
 		}
-		s.Document().Properties["description"] = value
+		doc, err := s.Document()
+		if err != nil {
+			return err
+		}
+		doc.Properties["description"] = value
 		return nil
 	})
 	sc.Step(`^in the "([^"]*)" catalog I set the (path|content) of file "([^"]*)" of "([^"]*)" to "([^"]*)"$`, func(ctx context.Context, layer, field, p, name, value string) error {
@@ -157,7 +207,7 @@ func registerTargetSteps(sc *godog.ScenarioContext) {
 		if field == "path" {
 			f.SetPath(value)
 		} else {
-			f.SetContent([]byte(value))
+			f.SetContent([]byte(strings.ReplaceAll(value, `\n`, "\n")))
 		}
 		return nil
 	})
@@ -179,7 +229,11 @@ func registerTargetSteps(sc *godog.ScenarioContext) {
 		if err != nil {
 			return err
 		}
-		view := targetSkillView{Name: s.Name(), MainFilePath: s.MainFilePath(), SkillDirPath: s.SkillDirPath(), Format: string(s.Format()), Description: s.Document().Properties["description"], Files: map[string]string{}}
+		doc, err := s.Document()
+		if err != nil {
+			return err
+		}
+		view := targetSkillView{Name: s.Name(), MainFilePath: s.MainFilePath(), SkillDirPath: s.SkillDirPath(), Format: string(s.Format()), Description: doc.Properties["description"], Files: map[string]string{}}
 		for _, f := range append([]*entity.TargetFile{s.MainFile()}, files...) {
 			content, err := f.Content()
 			if err != nil {

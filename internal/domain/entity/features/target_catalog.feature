@@ -38,12 +38,11 @@ Feature: A target skill catalog is a layer over the source skills
   And in the "base" catalog I set the main file path of "f" to "flat/SKILL.md"
   And in the "base" catalog I set the format of "f" to "agent-dir"
   And in the "base" catalog I set the path of file "f.skill.md" of "f" to "SKILL.md"
-  And in the "base" catalog I set the content of file "SKILL.md" of "f" to "changed"
   And in the "base" catalog I set the description of "f" to "new"
   Then in the "base" catalog "f" is
    """
    {"Name":"flat","MainFilePath":"flat/SKILL.md","SkillDirPath":"flat","Format":"agent-dir","Description":"new",
-    "Files":{"SKILL.md":"changed"}}
+    "Files":{"SKILL.md":"---\ndescription: new\nname: f\n---\n"}}
    """
   And the source skill "f" is
    """
@@ -51,7 +50,7 @@ Feature: A target skill catalog is a layer over the source skills
     "Files":{"f.skill.md":"---\nname: f\n---\n"}}
    """
 
- Scenario: The document a target skill returns is a copy until it is set back
+ Scenario: The document a target skill returns changes nothing until it is set back
   When I make the base target catalog
   And in the "base" catalog I change the description of "guide" to "lost" without setting the document
   Then in the "base" catalog "guide" is
@@ -67,12 +66,11 @@ Feature: A target skill catalog is a layer over the source skills
   And I clone the base target catalog as "claude"
   And I clone the base target catalog as "agents"
   And in the "claude" catalog I set the description of "guide" to "claude"
-  And in the "claude" catalog I set the content of file "SKILL.md" of "guide" to "claude main"
   And in the "agents" catalog I set the content of file "docs/x.md" of "guide" to "agents x"
   Then in the "claude" catalog "guide" is
    """
    {"Name":"guide","MainFilePath":"a/guide/SKILL.md","SkillDirPath":"guide","Format":"agent-dir","Description":"claude",
-    "Files":{"SKILL.md":"claude main","docs/x.md":"base x"}}
+    "Files":{"SKILL.md":"---\ndescription: claude\nname: guide\n---\n","docs/x.md":"base x"}}
    """
   And in the "agents" catalog "guide" is
    """
@@ -124,3 +122,29 @@ Feature: A target skill catalog is a layer over the source skills
   And the "claude" catalog records "claude-when-to-use" as applied
   Then the "claude" catalog has applied "flat,claude-when-to-use"
   And the "base" catalog has applied "flat"
+
+ Scenario: The document is always the marker file's current content
+  When I make the base target catalog
+  And in the "base" catalog I set the content of file "SKILL.md" of "guide" to "---\nname: guide\ndescription: edited\n---\n"
+  Then in the "base" catalog "guide" is
+   """
+   {"Name":"guide","MainFilePath":"a/guide/SKILL.md","SkillDirPath":"a/guide","Format":"agent-dir","Description":"edited",
+    "Files":{"SKILL.md":"---\nname: guide\ndescription: edited\n---\n","docs/x.md":"x"}}
+   """
+
+ Scenario: A file keeps its source mode through the layers unless a layer sets one
+  Given source file "a/guide/docs/x.md" has mode "755"
+  When I make the base target catalog
+  And in the "base" catalog I add file "added.md" with "a" to "guide"
+  And in the "base" catalog I add file "added.sh" with "b" to "guide"
+  And in the "base" catalog I set the mode of file "added.sh" of "guide" to "700"
+  And I clone the base target catalog as "claude"
+  And in the "claude" catalog I set the mode of file "SKILL.md" of "guide" to "600"
+  Then in the "claude" catalog the file modes of "guide" are
+   """
+   {"SKILL.md":"600","docs/x.md":"755","added.md":"644","added.sh":"700"}
+   """
+  And in the "base" catalog the file modes of "guide" are
+   """
+   {"SKILL.md":"644","docs/x.md":"755","added.md":"644","added.sh":"700"}
+   """

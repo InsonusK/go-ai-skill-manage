@@ -1,5 +1,11 @@
 package entity
 
+import "io/fs"
+
+// DefaultTargetFileMode is the mode of a file added in a target, which has
+// no source file to take one from.
+const DefaultTargetFileMode fs.FileMode = 0o644
+
 // TargetFile is a file of a TargetSkill: a layer over the file below it --
 // the source File, or the base catalog's TargetFile -- holding only what a
 // transformer changed. A file added in a target (e.g. the managed-state
@@ -9,6 +15,7 @@ type TargetFile struct {
 	parent *TargetFile
 
 	path *string
+	mode *fs.FileMode
 	// content is this layer's content; nil means the layer below's.
 	content []byte
 }
@@ -45,6 +52,23 @@ func (f *TargetFile) Content() ([]byte, error) {
 	}
 	return []byte{}, nil
 }
+
+// Mode is the file's mode: the source file's (executable scripts stay
+// executable) unless a layer set one, DefaultTargetFileMode for a file
+// added in a target.
+func (f *TargetFile) Mode() (fs.FileMode, error) {
+	switch {
+	case f.mode != nil:
+		return *f.mode, nil
+	case f.parent != nil:
+		return f.parent.Mode()
+	case f.origin != nil:
+		return f.origin.Mode()
+	}
+	return DefaultTargetFileMode, nil
+}
+
+func (f *TargetFile) SetMode(mode fs.FileMode) { f.mode = &mode }
 
 // Changed reports whether this layer or one below changed the content,
 // i.e. whether it may differ from the source file's.

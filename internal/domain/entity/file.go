@@ -27,6 +27,7 @@ func SetDefaultLinkSearcher(ls LinkSearcher) {
 // its owning Skill so it can resolve/read its own content lazily.
 type File struct {
 	data []byte
+	mode *fs.FileMode
 
 	path  string
 	links []*Link
@@ -49,6 +50,20 @@ func (f *File) Content() ([]byte, error) {
 		f.data = data
 	}
 	return f.data, nil
+}
+
+// Mode returns f's mode (permissions included) in its source repository,
+// reading it on first call only.
+func (f *File) Mode() (fs.FileMode, error) {
+	if f.mode == nil {
+		info, err := fs.Stat(f.skill.Repo.FS, path.Join(f.skill.SkillDirPath, f.path))
+		if err != nil {
+			return 0, err
+		}
+		mode := info.Mode()
+		f.mode = &mode
+	}
+	return *f.mode, nil
 }
 
 // Path returns this file's path in form kind; SkillRelative starts from
