@@ -1,4 +1,4 @@
-package transform_test
+package transformers_test
 
 import (
 	"testing"

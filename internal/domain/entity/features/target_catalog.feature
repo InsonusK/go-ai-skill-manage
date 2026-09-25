@@ -106,3 +106,21 @@ Feature: A target skill catalog is a layer over the source skills
    {"Name":"h","MainFilePath":"h.skill/h.skill.md","SkillDirPath":"h.skill","Format":"human-dir","Description":null,
     "Files":{"h.skill.md":"---\nname: h\n---\n","y.md":"y"}}
    """
+
+ Scenario: A file is changed when its layer or one below changed its content
+  When I make the base target catalog
+  And in the "base" catalog I set the content of file "docs/x.md" of "guide" to "base x"
+  And I clone the base target catalog as "claude"
+  And in the "claude" catalog I set the content of file "y.md" of "h" to "claude y"
+  Then in the "claude" catalog file "docs/x.md" of "guide" is changed
+  And in the "claude" catalog file "y.md" of "h" is changed
+  And in the "base" catalog file "y.md" of "h" is unchanged
+  And in the "claude" catalog file "SKILL.md" of "guide" is unchanged
+
+ Scenario: A clone starts with the transformers applied to the base and records its own apart
+  When I make the base target catalog
+  And the "base" catalog records "flat" as applied
+  And I clone the base target catalog as "claude"
+  And the "claude" catalog records "claude-when-to-use" as applied
+  Then the "claude" catalog has applied "flat,claude-when-to-use"
+  And the "base" catalog has applied "flat"

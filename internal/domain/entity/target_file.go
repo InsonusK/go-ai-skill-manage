@@ -46,6 +46,12 @@ func (f *TargetFile) Content() ([]byte, error) {
 	return []byte{}, nil
 }
 
+// Changed reports whether this layer or one below changed the content,
+// i.e. whether it may differ from the source file's.
+func (f *TargetFile) Changed() bool {
+	return f.content != nil || f.parent != nil && f.parent.Changed()
+}
+
 func (f *TargetFile) SetPath(p string) { f.path = &p }
 
 func (f *TargetFile) SetContent(content []byte) {

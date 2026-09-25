@@ -11,6 +11,9 @@ package entity
 // -- правки в claude не видны ни в base, ни в agents.
 type TargetSkillCatalog struct {
 	skills []*TargetSkill
+	// applied names the transformers applied to this catalog so far, those
+	// applied before it was cloned included.
+	applied []string
 }
 
 // NewTargetSkillCatalog layers a target skill over each of skills. It reads
@@ -33,9 +36,15 @@ func (c *TargetSkillCatalog) Skills() []*TargetSkill {
 // a skill's files from c on first access and doesn't see files added to c
 // afterwards.
 func (c *TargetSkillCatalog) Clone() *TargetSkillCatalog {
-	out := &TargetSkillCatalog{}
+	out := &TargetSkillCatalog{applied: append([]string(nil), c.applied...)}
 	for _, s := range c.skills {
 		out.skills = append(out.skills, s.clone())
 	}
 	return out
 }
+
+// Applied names the transformers applied so far, in order.
+func (c *TargetSkillCatalog) Applied() []string { return append([]string(nil), c.applied...) }
+
+// AddApplied records that transformer name was applied.
+func (c *TargetSkillCatalog) AddApplied(name string) { c.applied = append(c.applied, name) }

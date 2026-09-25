@@ -74,7 +74,10 @@
   внизу), остальное читает сквозь слои геттерами. `NewTargetSkillCatalog(
   []*Skill)` ничего не читает; `Clone()` — новый слой на target;
   `Document()` отдаёт копию `Properties` (меняется только через
-  `SetDocument`); `AddFile` — файл без источника (`Origin() == nil`).
+  `SetDocument`); `AddFile` — файл без источника (`Origin() == nil`);
+  `TargetFile.Changed()` — менял ли содержимое этот слой или нижний;
+  `Applied()`/`AddApplied` — применённые трансформеры (клон начинает со
+  списка базового).
   Клон листает файлы базового слоя при первом обращении — базовый слой
   доделать до `Clone`. Тесты — `entity/features/target_catalog.feature`.
 - `services/sourcing`: `Manager` (acquire по `SourceKey`, кеш, `TempDir`
@@ -247,17 +250,28 @@
 трансформеры target по его адаптерам → запись в папку target.
 
 Принятые решения:
-- Трансформеры: `services/transformer` (конвейер, пишет имена
-  применённых) + `services/transformer/transformers`, по аналогии с
-  валидаторами. Неразрешимая после валидации ссылка — panic.
+- Трансформеры: `services/transform` — `Transformer{Name, Transform(ctx,
+  *TargetSkillCatalog) error}` и `Pipeline` (`NewPipeline` отказывает
+  повтору имени; `Run` по порядку, после каждого `AddApplied`, стоп на
+  первой ошибке — каталог тогда писать нельзя) — и
+  `services/transform/transformers`. Ошибка трансформера — сбой работы
+  (чтение файла); невалидный скил/ссылка после валидации — panic. Свой
+  конвейер, а не `validator.Manager`: трансформеры меняют каталог и
+  останавливаются на ошибке.
 - `FlatTransformer` — всегда и первым, в базовом слое: скил →
   `{target}/{name}/`, маркер (любого формата) → `{name}/SKILL.md`,
   остальные файлы — `{name}/<путь от папки скила>`. Ссылки в `.md`
-  переписываются по **текущему** содержимому (разбор заново) на новый
-  относительный путь; web-ссылки и ссылки-якоря не трогаются; в папках
-  `exclude_from_checks` ссылки не переписываются (их не проверяли).
-  Wikilink'и превращаются в markdown-ссылки. Общая папка `files/`
-  (старый код) не нужна: ссылки ведут только в загруженные скилы.
+  берутся из исходного файла (`Origin().Links()`, уже разобраны при
+  валидации): Flat первый, содержимое ещё исходное — файл с `Changed()`
+  → panic. Путь цели → новое место (`places.of`: маркер →
+  `{name}/SKILL.md`, папка/файл скила → `{name}/...`) → относительный
+  путь от нового места файла (`./x`, `../x`). В markdown меняется только
+  `(path#fragment)`, и только если отличается; wikilink'и → markdown
+  (`[[p]]` без текста → текст = имя файла, `[[#a]]` → `[a](#a)`);
+  web-ссылки и якоря не трогаются; в папках `exclude_from_checks` и не-
+  `.md` файлах ссылки не переписываются (их не проверяли). Картинка
+  внутри текста ссылки `[![i](x)](y)` отвергается уже разбором
+  (`link-overlap`). Общая папка `files/` (старый код) не нужна.
 - `ClaudeWhenToUseTransformer` (адаптер `claude-property-adapter`):
   `whenToUse` → нативное `when_to_use` (Claude Code дописывает его к
   `description`, лимит 1536 символов на оба; незнакомые поля молча
@@ -270,24 +284,24 @@
   сначала замерить скорость, возможно хватит распараллеливания).
 - `link-adapter` в конфиге теряет смысл (раскладка со ссылками всегда) —
   объявить устаревшим при подключении к конфигу.
-- Старые `services/transform` и `services/planning` заменяются новыми
-  пакетами, не чинятся.
+- Старый `services/transform` заменён; `services/planning` заменить
+  (не чинить) на шаге записи.
 
 Шаги (после каждого — стоп):
 1. ✅ `TargetSkillCatalog`/`TargetSkill`/`TargetFile` в `entity`
    (слои, `Clone`) + тесты.
-2. Конвейер трансформеров + `FlatTransformer`.
+2. ✅ Конвейер трансформеров + `FlatTransformer`.
 3. `ClaudeWhenToUseTransformer`.
 4. Маркер `.ai-skills-managed`.
 5. `sync`: каталог на target → трансформеры по адаптерам → запись.
 
 ## Старые пакеты (ещё не переведены, не собираются)
 
-`relations`, `planning`, `transform`, `command`, `cmd/ai-skill-manager`,
+`relations`, `planning`, `command`, `cmd/ai-skill-manager`,
 `infrastructure/filesystem`. Причины: пакеты `services/discovery` и
 `infrastructure/document` удалены; `relations`/`planning` работают со
-старым `model.SkillCatalogImpl` и `Skill.FileData`; `transform/links.go`
-обращается к `Link.Target` и `model.SkillDocument`, которых нет.
+старым `model.SkillCatalogImpl` и `Skill.FileData`, `planning` — ещё и со
+старым `transform.Rewrite`/`transform.Claude`, которых больше нет.
 `relations.Expander` по смыслу заменяется `LinkValidator` + `SkillCatalog`.
 
 `services/test` (проверка архитектуры домена) с переездом `sync.go`

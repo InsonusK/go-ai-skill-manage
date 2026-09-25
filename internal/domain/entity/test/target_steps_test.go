@@ -214,6 +214,20 @@ func registerTargetSteps(sc *godog.ScenarioContext) {
 		}
 		return fmt.Errorf("no source skill %q", name)
 	})
+	sc.Step(`^in the "([^"]*)" catalog file "([^"]*)" of "([^"]*)" is (changed|unchanged)$`, func(ctx context.Context, layer, p, name, state string) error {
+		f, err := targetFile(layer, name, p)
+		if err != nil {
+			return err
+		}
+		return testsupport.Equal(f.Changed(), state == "changed")
+	})
+	sc.Step(`^the "([^"]*)" catalog records "([^"]*)" as applied$`, func(ctx context.Context, layer, name string) error {
+		catalogs[layer].AddApplied(name)
+		return nil
+	})
+	sc.Step(`^the "([^"]*)" catalog has applied "([^"]*)"$`, func(ctx context.Context, layer, want string) error {
+		return testsupport.Equal(strings.Join(catalogs[layer].Applied(), ","), want)
+	})
 	sc.Step(`^in the "([^"]*)" catalog file "([^"]*)" of "([^"]*)" has no source file$`, func(ctx context.Context, layer, p, name string) error {
 		f, err := targetFile(layer, name, p)
 		if err != nil {
