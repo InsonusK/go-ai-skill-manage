@@ -67,6 +67,16 @@
   (`MakeLink`, `Path(ctx, kind, resolver)`, `Skill(ctx, resolver)`),
   интерфейс `SkillResolver` и `ErrSkillNotCached` (объявлены в `entity`,
   потому что `sourcing` импортирует `entity`).
+- `entity` (target): `TargetSkillCatalog`, `TargetSkill`, `TargetFile` —
+  скилы в том виде, в каком их запишут в target. Каждый — **слой** над
+  нижним: исходным `Skill`/`File` или (в клоне) базовым `TargetSkill`/
+  `TargetFile`; хранит только изменённое (поля — указатели, `nil` = как
+  внизу), остальное читает сквозь слои геттерами. `NewTargetSkillCatalog(
+  []*Skill)` ничего не читает; `Clone()` — новый слой на target;
+  `Document()` отдаёт копию `Properties` (меняется только через
+  `SetDocument`); `AddFile` — файл без источника (`Origin() == nil`).
+  Клон листает файлы базового слоя при первом обращении — базовый слой
+  доделать до `Clone`. Тесты — `entity/features/target_catalog.feature`.
 - `services/sourcing`: `Manager` (acquire по `SourceKey`, кеш, `TempDir`
   задаётся в `NewManager`), `SkillCatalog` (см. ниже).
 - `services/selector`: `SkillSelector{SkillCatalog}.Select(ctx, spec)
@@ -229,6 +239,48 @@
 4. ✅ `handler/fetch_and_validate_skills.go` + тесты; `sync.go` →
    `handler/sync.go` (заглушка). Фильтр тегов отложен.
 
+## Текущая задача: SkillCatalog → TargetSkillCatalog → target ⏳
+
+Схема `sync`: `FetchAndValidateSkills` → базовый `TargetSkillCatalog`
+(`NewTargetSkillCatalog(catalog.Skills())`) → общие трансформеры →
+`Clone()` на каждый target (`.agents/skills`, `.claude/skills`) →
+трансформеры target по его адаптерам → запись в папку target.
+
+Принятые решения:
+- Трансформеры: `services/transformer` (конвейер, пишет имена
+  применённых) + `services/transformer/transformers`, по аналогии с
+  валидаторами. Неразрешимая после валидации ссылка — panic.
+- `FlatTransformer` — всегда и первым, в базовом слое: скил →
+  `{target}/{name}/`, маркер (любого формата) → `{name}/SKILL.md`,
+  остальные файлы — `{name}/<путь от папки скила>`. Ссылки в `.md`
+  переписываются по **текущему** содержимому (разбор заново) на новый
+  относительный путь; web-ссылки и ссылки-якоря не трогаются; в папках
+  `exclude_from_checks` ссылки не переписываются (их не проверяли).
+  Wikilink'и превращаются в markdown-ссылки. Общая папка `files/`
+  (старый код) не нужна: ссылки ведут только в загруженные скилы.
+- `ClaudeWhenToUseTransformer` (адаптер `claude-property-adapter`):
+  `whenToUse` → нативное `when_to_use` (Claude Code дописывает его к
+  `description`, лимит 1536 символов на оба; незнакомые поля молча
+  игнорирует). Список → через `", "`; если оба поля есть — остаётся
+  `when_to_use`, warning, `whenToUse` не трогается.
+- Маркер `.ai-skills-managed` (`model.Marker`, имя не менять — по нему
+  распознаются уже синхронизированные папки) — трансформер, последний в
+  каждом target: источник, путь скила в источнике, применённые
+  трансформеры. **Hash отложен** (был для пропуска неизменённых скилов;
+  сначала замерить скорость, возможно хватит распараллеливания).
+- `link-adapter` в конфиге теряет смысл (раскладка со ссылками всегда) —
+  объявить устаревшим при подключении к конфигу.
+- Старые `services/transform` и `services/planning` заменяются новыми
+  пакетами, не чинятся.
+
+Шаги (после каждого — стоп):
+1. ✅ `TargetSkillCatalog`/`TargetSkill`/`TargetFile` в `entity`
+   (слои, `Clone`) + тесты.
+2. Конвейер трансформеров + `FlatTransformer`.
+3. `ClaudeWhenToUseTransformer`.
+4. Маркер `.ai-skills-managed`.
+5. `sync`: каталог на target → трансформеры по адаптерам → запись.
+
 ## Старые пакеты (ещё не переведены, не собираются)
 
 `relations`, `planning`, `transform`, `command`, `cmd/ai-skill-manager`,
@@ -271,7 +323,6 @@
   скил-папка — `invalid-skill` (`isSkillDir` заворачивает ошибку
   `MakeSkill` в общий код вместе с `pattern-conflict`). Тесты проверяют
   общий текст `invalid skill name`.
-- Где хранить скил после Transformers (постобработанный вид) — не решено.
 
 ## Имена: абстрактные термины, переименовать по ходу
 

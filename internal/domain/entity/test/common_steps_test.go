@@ -24,4 +24,5 @@ func initialize(sc *godog.ScenarioContext) {
 	registerSkillSteps(sc)
 	registerDocumentSteps(sc)
 	registerLinkSteps(sc)
+	registerTargetSteps(sc)
 }
