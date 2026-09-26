@@ -49,9 +49,12 @@ type OutputFile struct {
 	Data []byte
 	Mode fs.FileMode
 }
+
+// Managed is what a target folder holds under one name: whether there is
+// an entry at all (a folder, a file, a symlink) and whether it is a folder
+// this tool wrote (it has the Marker file).
 type Managed struct {
-	Hash, Version            string
-	Managed, Exists, HasMain bool
+	Exists, Managed bool
 }
 type Operation struct {
 	Name, Action, Reason, Hash string

@@ -1,119 +1,74 @@
+// Package planning decides what a sync does in a target folder before
+// anything is written (see Plan).
 package planning
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"sort"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/transform"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 )
 
-type Planner struct {
-	State interfaces.StateReader
-	Codec interfaces.DocumentCodec
-}
-
-func (p Planner) Plan(ctx context.Context, cat *model.SkillCatalogImpl, sources interfaces.RepositoryLookup, req model.Request, target model.Target) (model.TargetPlan, error) {
-	plan := model.TargetPlan{Target: target, Operations: []model.Operation{}}
-	layout, err := BuildLayout(ctx, cat, sources)
-	if err != nil {
-		return plan, err
-	}
-	plan.Shared = layout.Shared
-	prefix, err := filepath.Rel(req.Base, target.Path)
-	if err != nil {
-		return plan, err
-	}
-	destinations := map[string]string{}
-	for k, v := range layout.Paths {
-		destinations[k] = filepath.ToSlash(filepath.Join(prefix, filepath.FromSlash(v)))
-	}
-	state, err := p.State.Snapshot(ctx, target.Path)
-	if err != nil {
-		return plan, err
-	}
-	linkAdapter := slices.Contains(target.Adapters, "link-adapter")
-	claudeAdapter := slices.Contains(target.Adapters, "claude-property-adapter")
-	rewrite := func(f model.FileImpl, data []byte) ([]byte, error) {
-		if linkAdapter && len(f.Links) > 0 {
-			updated, err := transform.Rewrite(string(data), f.Links, destinations)
-			if err != nil {
-				return nil, err
-			}
-			return []byte(updated), nil
-		}
-		return data, nil
-	}
+// Plan decides what to do with each skill folder of target, without
+// writing anything. It compares catalog -- the skills as they are to be
+// written there, after the target's transformers -- with state, what the
+// target folder holds now: every entry of it by name, and whether it is a
+// folder this tool wrote (it has the marker file, model.Marker).
+//
+// For each skill of catalog, in catalog order, the folder named after it:
+//   - doesn't exist -> CreateTarget;
+//   - exists and has the marker -> UpdateTarget: the folder is replaced as
+//     a whole, so files the skill no longer has go away (there is no hash
+//     yet to skip a skill that didn't change);
+//   - exists without the marker (someone's own skill, or any file or
+//     symlink, of the same name) -> an "unmanaged-target" issue and no
+//     operation: this tool never overwrites what it didn't write.
+//
+// Then, with removeOrphans, every folder with the marker that no skill of
+// catalog has -> RemoveTarget, in name order. Entries without the marker
+// that no skill has are left alone.
+//
+// It only decides: a caller plans every target first and writes only if
+// no plan has issues, so a problem in one target leaves all of them
+// untouched; a dry run just reports the plans.
+//
+// Пример: в каталоге guide и review; в target лежат guide/ (с маркером),
+// old/ (с маркером), mine/ (без маркера):
+//   - removeOrphans=true  -> [update guide, create review, remove old]
+//   - removeOrphans=false -> [update guide, create review]
+//   - будь review/ без маркера -> [update guide, remove old] + проблема
+//     unmanaged-target для review
+func Plan(target model.Target, catalog *entity.TargetSkillCatalog, state map[string]model.Managed, removeOrphans bool) (entity.TargetPlan, issues.TargetIssues) {
+	plan := entity.TargetPlan{Target: target, Operations: []entity.TargetOperation{}}
+	var problems issues.TargetIssues
 	wanted := map[string]bool{}
-	for _, s := range cat.Skills {
-		if err := ctx.Err(); err != nil {
-			return plan, err
-		}
-		wanted[s.Name] = true
-		mainData, err := rewrite(s.MainFile, s.MainFile.Data)
-		if err != nil {
-			return plan, err
-		}
-		original, _ := s.Document.Properties["name"].(string)
-		if claudeAdapter || original != s.Name {
-			doc, err := p.Codec.Decode(mainData)
-			if err != nil {
-				return plan, err
-			}
-			doc.Properties["name"] = s.Name
-			if claudeAdapter {
-				doc = transform.Claude(doc)
-			}
-			mainData, err = p.Codec.Encode(doc)
-			if err != nil {
-				return plan, err
-			}
-		}
-		files := []model.OutputFile{{Path: s.MainFile.Path, Data: mainData, Mode: s.MainFile.Mode}}
-		for i := range s.Files {
-			raw, err := s.FileData(i)
-			if err != nil {
-				return plan, err
-			}
-			f := s.Files[i]
-			data, err := rewrite(f, raw)
-			if err != nil {
-				return plan, err
-			}
-			files = append(files, model.OutputFile{Path: f.Path, Data: data, Mode: f.Mode})
-		}
-		hash := Fingerprint(append(append([]model.OutputFile{}, files...), layout.Shared...))
-		existing := state[s.Name]
-		action, reason := "create", "missing"
-		if existing.Exists {
-			if !existing.Managed {
-				return plan, fmt.Errorf("unmanaged-target: %s", filepath.Join(target.Path, s.Name))
-			}
-			action, reason = "update", "content or transform changed"
-			if !req.Force && existing.HasMain && existing.Hash == hash && existing.Version == model.TransformVersion {
-				action, reason = "skip", "unchanged"
-			}
-			if req.Force {
-				reason = "forced"
-			}
-		}
-		plan.Operations = append(plan.Operations, model.Operation{Name: s.Name, Action: action, Reason: reason, Hash: hash, Files: files})
-	}
-	if req.RemoveOrphans {
-		names := []string{}
-		for name, s := range state {
-			if s.Managed && !wanted[name] {
-				names = append(names, name)
-			}
-		}
-		sort.Strings(names)
-		for _, name := range names {
-			plan.Operations = append(plan.Operations, model.Operation{Name: name, Action: "remove", Reason: "orphan"})
+	for _, s := range catalog.Skills() {
+		name := s.Name()
+		wanted[name] = true
+		entry := state[name]
+		switch {
+		case !entry.Exists:
+			plan.Operations = append(plan.Operations, entity.TargetOperation{Action: entity.CreateTarget, Name: name, Skill: s})
+		case entry.Managed:
+			plan.Operations = append(plan.Operations, entity.TargetOperation{Action: entity.UpdateTarget, Name: name, Skill: s})
+		default:
+			problems = append(problems, issues.TargetIssue{Code: "unmanaged-target", Target: target.Path, Skill: name, Message: fmt.Sprintf("%s exists but was not written by this tool (no %s): remove or rename it", filepath.Join(target.Path, name), model.Marker)})
 		}
 	}
-	return plan, nil
+	if removeOrphans {
+		orphans := []string{}
+		for name, entry := range state {
+			if entry.Managed && !wanted[name] {
+				orphans = append(orphans, name)
+			}
+		}
+		sort.Strings(orphans)
+		for _, name := range orphans {
+			plan.Operations = append(plan.Operations, entity.TargetOperation{Action: entity.RemoveTarget, Name: name})
+		}
+	}
+	return plan, problems
 }

@@ -2,7 +2,6 @@ package filesystem
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
@@ -11,12 +10,14 @@ import (
 	"path/filepath"
 )
 
+// Store reads and writes target folders: Snapshot for planning, Apply to
+// carry out a plan.
 type Store struct{}
-type savedState struct {
-	Hash    string `json:"hash"`
-	Version string `json:"version"`
-}
 
+// Snapshot lists what the target folder holds, by entry name: every entry
+// exists; a folder with a regular marker file (model.Marker) is managed.
+// Files and symlinks are never managed. A missing target folder holds
+// nothing.
 func (Store) Snapshot(ctx context.Context, target string) (map[string]model.Managed, error) {
 	state := map[string]model.Managed{}
 	if err := safeTarget(target); err != nil {
@@ -38,30 +39,17 @@ func (Store) Snapshot(ctx context.Context, target string) (map[string]model.Mana
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if !entry.IsDir() {
-			state[entry.Name()] = model.Managed{Exists: true}
-			continue
-		}
-		name := entry.Name()
 		item := model.Managed{Exists: true}
-		raw, err := root.ReadFile(filepath.Join(name, model.Marker))
-		if err == nil {
-			item.Managed = true
-			var saved savedState
-			if json.Unmarshal(raw, &saved) == nil {
-				item.Hash = saved.Hash
-				item.Version = saved.Version
+		if entry.IsDir() {
+			marker, err := root.Lstat(filepath.Join(entry.Name(), model.Marker))
+			switch {
+			case err == nil:
+				item.Managed = marker.Mode().IsRegular()
+			case !errors.Is(err, fs.ErrNotExist):
+				return nil, err
 			}
-		} else if !errors.Is(err, fs.ErrNotExist) {
-			return nil, err
 		}
-		info, err := root.Stat(filepath.Join(name, "SKILL.md"))
-		if err == nil {
-			item.HasMain = info.Mode().IsRegular()
-		} else if !errors.Is(err, fs.ErrNotExist) {
-			return nil, err
-		}
-		state[name] = item
+		state[entry.Name()] = item
 	}
 	return state, nil
 }

@@ -36,6 +36,15 @@ func initialize(sc *godog.ScenarioContext) {
 		issue, errText = i, i.Error()
 		return nil
 	})
+	sc.Step(`^a target issue (.+)$`, func(ctx context.Context, raw string) error {
+		var i issues.TargetIssue
+		testsupport.Log("issue=%s", raw)
+		if err := json.Unmarshal([]byte(raw), &i); err != nil {
+			return err
+		}
+		issue, errText = i, i.Error()
+		return nil
+	})
 	sc.Step(`^skill issues (.+)$`, func(ctx context.Context, raw string) error {
 		var list issues.SkillIssues
 		testsupport.Log("issues=%s", raw)

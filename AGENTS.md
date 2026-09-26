@@ -294,18 +294,31 @@
   он есть у папки, которую заменяет или удаляет. **Hash отложен** (был
   для пропуска неизменённых скилов; сначала замерить скорость, возможно
   хватит распараллеливания).
-- Запись: план на target по снимку папки — нет папки → `create`; папка с
-  маркером → `update` (без hash пропуска нет); папка без маркера (чужой
-  скил с тем же именем) → `unmanaged-target`; управляемая папка, которой
-  нет в каталоге → `remove` при `remove_orphans`. Все планы строятся до
-  первой записи; `dry_run` — только планы. Ошибки target —
-  `issues.TargetIssue{Code, Target, Skill, Message}` (`Where`: target →
-  skill). Режим файлов сохраняется (`File.Mode()`, исполняемые скрипты).
+- Запись, домен: `planning.Plan(target, catalog, state, removeOrphans)
+  (entity.TargetPlan, issues.TargetIssues)` — чистая функция (без ФС и
+  `ctx`), подробное описание — в её doc-комментарии. По снимку папки
+  (`model.Managed{Exists, Managed}` по имени): нет папки → `create`;
+  папка с маркером → `update` (целиком, без hash пропуска нет); что-то
+  без маркера (чужой скил, файл, symlink) → `unmanaged-target`, операции
+  нет; управляемая папка, которой нет в каталоге → `remove` (по имени) при
+  `remove_orphans`; немаркированное лишнее не трогается. Все планы
+  строятся до первой записи; `dry_run` — только планы. Типы плана —
+  `entity.TargetPlan{Target, Operations}`, `entity.TargetOperation{Action,
+  Name, Skill *TargetSkill}` (содержимое читается только при записи).
+  Ошибки — `issues.TargetIssue{Code, Target, Skill, Message}` (`Where`:
+  target → skill).
+- Запись, инфраструктура: `filesystem.Store` (`interfaces.StateReader`/
+  `PlanWriter`). `Snapshot`: маркер — обычный файл, symlink/файл/папка без
+  маркера — не управляемые. `Apply` исполняет план, но сам охраняет папку:
+  план проверяется до записи (имя папки — один элемент пути, пути файлов
+  внутри неё, **у каждого записываемого скила есть маркер**); заменяет и
+  удаляет только папки с маркером; пишет во временную папку и меняет
+  переименованием; target через symlink — отказ. Режим файла — точно как у
+  источника (`Chmod` после записи, мимо umask).
 - Устаревшие настройки (warning при подключении конфига): `force` (без
   hash ничего не меняет), `on_conflict: last_wins` (дубли имён — всегда
   ошибка валидации), адаптер `link-adapter`.
-- Старый `services/transform` заменён; `services/planning` заменить
-  (не чинить) на шаге записи.
+- Старые `services/transform` и `services/planning` заменены новыми.
 
 Шаги (после каждого — стоп):
 1. ✅ `TargetSkillCatalog`/`TargetSkill`/`TargetFile` в `entity`
@@ -314,19 +327,18 @@
 3. ✅ `ClaudeWhenToUseTransformer`; `Document()` из файла-маркера.
 4. ✅ Маркер `.ai-skills-managed`.
 5. ✅ Режимы файлов (`File.Mode()`, `TargetFile.Mode()`).
-6. Запись: планировщик в домене + `filesystem.Store` на новой модели.
+6. ✅ Запись: `planning.Plan` + `filesystem.Store` на новой модели.
 7. `handler/sync.go` целиком; оживить `sync.feature`.
-8. Уборка: `planning`, `relations`, `links.Resolve`/`InSkippedFolder`,
-   неиспользуемые порты и типы `model`.
+8. Уборка: `relations`, `links.Resolve`/`InSkippedFolder`,
+   неиспользуемые порты и типы `model` (`TargetPlan`/`Operation`/
+   `OutputFile`/`Result` — после перевода `sync.go`).
 Следующий этап — `command`/`cmd` (подключение, печать ошибок, `validate`).
 
 ## Старые пакеты (ещё не переведены, не собираются)
 
-`relations`, `planning`, `command`, `cmd/ai-skill-manager`,
-`infrastructure/filesystem`. Причины: пакеты `services/discovery` и
-`infrastructure/document` удалены; `relations`/`planning` работают со
-старым `model.SkillCatalogImpl` и `Skill.FileData`, `planning` — ещё и со
-старым `transform.Rewrite`/`transform.Claude`, которых больше нет.
+`relations`, `command`, `cmd/ai-skill-manager`. Причины: пакеты
+`services/discovery` и `infrastructure/document` удалены; `relations`
+работает со старым `model.SkillCatalogImpl` и `Skill.FileData`.
 `relations.Expander` по смыслу заменяется `LinkValidator` + `SkillCatalog`.
 
 `services/test` (проверка архитектуры домена) с переездом `sync.go`

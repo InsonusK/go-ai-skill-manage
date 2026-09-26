@@ -19,7 +19,8 @@ type Reportable interface {
 // (Code, Message) and where (Where), from the broadest place to the
 // narrowest.
 //
-// Пример: ссылка в файле скила ->
+// Пример: папка скила в target ->
+// Where = [target "/p/.claude/skills", skill "guide"]; ссылка в файле скила ->
 // Where = [source "local:repo", skill "guide (a/guide)", file "docs/x.md",
 // link "[x](./y.md)"]; ошибка конфига -> [source "local:repo", setting
 // "sources[1].tags"].
@@ -37,6 +38,7 @@ const (
 	LocationFile    LocationKind = "file"
 	LocationLink    LocationKind = "link"
 	LocationSetting LocationKind = "setting"
+	LocationTarget  LocationKind = "target"
 )
 
 // Location is one level of where a problem is.
