@@ -19,49 +19,22 @@ Feature: SkillCatalog answers from its cache and fetches on a miss
   And I get or add skills at "b"
   Then the source manager acquired "1" times
 
- Scenario: Owner finds the skill owning a path inside its root
+ Scenario Outline: GetByPathUp finds the loaded skill whose folder holds a path, and nothing past it
   Given a source tree
    """
-   {"a/SKILL.md":"---\nname: one\n---\n","a/notes.md":"hi"}
+   {"a/SKILL.md":"---\nname: one\n---\n","a/notes.md":"hi","one.skill.md":"---\nname: flat\n---\n"}
    """
   When I get or add skills at "."
-  Then catalog owner of "a/notes.md" is "one"
-  And catalog owner of "a/SKILL.md" is "one"
-  And catalog owner of "a" is "one"
-
- Scenario: Owner reports no owner for a path outside every known skill
-  Given a source tree
-   """
-   {"a/SKILL.md":"---\nname: one\n---\n"}
-   """
-  When I get or add skills at "."
-  Then catalog owner of "b/notes.md" is not found
-
- Scenario: Owner does not extend a flat skill's ownership beyond its own file
-  Given a source tree
-   """
-   {"one.skill.md":"---\nname: one\n---\n"}
-   """
-  When I get or add skills at "."
-  Then catalog owner of "one.skill.md" is "one"
-  And catalog owner of "one.skill.md.bak" is not found
-
- Scenario: Destination resolves a path to its skill's output location
-  Given a source tree
-   """
-   {"a/SKILL.md":"---\nname: one\n---\n","a/notes.md":"hi"}
-   """
-  When I get or add skills at "."
-  Then catalog destination of "a/notes.md" is "one" at "one/notes.md"
-  And catalog destination of "a/SKILL.md" is "one" at "one/SKILL.md"
-
- Scenario: Destination reports nothing for a path outside every known skill
-  Given a source tree
-   """
-   {"a/SKILL.md":"---\nname: one\n---\n"}
-   """
-  When I get or add skills at "."
-  Then catalog destination of "b/notes.md" is not found
+  And I get the cached skill holding "<path>"
+  Then found names are "<names>" and catalog error contains "<error>"
+  Examples:
+   | path             | names | error      |
+   | a/notes.md       | one   |            |
+   | a/SKILL.md       | one   |            |
+   | a                | one   |            |
+   | b/notes.md       |       | no skill holds b/notes.md |
+   | one.skill.md     | flat  |            |
+   | one.skill.md.bak |       | no skill holds one.skill.md.bak |
 
  Scenario Outline: GetByPath answers by key -- a requested path or a skill's own folder -- without reading anything
   Given a source tree

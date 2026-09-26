@@ -5,4 +5,4 @@ import (
 	"testing"
 )
 
-func TestFeatures(t *testing.T) { testsupport.Run(t, initialize) }
+func TestFeatures(t *testing.T) { testsupport.Run(t, initializeFactory) }

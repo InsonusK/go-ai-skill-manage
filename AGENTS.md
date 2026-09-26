@@ -116,8 +116,6 @@
 - `services/links`: `parser` (markdown, wikilink → `ParsedLink`),
   `content_excluder` (inline code, example-fence; `CodeFences`),
   `LinkFactory` (реализует `entity.LinkSearcher`).
-  `links.Resolve`/`InSkippedFolder` — старое разрешение путей для
-  `relations`, дублирует `Link.Path`; убрать вместе с `relations`.
 - `services/validator`: см. раздел ниже.
 
 ## `SkillCatalog`
@@ -335,17 +333,18 @@
 5. ✅ Режимы файлов (`File.Mode()`, `TargetFile.Mode()`).
 6. ✅ Запись: `planning.Plan` + `filesystem.Store` на новой модели.
 7. ✅ `handler/sync.go` целиком; `sync.feature` на новых шагах.
-8. Уборка: `relations`, `links.Resolve`/`InSkippedFolder`,
-   неиспользуемые порты и типы `model` (`TargetPlan`/`Operation`/
-   `OutputFile`/`Result` — после перевода `sync.go`).
+8. ✅ Уборка: удалены `relations`, `links.Resolve`/`InSkippedFolder`,
+   порт `interfaces.RepositoryLookup` и `Manager.LookupId`,
+   `SkillCatalog.Owner`/`Destination`/`relativePath` (правило `ownsPath`
+   проверяется через `GetByPathUp`), `model.NestedRepoPath`, типы
+   `model.TargetPlan`/`Operation`/`OutputFile`/`Result`.
 Следующий этап — `command`/`cmd` (подключение, печать ошибок, `validate`).
 
 ## Старые пакеты (ещё не переведены, не собираются)
 
-`relations`, `command`, `cmd/ai-skill-manager`. Причины: пакеты
-`services/discovery` и `infrastructure/document` удалены; `relations`
-работает со старым `model.SkillCatalogImpl` и `Skill.FileData`.
-`relations.Expander` по смыслу заменяется `LinkValidator` + `SkillCatalog`.
+`command`, `cmd/ai-skill-manager` — следующий этап. Ссылаются на удалённые
+`services.SyncService`, `relations`, `planning.Planner`,
+`infrastructure/document`, `model.Result`.
 
 `services/test` (проверка архитектуры домена) с переездом `sync.go`
 снова собирается и проходит. Внешние библиотеки домену запрещены, кроме
@@ -392,6 +391,6 @@
 |---|---|---|
 | `Repository.RootPath` | абсолютный путь в ОС до папки, где лежит/куда скачан репозиторий | `RepoDirOsPath` |
 | `Skill.MainFilePath` / `Skill.MainFile` | файл-маркер (`SKILL.md` / `{name}.skill.md`), по которому папка распознаётся как скил | `MarkerFilePath` / `MarkerFile` |
-| `SkillCatalog.Owner` / `ownsPath` | найти скил, в папке которого лежит путь / лежит ли путь в папке скила | `GetSkillContainingPath` / `skillContainsPath` |
+| `ownsPath` | лежит ли путь в папке скила | `skillContainsPath` |
 
 `Skill.SkillDirPath` — конкретное, оставить.

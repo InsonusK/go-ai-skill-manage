@@ -1,12 +1,7 @@
-// Package model defines transport-independent synchronization data,
-// including the SkillCatalog registry and the OwnsPath/RelativePath
-// ownership primitives it shares with it. Depends only on its own
-// subpackage issues.
+// Package model defines transport-independent synchronization data: the
+// request (sources, targets, settings), source identity, paths inside a
+// repository and parsed links. Depends only on its own subpackage issues.
 package model
-
-import (
-	"io/fs"
-)
 
 const Marker = ".ai-skills-managed"
 const TransformVersion = "go-2"
@@ -44,29 +39,9 @@ type Request struct {
 	ExcludeFromChecks []string
 }
 
-type OutputFile struct {
-	Path string
-	Data []byte
-	Mode fs.FileMode
-}
-
 // Managed is what a target folder holds under one name: whether there is
 // an entry at all (a folder, a file, a symlink) and whether it is a folder
 // this tool wrote (it has the Marker file).
 type Managed struct {
 	Exists, Managed bool
-}
-type Operation struct {
-	Name, Action, Reason, Hash string
-	Files                      []OutputFile
-}
-type TargetPlan struct {
-	Target     Target
-	Operations []Operation
-	Shared     []OutputFile
-}
-type Result struct {
-	Skills []string
-	Plans  []TargetPlan
-	DryRun bool
 }

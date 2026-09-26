@@ -55,22 +55,11 @@ func (m *Manager) Get(ctx context.Context, key model.SourceKey) (*entity.Reposit
 	return repo, nil
 }
 
-// Lookup returns the already-acquired Repository with the given ID, without
-// fetching anything new -- for callers that only know a Repository.ID (e.g.
-// from a Link.Target) and need the *Repository it came from, not a fresh
-// acquisition by SourceKey. A linear scan is fine here: realistic source
-// counts are small, and IDs are unique by construction.
-func (m *Manager) LookupId(ctx context.Context, id string) (*entity.Repository, bool) {
-	for _, repo := range m.repos {
-		if repo.Key.String() == id {
-			return repo, true
-		}
-	}
-	return nil, false
-}
-
+// LookupKey returns the already-acquired Repository of key, without
+// fetching anything new.
 func (m *Manager) LookupKey(ctx context.Context, key model.SourceKey) (*entity.Repository, bool) {
-	return m.LookupId(ctx, key.String())
+	repo, ok := m.repos[key]
+	return repo, ok
 }
 
 // Close closes every acquired Repository, most recently acquired first,
