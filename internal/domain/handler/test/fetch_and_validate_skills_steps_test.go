@@ -3,7 +3,6 @@ package handler_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"testing/fstest"
@@ -43,6 +42,8 @@ func initialize(sc *godog.ScenarioContext) {
 	var req model.Request
 	var catalog *sourcing.SkillCatalog
 	var problems issues.SkillIssues
+
+	registerSyncSteps(sc, &trees, &req, &problems)
 
 	sc.Before(func(ctx context.Context, s *godog.Scenario) (context.Context, error) {
 		trees, req, catalog, problems = map[string]fstest.MapFS{}, model.Request{}, nil, nil
@@ -92,19 +93,6 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 
-	sc.Step(`^I run sync$`, func(ctx context.Context) error {
-		manager := sourcing.NewManager(map[string]interfaces.SourceProvider{"local": repositories{trees: trees}}, "")
-		_, err := handler.SyncService{Sources: manager}.Run(ctx, req)
-		if err != nil {
-			var list issues.SkillIssues
-			if !errors.As(err, &list) {
-				return fmt.Errorf("sync error %v is not skill issues", err)
-			}
-			problems = list
-		}
-		testsupport.Log("issues=%v", problems)
-		return nil
-	})
 	sc.Step(`^the catalog holds "([^"]*)"$`, func(ctx context.Context, want string) error {
 		var names []string
 		for _, s := range catalog.Skills() {

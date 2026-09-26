@@ -103,10 +103,16 @@
   источникам → `[link-validator, skill-name-validator]` (даже после
   ошибок выбора) → каталог и все проблемы. `req` уже прошёл
   `config/validator.Validate`.
-  `handler/sync.go`: `SyncService{Sources}.Run` — заглушка: вызывает
-  `FetchAndValidateSkills`, при проблемах возвращает их, иначе
-  `panic("not implemented")`. Старый конвейер — в истории git; его
-  `sync.feature` лежит в `handler/features` под `@todo` как спецификация.
+  `handler/sync.go`: `SyncService{Sources, State, Writer}.Run(ctx, req)
+  (SyncResult{Skills, Plans []entity.TargetPlan, DryRun}, error)`:
+  `FetchAndValidateSkills` (проблемы → `issues.SkillIssues`, стоп) →
+  базовый `TargetSkillCatalog` + `[flat]` → на каждый target `Clone()` +
+  `[claude-when-to-use` при `ClaudeAdapter`, `managed-marker]` → снимок →
+  `planning.Plan` → если у всех target нет проблем
+  (`issues.TargetIssues` вместе) и не `dry_run` — запись по порядку
+  target. Проблема где угодно — ни один target не тронут; сбой диска при
+  записи может остановиться после части target. Тесты — фейковые
+  `StateReader`/`PlanWriter` в памяти (`handler/test/sync_steps_test.go`).
 - `services/links`: `parser` (markdown, wikilink → `ParsedLink`),
   `content_excluder` (inline code, example-fence; `CodeFences`),
   `LinkFactory` (реализует `entity.LinkSearcher`).
@@ -328,7 +334,7 @@
 4. ✅ Маркер `.ai-skills-managed`.
 5. ✅ Режимы файлов (`File.Mode()`, `TargetFile.Mode()`).
 6. ✅ Запись: `planning.Plan` + `filesystem.Store` на новой модели.
-7. `handler/sync.go` целиком; оживить `sync.feature`.
+7. ✅ `handler/sync.go` целиком; `sync.feature` на новых шагах.
 8. Уборка: `relations`, `links.Resolve`/`InSkippedFolder`,
    неиспользуемые порты и типы `model` (`TargetPlan`/`Operation`/
    `OutputFile`/`Result` — после перевода `sync.go`).
