@@ -10,8 +10,11 @@ import (
 type Repository struct {
 	Key      model.SourceKey
 	RootPath string
-	FS       fs.FS
-	closers  []func() error
+	// Commit is the exact commit the files come from, when the provider
+	// knows it (github); empty otherwise.
+	Commit  string
+	FS      fs.FS
+	closers []func() error
 }
 
 func MakeRepository(sourceKey model.SourceKey, rootPath string, fsys fs.FS, closeFunc func() error) *Repository {

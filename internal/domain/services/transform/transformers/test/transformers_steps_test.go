@@ -22,27 +22,31 @@ import (
 
 // repositories is a fake interfaces.SourceProvider serving one in-memory
 // tree per SourceKey.Path.
-type repositories struct{ trees map[string]fstest.MapFS }
+type repositories struct {
+	trees   map[string]fstest.MapFS
+	commits map[string]string
+}
 
 func (p repositories) Acquire(ctx context.Context, key model.SourceKey, options model.AcquisitionOptions) (*entity.Repository, error) {
 	tree, ok := p.trees[key.Path]
 	if !ok {
 		return nil, fmt.Errorf("no repository %q", key.Path)
 	}
-	return &entity.Repository{Key: key, RootPath: "/" + key.Path, FS: tree}, nil
+	return &entity.Repository{Key: key, RootPath: "/" + key.Path, Commit: p.commits[key.Path], FS: tree}, nil
 }
 
 func initialize(sc *godog.ScenarioContext) {
 	var trees map[string]fstest.MapFS
+	var commits map[string]string
 	var catalog *sourcing.SkillCatalog
 	var target *entity.TargetSkillCatalog
 	var panicked string
 	var logs bytes.Buffer
 
 	sc.Before(func(ctx context.Context, s *godog.Scenario) (context.Context, error) {
-		trees, target, panicked = map[string]fstest.MapFS{}, nil, ""
+		trees, commits, target, panicked = map[string]fstest.MapFS{}, map[string]string{}, nil, ""
 		logs.Reset()
-		catalog = &sourcing.SkillCatalog{Manager: sourcing.NewManager(map[string]interfaces.SourceProvider{"local": repositories{trees: trees}}, ""), ExcludeFromChecks: map[model.SourceKey][]string{}}
+		catalog = &sourcing.SkillCatalog{Manager: sourcing.NewManager(map[string]interfaces.SourceProvider{"local": repositories{trees: trees, commits: commits}}, ""), ExcludeFromChecks: map[model.SourceKey][]string{}}
 		entity.SetDefaultLinkSearcher(links.NewDefaultLinkFactory())
 		return ctx, nil
 	})
@@ -62,6 +66,10 @@ func initialize(sc *godog.ScenarioContext) {
 		}
 		trees[name] = tree
 		testsupport.Log("repository=%s files=%v", name, raw)
+		return nil
+	})
+	sc.Step(`^repository "([^"]*)" is at commit "([^"]*)"$`, func(ctx context.Context, name, commit string) error {
+		commits[name] = commit
 		return nil
 	})
 	sc.Step(`^folders excluded from checks in "([^"]*)" are "([^"]*)"$`, func(ctx context.Context, repo, folders string) error {
