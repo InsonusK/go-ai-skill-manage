@@ -30,7 +30,7 @@ func run() (code int) {
 	}
 	logger := logging.Init(os.Stderr, opts.Debug)
 	if opts.Profile && !opts.Help && !opts.Version {
-		stop, err := profiling.Start(opts.ProfileOutput)
+		stop, err := profiling.Start(opts.ProfileOutput, opts.MemProfileOutput)
 		if err != nil {
 			logger.Error("profiling", "error", err)
 			return 1

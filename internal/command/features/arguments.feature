@@ -2,11 +2,11 @@ Feature: CLI argument contract
  Scenario: All options are parsed without executing integrations
   When I parse argument list
    """
-   ["--debug","--profile","--profile-output","cpu.prof","sync","-c","custom.yaml","-t","github","-p","https://github.com/org/repo develop","--subpath","skills","--subpath","docs","--target=out","--dry-run","-f","--keep-orphans","--remove-orphans","--add-relations"]
+   ["--debug","--profile","--profile-output","cpu.prof","--mem-profile-output=mem.prof","sync","-c","custom.yaml","-t","github","-p","https://github.com/org/repo develop","--subpath","skills","--subpath","docs","--target=out","--dry-run","-f","--keep-orphans","--remove-orphans","--add-relations"]
    """
   Then parsed options are
    """
-   {"command":"sync","config":"custom.yaml","type":"github","path":"https://github.com/org/repo develop","subpaths":["skills","docs"],"target":"out","dry":true,"force":true,"orphans":true,"relations":true,"debug":true,"profile":true,"profileOutput":"cpu.prof"}
+   {"command":"sync","config":"custom.yaml","type":"github","path":"https://github.com/org/repo develop","subpaths":["skills","docs"],"target":"out","dry":true,"force":true,"orphans":true,"relations":true,"debug":true,"profile":true,"profileOutput":"cpu.prof","memProfileOutput":"mem.prof"}
    """
  Scenario: validate takes the same source options
   When I parse argument list
@@ -15,7 +15,7 @@ Feature: CLI argument contract
    """
   Then parsed options are
    """
-   {"command":"validate","config":"custom.yaml","type":"","path":"","subpaths":null,"target":"","dry":false,"force":false,"orphans":null,"relations":null,"debug":false,"profile":false,"profileOutput":"ai-skill-manager.prof"}
+   {"command":"validate","config":"custom.yaml","type":"","path":"","subpaths":null,"target":"","dry":false,"force":false,"orphans":null,"relations":null,"debug":false,"profile":false,"profileOutput":"ai-skill-manager.prof","memProfileOutput":"ai-skill-manager.mem.prof"}
    """
  Scenario Outline: Malformed arguments fail parsing
   When I parse argument list
