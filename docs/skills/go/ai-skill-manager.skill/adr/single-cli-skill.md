@@ -1,8 +1,8 @@
 ---
 name: single-cli-skill
-description: Document one synchronization command with one agent skill.
+description: Document the CLI (sync and validate) with one agent skill.
 problem: Choose a discoverable documentation shape for the CLI.
-decision: One root skill with installation and sync fragments.
+decision: One root skill with installation, configuration and one fragment per command.
 tags:
   - stack/go
   - concern/documentation
@@ -11,11 +11,11 @@ tags:
 
 # Problem
 
-The CLI has one coherent command and shared installation conventions.
+The CLI has two commands, `sync` and `validate`, that share installation, configuration and output conventions.
 
 # Selected variant
 
-[Single skill](#single-skill-selected) with attached installation and command fragments.
+[Single skill](#single-skill-selected) with attached installation, configuration and command fragments.
 
 # Searched variants
 

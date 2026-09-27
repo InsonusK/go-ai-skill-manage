@@ -73,7 +73,7 @@ settings:
   remove_orphans: true
   add_relations: true
   validation:
-    exclude_from_checks: [examples]
+    exclude_from_checks: [examples, templates]
 ```
 
 ### Источники
@@ -86,7 +86,6 @@ settings:
 | `subpath` | GitHub: `skills`; local: корень | Строка или список; отсутствующий путь — проблема `missing-subpath`, путь за пределы источника — `unsafe-subpath` |
 | `tags` | без фильтра | Строка или список выражений; список объединяется AND. **Пока не поддерживается**: источник с `tags` — ошибка конфигурации `unsupported-tags` |
 | `exclude_from_checks` | нет | Папки первого уровня скилов этого источника, исключённые из проверок; дополняют `settings.validation.exclude_from_checks` |
-| `name` | — | **Пока не поддерживается**: разбирается, но игнорируется |
 
 Папки из `exclude_from_checks` **загружаются и копируются вместе со скилом**,
 но не проверяются: ни на вложенные скилы, ни на битые ссылки. Обычно там
@@ -94,7 +93,7 @@ settings:
 
 Итоговый список для источника — объединение
 `settings.validation.exclude_from_checks` и `exclude_from_checks` источника.
-Если `settings.validation.exclude_from_checks` не задан, действует `[examples]`
+Если `settings.validation.exclude_from_checks` не задан, действует `[examples, templates]`
 (с info-сообщением в логе); `[]` или пустое значение отключает исключение.
 
 Устаревшие имена читаются с warning в логе: `skip_folder` источника →
@@ -147,7 +146,8 @@ YAML frontmatter должен содержать `name`: lowercase буквы, �
 
 Поддерживаются Markdown, изображения, `[[path#anchor|label]]`.
 `./` и `../` считаются от файла; bare path — от корня источника.
-Если путь не найден, проверяется вариант с `.md`.
+Ссылка без `.md` ведёт на заметку `X.md`, если она есть, даже когда рядом
+лежит папка `X` (как wikilink в Obsidian); на папку ссылаются как `X/`.
 Исключаются web-ссылки, anchors, inline code, блоки `example`
 и настроенные папки. Как в Python, inline code даже внутри подписи исключает ссылку.
 

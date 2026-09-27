@@ -1,70 +1,78 @@
-# sync
+# `sync`
 
-Signature: `aism [--debug] [--profile] sync [options]`.
+Checks the skills like [`validate`](./method-validate.md), then writes every skill into every target folder.
 
-## Required input
-
-Use either a configuration file or `--type local|github --path SOURCE`.
-Without these options, the CLI reads `ai-skills.yaml` in the current directory.
-
-```yaml
-sources:
-  - type: local
-    path: ./skills
-target: .agents/skills
-settings:
-  remove_orphans: true
-```
+## Signature
 
 ```sh
-./bin/aism sync --config ./ai-skills.yaml --dry-run
-./bin/aism sync --config ./ai-skills.yaml
+aism [--debug] [--profile] sync [--config FILE | --type local|github --path SOURCE [--subpath PATH]...] [--target PATH] [--dry-run] [--remove-orphans | --keep-orphans] [--add-relations]
 ```
 
-Use the [complete annotated ai-skills.yaml](./examples/ai-skills.yaml) to see every supported field, whether it is required, its default, and its effect.
+## Parameters
 
-## Options
+| Option | Type | Required | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `-c, --config` | path | no | `./ai-skills.yaml` | Configuration file ([configuration.md](./configuration.md)). |
+| `-t, --type` | `local` \| `github` | no | — | Sync one source without a config file. |
+| `-p, --path` | string | with `--type` | — | Local folder, or `"URL branch"` for `github`. |
+| `--subpath` | path, repeatable | no | `skills` for `github` | Folders inside the `github` source. |
+| `--target` | path | no | configured targets | Write into this one folder instead, with no adapters. |
+| `--dry-run` | bool | no | `settings.dry_run` | Plan and print, write nothing. |
+| `--remove-orphans` | bool | no | `settings.remove_orphans` (`true`) | Delete managed folders whose skill is gone. |
+| `--keep-orphans` | bool | no | — | Keep them; `--remove-orphans` wins if both are given. |
+| `--add-relations` | bool | no | `settings.add_relations` | Also load skills that selected skills link to. |
+| `--profile`, `--profile-output` | bool, path | no | `false`, `ai-skill-manager.prof` | Write a Go CPU profile. |
+| `-f, --force` | bool | no | — | Deprecated, no effect (warning). |
 
-| Option | Type / default | Effect |
-| --- | --- | --- |
-| `--config, -c` | file / ai-skills.yaml | YAML or JSON; takes precedence over direct source flags |
-| `--type, -t` | local or github | Direct source mode |
-| `--path, -p` | string | Local path or quoted `URL branch` |
-| `--subpath` | repeatable string / skills for GitHub | GitHub scan paths |
-| `--target` | path | Replace all configured targets with one |
-| `--dry-run` | bool / false | Validate and plan without target writes |
-| `--force, -f` | bool / false | Recopy unchanged managed skills |
-| `--remove-orphans` | bool / config default true | Delete managed skills missing from selection |
-| `--keep-orphans` | bool | Disable orphan removal; remove wins if both are set |
-| `--add-relations` | bool / config default false | Include referenced skills |
-| `--debug` | bool / false | Structured debug logs on stderr |
-| `--profile` | bool / false | CPU profiling |
-| `--profile-output` | path / ai-skill-manager.prof | Go pprof output |
+## What it writes
 
-Configuration sources support `tree` (master), `subpath` (string/list),
-`tags` (AND of expressions), `exclude_from_checks`, and `name`
-(single selected skill only). Local relative paths resolve from the config
-directory. Root `target` accepts a string path or named targets; legacy
-`settings.target` remains accepted when the root key is absent. Settings support
-`temp_dir`, `dry_run`, `remove_orphans`, `add_relations`,
-`on_conflict: error|last_wins`, and `validation.exclude_from_checks` (default `[examples]`).
-A relative `temp_dir` resolves from the configuration file; omit it to use the operating system temp directory.
-Claude requires `adapters: [claude-property-adapter]`.
-Full schema: [reference](../../../api/reference.md).
+For every target and every skill `{name}`:
 
-## Output and failures
+- `{target}/{name}/SKILL.md` — the skill's marker file, whatever its source form (`SKILL.md`, `{name}.skill.md`);
+- `{target}/{name}/...` — the skill's other files at their paths inside the skill folder, with their file modes;
+- `{target}/{name}/.ai-skills-managed` — JSON with the source, the skill's path there and the applied transformations.
 
-Stdout lists target operations: create, update, skip, remove, followed by e.g.
-`Synced 1 skill(s) to 1 target(s)`.
-Dry-run ends with `no target changes`; source acquisition may use temporary files.
-Stderr carries diagnostics. Exit 0: success/help/version; 1: configuration,
-validation, acquisition or I/O failure; 2: invalid arguments.
+Links in `.md` files are rewritten to the new places (`./x`, `../other/SKILL.md`), and wikilinks `[[...]]` become markdown links. For targets with `claude-property-adapter`, the frontmatter key `whenToUse` becomes `when_to_use`.
 
-For `unselected-skill`, include the source or enable relations when intended.
-For `missing-link`, fix the source path.
-For `unmanaged-target`, choose another target or resolve its existing contents.
-Do not delete personal directories merely to suppress the error.
+Per folder in the target:
+- missing → `create`;
+- has `.ai-skills-managed` → `update` (the folder is replaced as a whole);
+- no marker → the problem `unmanaged-target`, nothing is written;
+- managed but its skill is gone → `remove` (with `remove_orphans`).
 
-All targets are planned before writes; writes across targets are not one
-transaction. A failed write may follow successfully updated earlier targets.
-Repeat with `--force` after repair if managed output needs rebuilding.
+All targets are planned before the first write.
+
+## Output
+
+- Exit 0, stdout: the operations per target, then the summary:
+
+  ```text
+  Target default: /project/.agents/skills
+    create code-review
+    update guide
+    remove old-skill
+  Synced 2 skill(s) to 1 target(s)
+  ```
+
+  With `--dry-run` the summary is `Dry run: 2 skill(s), 1 target(s); nothing written`.
+- Exit 1: a problem tree on stderr, as for `validate`, plus the target problem `unmanaged-target`:
+
+  ```text
+  target /project/.agents/skills
+    skill guide
+      unmanaged-target: /project/.agents/skills/guide exists but was not written by this tool (no .ai-skills-managed): remove or rename it
+  Found 1 problem(s)
+  ```
+
+  Exit 1 is also returned when writing fails (disk, permissions). Targets are written one after another, not as one transaction, so earlier targets may already be updated; rerun `sync` after fixing the cause.
+- Exit 2: invalid arguments.
+
+## Examples
+
+```sh
+aism sync --dry-run                      # plan with ./ai-skills.yaml
+aism sync                                # write
+aism sync --config /project/ai-skills.yaml --keep-orphans
+aism sync --type local --path ./my-skills --target .agents/skills
+aism sync --type github --path "https://github.com/InsonusK/ai-skills.git master" --subpath skills/go --target .agents/skills
+```
