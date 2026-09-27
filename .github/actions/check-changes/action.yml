@@ -1,0 +1,38 @@
+name: check-changes
+description: Detect which categories of files changed
+outputs:
+  code:
+    value: ${{ steps.filter.outputs.code }}
+  test:
+    value: ${{ steps.filter.outputs.test }}
+  workflow:
+    value: ${{ steps.filter.outputs.workflow }}
+  docker:
+    value: ${{ steps.filter.outputs.docker }}
+  docs:
+    value: ${{ steps.filter.outputs.docs }}
+runs:
+  using: composite
+  steps:
+    - uses: dorny/paths-filter@v3
+      id: filter
+      with:
+        # Godog scenarios live next to each package (internal/**/features,
+        # test/conformance/features), not in one root features/ folder.
+        filters: |
+          code:
+            - '**/*.go'
+            - '!**/*_test.go'
+            - 'go.mod'
+            - 'go.sum'
+          test:
+            - '**/*_test.go'
+            - '**/features/**'
+          workflow:
+            - '.github/workflows/**'
+            - '.github/actions/**'
+          docker:
+            - 'Dockerfile'
+          docs:
+            - 'docs/**'
+            - '*.md'

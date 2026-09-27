@@ -1,0 +1,95 @@
+name: Release info publish
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      current: ${{ steps.version.outputs.current }}
+      bumped: ${{ steps.version.outputs.bumped }}
+      publishable: ${{ steps.version.outputs.publishable }}
+      timestamp: ${{ steps.timestamp.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/check-version
+        id: version
+      - id: timestamp
+        run: echo "value=$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+
+  github-release:
+    needs: check-version
+    if: needs.check-version.outputs.bumped == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: body
+        run: |
+          version="${{ needs.check-version.outputs.current }}"
+          body="Version ${version}"
+
+          if [ -n "$(git ls-files Dockerfile)" ]; then
+            # Must match the lowercased image ref devops-github-wf-docker-release-publish
+            # actually pushed - github.repository preserves case, Docker refs don't.
+            image="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+            body="${body}
+
+          - Docker: \`${image}:${version}\`"
+          fi
+
+          if [ "${{ needs.check-version.outputs.publishable }}" = "true" ]; then
+            # PACKAGE_NAME/PACKAGE_URL_PATTERN: read from the stack's own manifest and
+            # the pattern for the stack in use (see the skill's "Package link patterns").
+            package_url="https://pypi.org/project/${PACKAGE_NAME}/${version}/"
+            body="${body}
+          - Package: ${package_url}"
+          fi
+
+          {
+            echo "value<<EOF"
+            echo "$body"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          PACKAGE_NAME: ai-skill-manager
+
+      # --- build release binaries (Go) ---
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # The command's main package is ./cmd/ai-skill-manager; the version is
+      # compiled in from internal/version/version.go, no ldflags needed.
+      - name: Cross-compile linux/windows/darwin binaries
+        env:
+          APP_NAME: ai-skill-manager
+          VERSION: ${{ needs.check-version.outputs.current }}
+          CGO_ENABLED: 0
+        run: |
+          mkdir -p dist
+          for target in linux/amd64 windows/amd64 darwin/amd64; do
+            goos="${target%%/*}"
+            goarch="${target##*/}"
+            ext=""
+            [ "$goos" = "windows" ] && ext=".exe"
+            out="dist/${APP_NAME}_${VERSION}_${goos}_${goarch}${ext}"
+            GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags "-s -w" -o "$out" ./cmd/ai-skill-manager
+          done
+          ( cd dist && sha256sum * > "${APP_NAME}_${VERSION}_checksums.txt" )
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check-version.outputs.current }}
+          generate_release_notes: true
+          body: ${{ steps.body.outputs.value }}
+          files: dist/*
+          fail_on_unmatched_files: true

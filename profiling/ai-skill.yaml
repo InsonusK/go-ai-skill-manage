@@ -1,0 +1,30 @@
+sources:
+  - path: https://github.com/InsonusK/ai-skills.git
+    type: github
+    tree: master
+    subpath:
+      - skills/python
+      - skills/dotnet
+      - skills/devops
+      - skills/common-workflow
+      - skills/angular
+      - skills/typescript
+      - skills/go
+      - skills/design
+      
+target:
+  for_each:
+    adapters:
+      - link-adapter
+  default:
+    path: .agents/skills
+  claude:
+    path: .claude/skills
+    adapters:
+      - claude-property-adapter
+
+settings:
+  remove_orphans: true
+  on_conflict: error
+  dry_run: false
+  add_relations: true

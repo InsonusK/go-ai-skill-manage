@@ -1,0 +1,27 @@
+# Same skills as ai-skill.yaml, read from a local clone of the repository
+# (profiling/sources/ai-skills, made once by run.sh) so the network doesn't
+# skew the measurements. Keep the subpath list in sync with ai-skill.yaml.
+sources:
+  - path: ./sources/ai-skills
+    subpath:
+      - skills/python
+      - skills/dotnet
+      - skills/devops
+      - skills/common-workflow
+      - skills/angular
+      - skills/typescript
+      - skills/go
+      - skills/design
+
+target:
+  default:
+    path: ./out/local/.agents/skills
+  claude:
+    path: ./out/local/.claude/skills
+    adapters:
+      - claude-property-adapter
+
+settings:
+  remove_orphans: true
+  dry_run: false
+  add_relations: true

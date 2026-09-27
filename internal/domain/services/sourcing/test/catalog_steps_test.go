@@ -1,0 +1,235 @@
+package sourcing_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
+	"strconv"
+	"strings"
+	"testing/fstest"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
+	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
+	"github.com/cucumber/godog"
+)
+
+// catalogTreeFS wraps fstest.MapFS, counting Open calls per path so a test
+// can prove GetOrFetchByPath warms a found skill's own FilesByPath("") cache
+// (no re-walk on a later, separate FilesByPath call).
+type catalogTreeFS struct {
+	files  fstest.MapFS
+	counts map[string]int
+}
+
+func (f catalogTreeFS) Open(name string) (fs.File, error) {
+	f.counts[name]++
+	return f.files.Open(name)
+}
+
+// catalogProvider is a fake interfaces.SourceProvider returning a
+// Repository backed by catalogTreeFS, counting Acquire calls to prove
+// Manager's own caching is reused across GetOrFetchByPath calls.
+type catalogProvider struct {
+	calls *int
+	fs    catalogTreeFS
+}
+
+func (p catalogProvider) Acquire(ctx context.Context, key model.SourceKey, options model.AcquisitionOptions) (*entity.Repository, error) {
+	*p.calls++
+	return &entity.Repository{Key: key, FS: p.fs}, nil
+}
+
+func catalogSteps(sc *godog.ScenarioContext) {
+	var catalog *sourcing.SkillCatalog
+	var acquireCalls int
+	var openCounts map[string]int
+	var found []*entity.Skill
+	var failure error
+	var openSnapshot int
+	var remembered map[string]*entity.Skill
+
+	newCatalog := func(tree fstest.MapFS) *sourcing.SkillCatalog {
+		acquireCalls = 0
+		openCounts = map[string]int{}
+		provider := catalogProvider{calls: &acquireCalls, fs: catalogTreeFS{files: tree, counts: openCounts}}
+		return &sourcing.SkillCatalog{
+			Manager: sourcing.NewManager(map[string]interfaces.SourceProvider{"local": provider}, ""),
+		}
+	}
+	sc.Step(`^a source tree$`, func(ctx context.Context, d *godog.DocString) error {
+		var raw map[string]string
+		if err := json.Unmarshal([]byte(d.Content), &raw); err != nil {
+			return err
+		}
+		tree := fstest.MapFS{}
+		for p, v := range raw {
+			tree[p] = &fstest.MapFile{Data: []byte(v), Mode: 0644}
+		}
+		catalog = newCatalog(tree)
+		found, failure = nil, nil
+		testsupport.Log("files=%v", raw)
+		return nil
+	})
+	sc.Step(`^folders excluded from checks of source "([^"]*)" are "([^"]*)"$`, func(ctx context.Context, source, folders string) error {
+		skip := []string{}
+		if folders != "" {
+			skip = strings.Split(folders, ",")
+		}
+		catalog.ExcludeFromChecks = map[model.SourceKey][]string{{Type: "local", Path: source}: skip}
+		return nil
+	})
+	sc.Step(`^I get or add skills at "([^"]*)"$`, func(ctx context.Context, p string) error {
+		skills, err := catalog.GetOrFetchByPath(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
+		found = skills
+		failure = err
+		return nil
+	})
+	sc.Step(`^I fetch skills at "([^"]*)"$`, func(ctx context.Context, p string) error {
+		repo, err := catalog.Manager.Get(ctx, model.SourceKey{Type: "local", Path: "repo"})
+		if err != nil {
+			return err
+		}
+		skills, issues := catalog.FetchByPath(ctx, repo, p)
+		found, failure = skills, nil
+		if len(issues) > 0 {
+			failure = issues
+		}
+		return nil
+	})
+	sc.Step(`^I fetch the skill holding "([^"]*)"$`, func(ctx context.Context, p string) error {
+		repo, err := catalog.Manager.Get(ctx, model.SourceKey{Type: "local", Path: "repo"})
+		if err != nil {
+			return err
+		}
+		skill, err := catalog.FetchByPathUp(ctx, repo, p)
+		found, failure = nil, err
+		if skill != nil {
+			found = []*entity.Skill{skill}
+		}
+		return nil
+	})
+	sc.Step(`^the found skill is "([^"]*)" at "([^"]*)" in format "([^"]*)"$`, func(ctx context.Context, name, location, format string) error {
+		if failure != nil {
+			return failure
+		}
+		if len(found) != 1 {
+			return fmt.Errorf("found %d skills, want 1", len(found))
+		}
+		s := found[0]
+		at := s.SkillDirPath
+		if at == "" {
+			at = s.MainFilePath
+		}
+		return testsupport.Equal([]string{s.Name, at, string(s.Format)}, []string{name, location, format})
+	})
+	sc.Step(`^the found skills are remembered$`, func(ctx context.Context) error {
+		remembered = map[string]*entity.Skill{}
+		for _, s := range found {
+			remembered[s.Name] = s
+		}
+		return nil
+	})
+	sc.Step(`^the found skill "([^"]*)" is the one remembered$`, func(ctx context.Context, name string) error {
+		for _, s := range found {
+			if s.Name == name {
+				if s != remembered[name] {
+					return fmt.Errorf("skill %q was built again, not reused", name)
+				}
+				return nil
+			}
+		}
+		return fmt.Errorf("skill %q not found", name)
+	})
+	sc.Step(`^no directory under "([^"]*)" was read$`, func(ctx context.Context, dir string) error {
+		for p, n := range openCounts {
+			if n > 0 && (p == dir || strings.HasPrefix(p, dir+"/")) {
+				return fmt.Errorf("%s was opened %d times", p, n)
+			}
+		}
+		return nil
+	})
+	sc.Step(`^add relations is "(true|false)"$`, func(ctx context.Context, v string) error {
+		catalog.AddRelations = v == "true"
+		return nil
+	})
+	sc.Step(`^I get cached skills at "([^"]*)"$`, func(ctx context.Context, p string) error {
+		found, failure = catalog.GetByPath(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
+		return nil
+	})
+	sc.Step(`^I try to get or fetch skills at "([^"]*)"$`, func(ctx context.Context, p string) error {
+		found, failure = catalog.TryGetOrFetchByPath(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
+		return nil
+	})
+	sc.Step(`^I get the cached skill holding "([^"]*)"$`, func(ctx context.Context, p string) error {
+		skill, err := catalog.GetByPathUp(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
+		found, failure = nil, err
+		if skill != nil {
+			found = []*entity.Skill{skill}
+		}
+		return nil
+	})
+	sc.Step(`^I try to get or fetch the skill holding "([^"]*)"$`, func(ctx context.Context, p string) error {
+		owner, err := catalog.TryGetOrFetchByPathUp(ctx, model.SourceKey{Type: "local", Path: "repo"}, p)
+		found, failure = nil, err
+		if owner != nil {
+			found = []*entity.Skill{owner}
+		}
+		return nil
+	})
+	sc.Step(`^the catalog reports the skill is not cached$`, func(ctx context.Context) error {
+		testsupport.Log("error=%v", failure)
+		if !errors.Is(failure, entity.ErrSkillNotCached) {
+			return fmt.Errorf("error=%v, want ErrSkillNotCached", failure)
+		}
+		return testsupport.Equal(len(found), 0)
+	})
+	sc.Step(`^found names are "([^"]*)" and catalog error contains "([^"]*)"$`, func(ctx context.Context, want, contains string) error {
+		var names []string
+		for _, s := range found {
+			names = append(names, s.Name)
+		}
+		if err := testsupport.Equal(strings.Join(names, ","), want); err != nil {
+			return err
+		}
+		testsupport.Log("error=%v", failure)
+		if contains == "" {
+			return failure
+		}
+		if failure == nil || !strings.Contains(failure.Error(), contains) {
+			return fmt.Errorf("error=%v want contains %s", failure, contains)
+		}
+		return nil
+	})
+	sc.Step(`^total directory reads so far are remembered$`, func(ctx context.Context) error {
+		n := 0
+		for _, c := range openCounts {
+			n += c
+		}
+		openSnapshot = n
+		return nil
+	})
+	sc.Step(`^I list files by path "([^"]*)" for skill "([^"]*)"$`, func(ctx context.Context, p, name string) error {
+		for _, s := range found {
+			if s.Name == name {
+				_, err := s.FilesByPath(p)
+				return err
+			}
+		}
+		return fmt.Errorf("skill %q not found among found skills", name)
+	})
+	sc.Step(`^no additional directories were read$`, func(ctx context.Context) error {
+		n := 0
+		for _, c := range openCounts {
+			n += c
+		}
+		return testsupport.Equal(strconv.Itoa(n), strconv.Itoa(openSnapshot))
+	})
+	sc.Step(`^the source manager acquired "([^"]*)" times$`, func(ctx context.Context, want string) error {
+		return testsupport.Equal(strconv.Itoa(acquireCalls), want)
+	})
+}
