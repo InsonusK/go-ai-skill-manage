@@ -378,8 +378,11 @@ num_gc`), время, `pprof -top`. `local` — `ai-skill.local.yaml` на кл�
 `ai-skill.yaml` пользователя (не менять без него). `profiling/out/`,
 `profiling/sources/` — в `.gitignore`.
 
-На реальном `ai-skills` (8 subpath) Python-CLI проходит без проблем (674
-скила, ~4,8 с), новый `sync` падает на валидации: 231 проблема, ~1,2 с; CPU ~60% — системные вызовы под `validateLink`
+На реальном `ai-skills` (8 subpath, ветка пользователя с исправленными
+ссылками) полный `sync`: 674 скила в 2 target, cold ~2,55 с, warm ~2,86 с,
+~290 МБ выделено; ~63% CPU — системные вызовы (запись ~43%: `os.Root`
+разбирает путь на каждую операцию, temp-файл + chmod + rename + MkdirAll на
+файл; проверка ссылок ~33%: `fs.Stat`). Было до исправлений: 231 проблема; CPU ~60% — системные вызовы под `validateLink`
 (`fs.Stat` при разрешении ссылок), ~17% — regexp. Находки ждут решения:
 - `skill-not-found` (113): ссылки на файлы вне скилов (`registry/*.md` и
   т. п.); старый CLI копировал их в `target/files/`, новый — нет.
@@ -397,6 +400,68 @@ num_gc`), время, `pprof -top`. `local` — `ai-skill.local.yaml` на кл�
 ссылки только в файлах, достижимых по ссылкам от главного файла скила (мы —
 во всех `.md`); разрешение `X` → `X.md` одинаковое. Предложено: сверочные
 godog-сценарии старой и новой реализации (обсуждается).
+
+## Сверка с Python (`test/conformance/`)
+
+Общие сценарии (только `.feature`) + Go-шаги, запускающие CLI из
+`AISM_CLI` (осознанное отступление от solution-shared-conformance-testing:
+обе реализации — CLI, шаги чёрного ящика одни). Без `AISM_CLI` — skip.
+`make conformance` / `conformance-python` / `conformance-compare`
+(`test/conformance/compare.sh`, логи в `tmp/conformance/`). Python — `.venv`
+(коммит `f89ab47` = `deprecated/`), понимает только `settings.target`.
+Список расхождений — `test/conformance/README.md`; по всем решено
+оставить поведение Go (бейдж вне `examples`/`templates` — ошибка; ссылка за
+пределы источника — ошибка, риск ИБ).
+- **Общие файлы вне скилов** (registry-записи, variability map каталога —
+  так их раскладывают `delta-conflict-detection`/`variability-map-create`):
+  ссылка на файл, который не лежит ни в одном скиле, допустима
+  (`LinkValidator`: `FetchByPathUp` → `skill-not-found` значит «общий
+  файл»; незагруженный скил → `unselected-skill`; папка → `external-folder`;
+  якорь проверяется). `FlatTransformer` копирует файл в **первый** по
+  порядку ссылающийся скил: `{name}/files/<путь в источнике>` (детерминированно,
+  без совпадений; управляется маркером скила), все ссылки ведут туда; ссылки
+  внутри самого файла не переписываются — `LinkValidator` выдаёт warning (один
+  на файл) со списком таких ссылок, чтобы пользователь посмотрел реальные
+  данные (на `ai-skills` — 28 файлов: 116 ссылок на скилы, 129 на прочее).
+
+## CI и релизы (`.github/`)
+
+По скилам `devops-github-*`: действия `check-changes` (фильтр Go; `test`
+включает `**/features/**` — сценарии лежат у пакетов) и `check-version`
+(версия из строки `var Version = "..."` в `internal/version/version.go`,
+`sort -V`; база без числовой версии, например `"dev"`, считается отсутствующей;
+`publishable=false`); `pull-request.yml`
+(changes → version-check только для PR в master → `make unit-test` с
+`actions/setup-go` → агрегирующий `report`, его и требовать в branch
+protection); `release-info-publish.yml` (push в master при поднятом
+версии или ручной запуск → Release `v{версия}` с бинарниками
+`ai-skill-manager_{v}_{linux,windows,darwin}_amd64` + checksums; сборка
+`./cmd/ai-skill-manager` без `-X`). Первый Release: поднять версию в PR в
+master или запустить workflow вручную.
+- **Версия приложения — только `internal/version/version.go`** (решение
+  пользователя): `var Version = "X.Y.Z"`, поднимать там; файла `VERSION` и
+  `-ldflags -X` нет, любая сборка (`go build`/`go install`/`make build`)
+  печатает настоящую версию. Это отступление от ADR скила
+  `devops-github-action-check-version-in-go` (он выбирает файл `VERSION`).
+- Скилы в `.claude/skills` **не править**: их источник — другой
+  репозиторий; найденные расхождения пользователь заводит issue там.
+  Отступления этого проекта от примеров скилов: `**/features/**` в
+  check-changes; шаг, который роняет version-check при неподнятой версии
+  (в примере action только выставляет `bumped`); `main` в
+  `./cmd/ai-skill-manager` в сборке релиза; версия из `version.go`.
+
+## Идеи оптимизации (не внедрены, ждут решения)
+
+- Запись: внутри временной папки писать файлы сразу (без temp-файла и
+  `rename` на файл — папка и так подменяется целиком); не звать
+  `MkdirAll` на каждый файл (помнить созданные папки); меньше операций
+  через `os.Root` с глубокими путями.
+- Проверка ссылок: кэшировать `fs.Stat`/разрешение цели по пути (одни и
+  те же цели проверяются много раз); якоря — кэш заголовков по файлу.
+- Параллельность: target'ы пишутся независимо — писать параллельно;
+  проверку ссылок скилов можно параллелить (каталог — не потокобезопасен,
+  нужен lock или предзагрузка).
+- Hash в маркере (отложен) — пропуск неизменённых скилов при warm-прогоне.
 
 ## Старые пакеты
 

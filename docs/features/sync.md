@@ -85,7 +85,7 @@ step-определения лежат рядом с пакетом (`features/*
 - [model](../../internal/domain/model/model.go): Request → Repository/Link → TargetPlan → Result; ошибки Issue/Issues. Также [Skill/File/SkillFormat + Skill.FileData](../../internal/domain/model/skill.go) (вложенные файлы лениво дочитываются и кешируются при первом обращении; `MainFile` читается сразу, до фильтрации, т.к. нужен для frontmatter), [SkillCatalog](../../internal/domain/model/catalog.go) (растёт через `GetOrAdd`, индексирует выходные назначения) и примитивы [OwnsPath/RelativePath/NestedRepoPath](../../internal/domain/model/ownership.go).
 - [interfaces](../../internal/domain/interfaces/source.go): SourceProvider, SourceCache, RepositoryLookup, DocumentCodec, StateReader, PlanWriter, SourceSelector. Получатель порта определяет необходимую роль. `RelationExpander`/`SyncPlanner` — не порты: у обоих ровно одна реализация в другом доменном пакете и она никогда не подменялась в тестах, поэтому `SyncService` зависит от `relations.Expander`/`planning.Planner` напрямую.
 - [main](../../cmd/ai-skill-manager/main.go): реальные адаптеры, constructor injection, сигналы, profiler, exit code; создаёт `sourcing.Manager` и владеет его временем жизни (`defer sources.Close(ctx)`).
-- [version](../../internal/version/version.go): build-time значение из VERSION; без отдельной бизнес-логики.
+- [version](../../internal/version/version.go): версия приложения — единственное место, где она хранится.
 
 ## Использование единиц
 

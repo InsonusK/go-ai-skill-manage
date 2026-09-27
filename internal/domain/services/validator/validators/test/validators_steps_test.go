@@ -1,9 +1,11 @@
 package validators_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing/fstest"
 
@@ -35,12 +37,14 @@ func initialize(sc *godog.ScenarioContext) {
 	var trees map[string]fstest.MapFS
 	var catalog *sourcing.SkillCatalog
 	var problems issues.SkillIssues
+	var logs bytes.Buffer
 	var registerErr error
 
 	sc.Before(func(ctx context.Context, s *godog.Scenario) (context.Context, error) {
 		trees = map[string]fstest.MapFS{}
 		catalog = &sourcing.SkillCatalog{Manager: sourcing.NewManager(map[string]interfaces.SourceProvider{"local": sourcesProvider{trees: trees}}, "")}
 		problems, registerErr = nil, nil
+		logs.Reset()
 		entity.SetDefaultLinkSearcher(links.NewDefaultLinkFactory())
 		return ctx, nil
 	})
@@ -89,9 +93,21 @@ func initialize(sc *godog.ScenarioContext) {
 
 	// --- running validators
 	sc.Step(`^I validate links$`, func(ctx context.Context) error {
+		previous := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+		defer slog.SetDefault(previous)
 		problems = validators.LinkValidator{}.Validate(ctx, catalog)
-		testsupport.Log("issues=%v", problems)
+		testsupport.Log("issues=%v\nlogs=%s", problems, logs.String())
 		return nil
+	})
+	sc.Step(`^the log has (\d+) WARN with "([^"]*)"$`, func(ctx context.Context, n int, text string) error {
+		count := 0
+		for _, line := range strings.Split(logs.String(), "\n") {
+			if strings.Contains(line, "level=WARN") && strings.Contains(line, text) {
+				count++
+			}
+		}
+		return testsupport.Equal(count, n)
 	})
 	sc.Step(`^I validate skill names$`, func(ctx context.Context) error {
 		problems = validators.SkillNameValidator{}.Validate(ctx, catalog)

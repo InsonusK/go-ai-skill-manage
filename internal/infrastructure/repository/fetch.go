@@ -26,7 +26,7 @@ func (f Fetcher) Acquire(ctx context.Context, key model.SourceKey, options model
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	temp, err := os.MkdirTemp(options.TempDir, "aism-source")
+	temp, err := os.MkdirTemp(options.TempDir, "aism-source-")
 	if err != nil {
 		return nil, err
 	}

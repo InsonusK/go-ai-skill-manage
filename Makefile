@@ -1,23 +1,31 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := build
 
-VERSION := $(shell cat VERSION)
-MODULE := github.com/InsonusK/go-ai-skill-manage
-LDFLAGS := -X $(MODULE)/internal/version.Version=$(VERSION)
 # gremlins v0.6.0 emits an invalid Go argument with --test-cpu; omit that flag.
 GREMLINS_VERSION := v0.6.0
 GREMLINS := $(CURDIR)/bin/gremlins
 COVERPKG := $(shell go list ./cmd/... ./internal/... | grep -Ev '/(test|gen)(/|$$)' | paste -sd, -)
 
-.PHONY: build run profile lint unit-test mutation-test test-report test-and-report
+.PHONY: build run profile conformance conformance-python conformance-compare lint unit-test mutation-test test-report test-and-report
 
 build:
 	@mkdir -p bin
-	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/ai-skill-manager ./cmd/ai-skill-manager
+	go build -trimpath -o bin/ai-skill-manager ./cmd/ai-skill-manager
 	cp bin/ai-skill-manager bin/aism
 
 run: build
 	./bin/aism $(ARGS)
+
+# Shared scenarios (test/conformance) against the Go CLI, the Python CLI
+# (.venv/bin/aism), or both side by side.
+conformance: build
+	AISM_CLI=$(CURDIR)/bin/aism go test -count=1 ./test/conformance/...
+
+conformance-python:
+	AISM_CLI=$(CURDIR)/.venv/bin/aism go test -count=1 ./test/conformance/...
+
+conformance-compare:
+	test/conformance/compare.sh
 
 # Profiles sync: MODE=local (default, local clone) or MODE=github; see profiling/README.md.
 profile:

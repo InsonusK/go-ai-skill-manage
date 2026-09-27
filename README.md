@@ -6,17 +6,29 @@ CLI на Go, который собирает AI-скилы из локальны
 
 ## Установка
 
-Нужен Go 1.26+. Git нужен для GitHub-источников; если `git clone` не удался,
-репозиторий скачивается архивом.
+Готовые исполняемые файлы для Linux, macOS и Windows (amd64) — на странице
+[Releases](https://github.com/InsonusK/go-ai-skill-manage/releases):
+`ai-skill-manager_<версия>_<os>_amd64` (для Windows — с `.exe`) и
+`ai-skill-manager_<версия>_checksums.txt` для проверки.
 
-Через `go install` (исполняемый файл — `ai-skill-manager`, версия — `dev`):
+```sh
+v=2.0.0
+curl -fsSLo aism "https://github.com/InsonusK/go-ai-skill-manage/releases/download/v$v/ai-skill-manager_${v}_linux_amd64"
+chmod +x aism && sudo mv aism /usr/local/bin/
+aism --version
+```
+
+Git нужен для GitHub-источников; если `git clone` не удался, репозиторий
+скачивается архивом. Собрать самому можно из исходников — нужен Go 1.26+:
+
+Через `go install` (исполняемый файл — `ai-skill-manager`):
 
 ```sh
 go install github.com/InsonusK/go-ai-skill-manage/cmd/ai-skill-manager@latest
 ai-skill-manager --help
 ```
 
-Из исходников (нужен Make; версия берётся из файла `VERSION`):
+Из исходников (нужен Make):
 
 ```sh
 git clone git@github.com:InsonusK/go-ai-skill-manage.git

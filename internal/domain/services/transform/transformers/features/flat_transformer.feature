@@ -117,12 +117,19 @@ Feature: FlatTransformer lays each skill out as {name}/SKILL.md and rewrites lin
   And I flatten the target catalog
   Then the flattening panics with "must run first"
 
- Scenario: A link outside every loaded skill is a bug: validation must have rejected it
+ Scenario: A shared file no skill holds is copied into the first skill that links to it, and every link leads there
   Given a repository "repo" holding
    """
-   {"a/guide/SKILL.md":"---\nname: guide\n---\n[n](../../notes.md)\n","notes.md":"n"}
+   {"a/guide/SKILL.md":"---\nname: guide\n---\n[r](../registry/x.md#top)\n",
+    "h.skill/h.skill.md":"---\nname: h\n---\n[[a/registry/x.md|R]] [again](../a/registry/x.md)\n",
+    "a/registry/x.md":"# Top\n[back](../guide/SKILL.md)\n"}
    """
-  And skills at "a" of "repo" are loaded
+  And skills at "." of "repo" are loaded
   When I make the target catalog
   And I flatten the target catalog
-  Then the flattening panics with "outside every loaded skill"
+  Then the target holds
+   """
+   {"guide/SKILL.md":"---\nname: guide\n---\n[r](./files/a/registry/x.md#top)\n",
+    "guide/files/a/registry/x.md":"# Top\n[back](../guide/SKILL.md)\n",
+    "h/SKILL.md":"---\nname: h\n---\n[R](../guide/files/a/registry/x.md) [again](../guide/files/a/registry/x.md)\n"}
+   """

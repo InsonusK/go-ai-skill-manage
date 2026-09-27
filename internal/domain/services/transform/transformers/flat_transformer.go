@@ -5,6 +5,7 @@ package transformers
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"path"
 	"path/filepath"
 	"slices"
@@ -22,10 +23,16 @@ import (
 // markdown files are rewritten to lead to the same files at their new
 // places, and wikilinks become markdown links.
 //
+// A link to a shared file of the source that no skill holds (e.g. a
+// catalog's registry entry) gets that file copied into the first skill, in
+// catalog order, that links to it -- at "{name}/files/<its path in the
+// source>" -- and every link to it leads there. Its own links are copied as
+// written.
+//
 // It must run first, on the base catalog: it rewrites links using their
 // positions in the source files, so a file changed before it is a bug
-// (panic). Links it can't place are a bug too -- the skills were validated,
-// every link leads into a loaded skill.
+// (panic). A link it can't resolve is a bug too -- the skills were
+// validated.
 //
 // Примеры (скилы guide в "a/b/guide", human-dir h в "h.skill", flat f в
 // "f.skill.md"):
@@ -35,6 +42,8 @@ import (
 //   - в guide/docs/x.md: [h](../../../../h.skill/h.skill.md#top) ->
 //     [h](../../h/SKILL.md#top)
 //   - [[h.skill/h.skill.md|H]] -> [H](../h/SKILL.md)
+//   - guide ссылается на "a/registry/x.md" (не в скиле) -> файл копируется в
+//     "guide/files/a/registry/x.md", ссылка h на него -> ../guide/files/a/registry/x.md
 type FlatTransformer struct {
 	// Catalog is the loaded skill catalog the target catalog was made
 	// from; links in files it excludes from checks are left as written.
@@ -68,7 +77,7 @@ func (t FlatTransformer) Transform(ctx context.Context, catalog *entity.TargetSk
 
 // rewriteLinks rewrites the links of s's markdown files for the new
 // layout. Its files are still at their source places.
-func (t FlatTransformer) rewriteLinks(ctx context.Context, s *entity.TargetSkill, places places) error {
+func (t FlatTransformer) rewriteLinks(ctx context.Context, s *entity.TargetSkill, places *places) error {
 	files, err := s.Files()
 	if err != nil {
 		return err
@@ -95,7 +104,10 @@ func (t FlatTransformer) rewriteLinks(ctx context.Context, s *entity.TargetSkill
 		}
 		edits := []edit{}
 		for _, l := range links {
-			e, ok := rewrite(ctx, l, path.Dir(newPlace), places, s.Origin())
+			e, ok, err := rewrite(ctx, l, path.Dir(newPlace), places, s)
+			if err != nil {
+				return err
+			}
 			if ok {
 				edits = append(edits, e)
 			}
@@ -117,19 +129,21 @@ type edit struct {
 // into folder fromDir, lead to its target's new place; false when l stays
 // as written (a web link, a markdown link to the same place, or one with
 // only an anchor).
-func rewrite(ctx context.Context, l *entity.Link, fromDir string, places places, skill *entity.Skill) (edit, bool) {
+func rewrite(ctx context.Context, l *entity.Link, fromDir string, places *places, s *entity.TargetSkill) (edit, bool, error) {
 	if l.External {
-		return edit{}, false
+		return edit{}, false, nil
 	}
 	target := l.Fragment
 	if l.WrittenPath != "" {
 		repoPath, err := l.Path(ctx, model.RepoAbsolute, nil)
 		if err != nil {
-			panic(fmt.Sprintf("transformers: link %s in skill %s can't be resolved after validation: %v", l.Raw, skill.Name, err))
+			panic(fmt.Sprintf("transformers: link %s in skill %s can't be resolved after validation: %v", l.Raw, s.Name(), err))
 		}
-		to, ok := places.of(skill.Repo.Key, repoPath)
+		to, ok := places.of(s.Origin().Repo.Key, repoPath)
 		if !ok {
-			panic(fmt.Sprintf("transformers: link %s in skill %s leads to %s, outside every loaded skill, after validation", l.Raw, skill.Name, repoPath))
+			if to, err = places.shared(s, repoPath); err != nil {
+				return edit{}, false, err
+			}
 		}
 		target = relative(fromDir, to) + l.Fragment
 	}
@@ -137,9 +151,9 @@ func rewrite(ctx context.Context, l *entity.Link, fromDir string, places places,
 		// Only the "(path#fragment)" part changes; the rest stays as written.
 		start := l.End - len(l.WrittenPath) - len(l.Fragment) - 1
 		if l.Raw[len(l.Raw)-1-len(l.WrittenPath)-len(l.Fragment):len(l.Raw)-1] == target {
-			return edit{}, false
+			return edit{}, false, nil
 		}
-		return edit{start: start, end: l.End - 1, text: target}, true
+		return edit{start: start, end: l.End - 1, text: target}, true, nil
 	}
 	text := l.Text
 	if text == "" {
@@ -149,7 +163,7 @@ func rewrite(ctx context.Context, l *entity.Link, fromDir string, places places,
 	if l.Image {
 		image = "!"
 	}
-	return edit{start: l.Start, end: l.End, text: image + "[" + text + "](" + target + ")"}, true
+	return edit{start: l.Start, end: l.End, text: image + "[" + text + "](" + target + ")"}, true, nil
 }
 
 // relative is the path from folder fromDir to to, as a file-relative link
@@ -182,16 +196,54 @@ func apply(content []byte, edits []edit) []byte {
 	return append(out, content[cursor:]...)
 }
 
-// places tells where a path of a source repository goes in the target.
-type places map[model.SourceKey][]*entity.TargetSkill
+// places tells where a path of a source repository goes in the target:
+// into the skill that holds it, or, for a shared file no skill holds, into
+// the skill that linked to it first.
+type places struct {
+	skills map[model.SourceKey][]*entity.TargetSkill
+	// sharedAt maps entity.GetSkillKey(source, path) of a shared file to
+	// its place in the target.
+	sharedAt map[string]string
+}
 
-func placesOf(skills []*entity.TargetSkill) places {
-	out := places{}
+func placesOf(skills []*entity.TargetSkill) *places {
+	out := &places{skills: map[model.SourceKey][]*entity.TargetSkill{}, sharedAt: map[string]string{}}
 	for _, s := range skills {
 		key := s.Origin().Repo.Key
-		out[key] = append(out[key], s)
+		out.skills[key] = append(out.skills[key], s)
 	}
 	return out
+}
+
+// shared returns where the shared file repoPath of owner's source goes,
+// copying it into owner at "files/<repoPath>" the first time it is asked
+// for.
+func (p *places) shared(owner *entity.TargetSkill, repoPath string) (string, error) {
+	repo := owner.Origin().Repo
+	key := entity.GetSkillKey(repo.Key, repoPath)
+	if at, ok := p.sharedAt[key]; ok {
+		return at, nil
+	}
+	info, err := fs.Stat(repo.FS, repoPath)
+	if err != nil {
+		return "", err
+	}
+	if info.IsDir() {
+		panic(fmt.Sprintf("transformers: link to the folder %s outside every skill in skill %s, after validation", repoPath, owner.Name()))
+	}
+	content, err := fs.ReadFile(repo.FS, repoPath)
+	if err != nil {
+		return "", err
+	}
+	rel := path.Join("files", repoPath)
+	f, err := owner.AddFile(rel, content)
+	if err != nil {
+		return "", err
+	}
+	f.SetMode(info.Mode())
+	at := path.Join(owner.Name(), rel)
+	p.sharedAt[key] = at
+	return at, nil
 }
 
 // of returns where repoPath of repository key goes: the skill's marker file
@@ -204,8 +256,8 @@ func placesOf(skills []*entity.TargetSkill) places {
 //   - "a/b/guide"          -> "guide"
 //   - "f.skill.md"         -> "f/SKILL.md"
 //   - "a/b"                -> false
-func (p places) of(key model.SourceKey, repoPath string) (string, bool) {
-	for _, s := range p[key] {
+func (p *places) of(key model.SourceKey, repoPath string) (string, bool) {
+	for _, s := range p.skills[key] {
 		o := s.Origin()
 		if repoPath == o.MainFilePath {
 			return path.Join(s.Name(), "SKILL.md"), true

@@ -50,6 +50,7 @@ Found 1 problem(s)
 | `missing-link-target`, `path-escape` | A link leads nowhere, or out of the repository | Fix the link. |
 | `missing-anchor` | The linked heading/anchor doesn't exist | Fix the anchor. |
 | `unselected-skill` | A link leads into a skill that no source selects | Add that skill's folder to `subpath`, or set `add_relations: true`. |
+| `external-folder` | A link leads to a folder that no skill holds (only files outside skills are copied) | Link a file in it, or move the folder into a skill. |
 
 ## Example
 

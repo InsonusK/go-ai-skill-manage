@@ -80,19 +80,40 @@ Feature: LinkValidator checks that every link leads to an existing file and anch
    [["missing-link-target","local:repo","three","three","SKILL.md","[gone](./gone.md)"]]
    """
 
- Scenario Outline: A link to a file outside every skill is an issue either way
+ Scenario Outline: A link to a shared file outside every skill is fine, its anchor is checked; a folder outside every skill is not
   Given a source "repo" holding
    """
-   {"one/SKILL.md":"---\nname: one\n---\n[readme](../README.md)\n","README.md":"hi"}
+   {"one/SKILL.md":"---\nname: one\n---\n<link>\n","shared/notes.md":"# Top\n","shared/data.txt":"d","two/SKILL.md":"---\nname: two\n---\n"}
    """
   And add relations is "<relations>"
   And skills at "one" of source "repo" are selected
   When I validate links
-  Then the issue codes are "<code>"
+  Then the issue codes are "<codes>"
   Examples:
-   | relations | code             |
-   | false     | unselected-skill |
-   | true      | skill-not-found  |
+   | relations | link                          | codes            |
+   | false     | [n](../shared/notes.md)       |                  |
+   | true      | [n](../shared/notes.md)       |                  |
+   | false     | [n](../shared/notes.md#top)   |                  |
+   | false     | [n](../shared/notes.md#gone)  | missing-anchor   |
+   | false     | [d](../shared/data.txt#top)   | missing-anchor   |
+   | false     | [s](../shared)                | external-folder  |
+   | true      | [s](../shared)                | external-folder  |
+   | false     | [t](../two/SKILL.md)          | unselected-skill |
+
+ Scenario: A shared file that holds links gets one warning listing them, whatever number of links lead to it
+  Given a source "repo" holding
+   """
+   {"one/SKILL.md":"---\nname: one\n---\n[n](../shared/notes.md) [again](../shared/notes.md#top)\n",
+    "two/SKILL.md":"---\nname: two\n---\n[n](../shared/notes.md) [p](../shared/plain.md)\n",
+    "shared/notes.md":"# Top\n[one](../one/SKILL.md) [[two/SKILL.md|two]] [web](https://example.com)\n",
+    "shared/plain.md":"no links\n"}
+   """
+  And skills at "one,two" of source "repo" are selected
+  When I validate links
+  Then there are no issues
+  And the log has 1 WARN with "file=shared/notes.md"
+  And the log has 1 WARN with "[one](../one/SKILL.md) [[two/SKILL.md|two]] [web](https://example.com)"
+  And the log has 0 WARN with "file=shared/plain.md"
 
  Scenario: A link to an invalid skill reports why that skill cannot be loaded
   Given a source "repo" holding

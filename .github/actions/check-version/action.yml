@@ -1,0 +1,45 @@
+name: check-version
+description: Read and compare the project's version
+outputs:
+  current:
+    value: ${{ steps.version.outputs.current }}
+  bumped:
+    value: ${{ steps.version.outputs.bumped }}
+  publishable:
+    value: ${{ steps.version.outputs.publishable }}
+runs:
+  using: composite
+  steps:
+    - id: version
+      shell: bash
+      run: |
+        # The version is kept in one place: the Version line of internal/version/version.go.
+        version_of() { sed -n 's/^var Version = "\(.*\)"$/\1/p'; }
+        current=$(version_of < internal/version/version.go)
+        if [ -z "$current" ]; then
+          echo "no 'var Version = \"...\"' line in internal/version/version.go" >&2
+          exit 1
+        fi
+
+        bumped=true
+        if [ -n "$BASE_REF" ]; then
+          # A base without a numeric version (the file missing, or "dev") counts
+          # as no prior version.
+          if base=$(git show "${BASE_REF}:internal/version/version.go" 2>/dev/null | version_of) && [[ "$base" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+            # Version-aware sort so "10.0.0" correctly ranks above "2.0.0".
+            higher=$(printf '%s\n%s\n' "$base" "$current" | sort -V | tail -n1)
+            if [ "$higher" = "$current" ] && [ "$current" != "$base" ]; then
+              bumped=true
+            else
+              bumped=false
+            fi
+          fi  # else: no prior version to compare against - bumped stays true
+        fi
+
+        echo "current=$current" >> "$GITHUB_OUTPUT"
+        echo "bumped=$bumped" >> "$GITHUB_OUTPUT"
+        echo "publishable=false" >> "$GITHUB_OUTPUT"
+      env:
+        BASE_REF: >-
+          ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref)
+              || (github.event_name == 'push' && github.event.before) || '' }}

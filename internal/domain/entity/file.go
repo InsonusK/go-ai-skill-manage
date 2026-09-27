@@ -85,17 +85,24 @@ func (f *File) Skill() *Skill {
 	return f.skill
 }
 
+// SearchLinks finds the links in content with the LinkSearcher set by
+// SetDefaultLinkSearcher -- for content that isn't a skill's File, e.g. a
+// shared file outside every skill.
+func SearchLinks(content []byte) ([]model.ParsedLink, error) {
+	if defaultLinkSearcher == nil {
+		return nil, errors.New("entity: no LinkSearcher configured, call SetDefaultLinkSearcher first")
+	}
+	return defaultLinkSearcher.SearchLinks(string(content))
+}
+
 // Links returns the links discovered in this file.
 func (f *File) Links() ([]*Link, error) {
 	if f.links == nil {
-		if defaultLinkSearcher == nil {
-			return nil, errors.New("entity: no LinkSearcher configured, call SetDefaultLinkSearcher first")
-		}
 		content, err := f.Content()
 		if err != nil {
 			return nil, err
 		}
-		parsed, err := defaultLinkSearcher.SearchLinks(string(content))
+		parsed, err := SearchLinks(content)
 		if err != nil {
 			return nil, err
 		}

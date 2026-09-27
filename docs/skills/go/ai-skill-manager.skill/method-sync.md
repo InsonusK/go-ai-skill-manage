@@ -32,7 +32,7 @@ For every target and every skill `{name}`:
 - `{target}/{name}/...` — the skill's other files at their paths inside the skill folder, with their file modes;
 - `{target}/{name}/.ai-skills-managed` — JSON with the source, the skill's path there and the applied transformations.
 
-Links in `.md` files are rewritten to the new places (`./x`, `../other/SKILL.md`), and wikilinks `[[...]]` become markdown links. For targets with `claude-property-adapter`, the frontmatter key `whenToUse` becomes `when_to_use`.
+Links in `.md` files are rewritten to the new places (`./x`, `../other/SKILL.md`), and wikilinks `[[...]]` become markdown links. A shared file of the source that no skill holds (e.g. a catalog's registry entry) is copied into the first skill that links to it, as `{target}/{name}/files/<its path in the source>`, and every link to it leads there. For targets with `claude-property-adapter`, the frontmatter key `whenToUse` becomes `when_to_use`.
 
 Per folder in the target:
 - missing → `create`;
