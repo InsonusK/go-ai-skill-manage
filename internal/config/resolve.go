@@ -32,7 +32,7 @@ func Resolve(c Config, o Overrides, base string) (model.Request, error) {
 		}
 	}
 	if o.Target != "" {
-		r.Targets = []model.Target{{Name: "default", Path: o.Target, Adapters: []string{"link-adapter"}}}
+		r.Targets = []model.Target{{Name: "default", Path: o.Target, Adapters: []string{}}}
 	}
 	for i := range r.Targets {
 		r.Targets[i].Path = resolve(r.Targets[i].Path)

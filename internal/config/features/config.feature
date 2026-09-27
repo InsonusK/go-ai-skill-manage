@@ -8,7 +8,7 @@ Feature: Effective synchronization configuration
   When I resolve configuration
   Then the configuration is
    """
-   {"sources":[{"type":"local","path":"/project/skills","subpaths":[],"tags":[],"exclude":[]}],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":[]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"exclude":["examples"]}
+   {"sources":[{"type":"local","path":"/project/skills","subpaths":[],"tags":[],"exclude":[]}],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":[]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"exclude":["examples","templates"]}
    """
   And the config log has INFO "settings.validation.exclude_from_checks"
  Scenario: Named targets and global adapters
@@ -44,7 +44,7 @@ Feature: Effective synchronization configuration
   When I resolve configuration
   Then the configuration is
    """
-   {"sources":[],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":[]}],"tempDir":"<resolved>","dry":false,"orphans":true,"relations":false,"exclude":["examples"]}
+   {"sources":[],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":[]}],"tempDir":"<resolved>","dry":false,"orphans":true,"relations":false,"exclude":["examples","templates"]}
    """
   Examples:
    | temp_dir | resolved |
@@ -76,7 +76,7 @@ Feature: Effective synchronization configuration
   When I resolve configuration
   Then the configuration is
    """
-   {"sources":[],"targets":[{"name":"default","path":"/project/out","adapters":[]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"exclude":["examples"]}
+   {"sources":[],"targets":[{"name":"default","path":"/project/out","adapters":[]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"exclude":["examples","templates"]}
    """
 
  Scenario Outline: Configuration rejects invalid public values
@@ -185,7 +185,21 @@ Feature: Effective synchronization configuration
   When I resolve configuration
   Then the configuration is
    """
-   {"sources":[],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":[]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"exclude":["examples"]}
+   {"sources":[],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":[]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"exclude":["examples","templates"]}
    """
   And the config log has WARN "adapter=link-adapter"
   And the config log has WARN "key=settings.on_conflict"
+
+ Scenario: The removed source name is accepted with a warning and has no effect
+  Given configuration
+   """
+   sources:
+     - path: in
+       name: renamed
+   """
+  When I resolve configuration
+  Then the configuration is
+   """
+   {"sources":[{"type":"local","path":"/project/in","subpaths":[],"tags":[],"exclude":[]}],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":[]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"exclude":["examples","templates"]}
+   """
+  And the config log has WARN "key=name"

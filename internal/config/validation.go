@@ -14,7 +14,7 @@ import (
 // error.
 //
 // Примеры:
-//   - раздела нет                                -> ["examples"] + info
+//   - раздела нет                                -> ["examples", "templates"] + info
 //   - exclude_from_checks: [demo]                -> ["demo"]
 //   - exclude_from_checks: [] (или без значения) -> []
 //   - rules.link.skip_folder: demo               -> ["demo"] + warning

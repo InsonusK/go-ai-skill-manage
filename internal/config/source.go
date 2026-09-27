@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"log/slog"
 	"strings"
 )
 
@@ -28,8 +29,8 @@ func parseSource(m map[string]any) (model.SourceSpec, error) {
 	if s.Tree, err = stringValue(m, "tree", "master"); err != nil {
 		return s, err
 	}
-	if s.Name, err = stringValue(m, "name", ""); err != nil {
-		return s, err
+	if _, set := m["name"]; set {
+		slog.Warn("removed setting, it has no effect: a skill keeps the name from its frontmatter", "source", s.Path, "key", "name")
 	}
 	def := []string{}
 	if s.Type == "github" {
