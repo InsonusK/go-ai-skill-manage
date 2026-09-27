@@ -9,7 +9,7 @@ GREMLINS_VERSION := v0.6.0
 GREMLINS := $(CURDIR)/bin/gremlins
 COVERPKG := $(shell go list ./cmd/... ./internal/... | grep -Ev '/(test|gen)(/|$$)' | paste -sd, -)
 
-.PHONY: build run lint unit-test mutation-test test-report test-and-report
+.PHONY: build run profile lint unit-test mutation-test test-report test-and-report
 
 build:
 	@mkdir -p bin
@@ -18,6 +18,10 @@ build:
 
 run: build
 	./bin/aism $(ARGS)
+
+# Profiles sync: MODE=local (default, local clone) or MODE=github; see profiling/README.md.
+profile:
+	$(MAKE) -C profiling profile MODE=$(or $(MODE),local)
 
 lint:
 	go vet ./...

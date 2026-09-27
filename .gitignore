@@ -5,3 +5,5 @@
 /tmp/
 /public/
 *.prof
+/profiling/out/
+/profiling/sources/

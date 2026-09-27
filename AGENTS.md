@@ -49,7 +49,7 @@
     `PathInRepo` — единственное место перевода пути между видами, без ФС.
   - `ParsedLink` — что парсер прочитал из ссылки (start, end, text, path,
     fragment, format, image).
-  - `DefaultExcludeFromChecks = ["examples"]` — единственное место
+  - `DefaultExcludeFromChecks = ["examples", "templates"]` — единственное место
     умолчания; `SourceSpec.ExcludeFromChecks` и `Request.ExcludeFromChecks`
     (глобальный) дополняют друг друга.
 - `model/issues`: интерфейс `Reportable{Report() IssueReportRow}` —
@@ -157,8 +157,9 @@
   называться одинаково).
 - `Link.Path`: resolver нужен только для `SkillRelative`. Web-ссылка →
   `web-link`. Пустой путь (`[x](#part)`) — сам файл. Ссылка без `.md`
-  (`a/b/c`, есть только `a/b/c.md`) → `a/b/c.md`: расширение в результатах
-  всегда явное. Нет цели → `missing-link-target`, вне репозитория →
+  → `a/b/c.md`, если он есть, даже когда рядом папка `a/b/c` (как
+  Obsidian; решение пользователя вместо ошибки неоднозначности); `a/b/c/`
+  — папка. Расширение в результатах всегда явное. Нет цели → `missing-link-target`, вне репозитория →
   `path-escape`.
 - `Link.Skill` → `resolver.TryGetOrFetchByPathUp`.
 
@@ -209,7 +210,7 @@
   `settings.validation.exclude_from_checks` (глобально) и
   `sources[].exclude_from_checks`, дополняют друг друга (обработчик кладёт
   объединение в `catalog.ExcludeFromChecks[key]`). Глобальный не задан →
-  `["examples"]` + info в лог; `[]`/пусто — ничего не исключать. Старые
+  `["examples", "templates"]` + info в лог; `[]`/пусто — ничего не исключать. Старые
   имена (`sources[].skip_folder`, `settings.validation.rules.link.
   skip_folder`) читаются с warning; старое и новое на одном уровне —
   ошибка.
@@ -363,6 +364,39 @@
 - `docs/architecture/` удалён пользователем. README и
   `docs/api/reference.md` актуальны; `docs/features/sync.md` (индекс
   модулей) и `docs/skills/...` ещё описывают старые пакеты.
+
+## Профилирование (`profiling/`)
+
+`profiling/Makefile` (`make -C profiling …`): `validate`, `sync`,
+`profile`, `report` (`RUN=cold|warm`), `web`, `python` (старый CLI на том
+же конфиге, dry run), `clean`; `MODE=local|github`.
+`make profile [MODE=local|github]` → `profiling/run.sh`: сборка, `sync`
+дважды (cold в пустые target, warm поверх) с `--profile` (CPU +
+heap, `--mem-profile-output`; в лог `msg=memory total_alloc_mb sys_mb
+num_gc`), время, `pprof -top`. `local` — `ai-skill.local.yaml` на клоне
+`profiling/sources/ai-skills` (клонируется один раз); `github` —
+`ai-skill.yaml` пользователя (не менять без него). `profiling/out/`,
+`profiling/sources/` — в `.gitignore`.
+
+На реальном `ai-skills` (8 subpath) Python-CLI проходит без проблем (674
+скила, ~4,8 с), новый `sync` падает на валидации: 231 проблема, ~1,2 с; CPU ~60% — системные вызовы под `validateLink`
+(`fs.Stat` при разрешении ссылок), ~17% — regexp. Находки ждут решения:
+- `skill-not-found` (113): ссылки на файлы вне скилов (`registry/*.md` и
+  т. п.); старый CLI копировал их в `target/files/`, новый — нет.
+- `missing-anchor` (108): ~62 — ссылка без расширения с якорем
+  (`[[.../X.extend#MUST]]`), рядом папка `X.extend` и заметка
+  `X.extend.md`; `Link.Path` берёт папку, а не `.md`. Остальное похоже на
+  ошибки репозитория (якорь на жирный текст, slug без `_`).
+- `missing-link-target` (9): шаблоны со ссылками «от будущего места».
+- `link-overlap` (1): бейдж `[![alt](img)](url)` отвергается разбором.
+Решения пользователя: файлы вне скилов вернуть (как — обдумать, возможно
+трансформер); ссылка без расширения при наличии и `X`, и `X.md` ведёт на
+заметку `X.md` (строгая ошибка дала 271 проблему на `ai-skills`); `templates`
+добавлен в умолчание `exclude_from_checks` (бейдж и заглушки там).
+Расхождения с Python: Python не проверяет якоря; Python, похоже, проверяет
+ссылки только в файлах, достижимых по ссылкам от главного файла скила (мы —
+во всех `.md`); разрешение `X` → `X.md` одинаковое. Предложено: сверочные
+godog-сценарии старой и новой реализации (обсуждается).
 
 ## Старые пакеты
 
