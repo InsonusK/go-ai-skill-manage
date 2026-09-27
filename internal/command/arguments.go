@@ -10,7 +10,10 @@ import (
 )
 
 // Commands are the commands the CLI runs.
-var Commands = []string{"sync", "validate"}
+var Commands = []string{"sync", "validate", "feedback"}
+
+// FeedbackActions are the actions of the feedback command.
+var FeedbackActions = []string{"draft", "show", "send", "decline"}
 
 type Options struct {
 	// Command is "sync" or "validate".
@@ -24,6 +27,14 @@ type Options struct {
 	// Force is the deprecated --force: without a hash to skip unchanged
 	// skills every managed folder is rewritten anyway.
 	Force bool
+	// Feedback is what the feedback command was given.
+	Feedback FeedbackOptions
+}
+
+// FeedbackOptions: Action is one of FeedbackActions; draft takes Skill,
+// Kind, Title and Body or BodyFile ("-" for stdin); the others take ID.
+type FeedbackOptions struct {
+	Action, ID, Skill, Kind, Title, Body, BodyFile string
 }
 
 func Parse(args []string) (Options, error) {
@@ -32,6 +43,17 @@ func Parse(args []string) (Options, error) {
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if !strings.HasPrefix(arg, "-") {
+			if command == "feedback" && opts.Feedback.Action == "" {
+				if !slices.Contains(FeedbackActions, arg) {
+					return opts, fmt.Errorf("unknown feedback action %q: use %s", arg, strings.Join(FeedbackActions, ", "))
+				}
+				opts.Feedback.Action = arg
+				continue
+			}
+			if command == "feedback" && opts.Feedback.Action != "draft" && opts.Feedback.ID == "" {
+				opts.Feedback.ID = arg
+				continue
+			}
 			if command != "" {
 				return opts, fmt.Errorf("unexpected argument %q", arg)
 			}
@@ -45,7 +67,8 @@ func Parse(args []string) (Options, error) {
 		key, value, hasValue := strings.Cut(arg, "=")
 		needsValue := false
 		switch key {
-		case "-c", "--config", "-t", "--type", "-p", "--path", "--subpath", "--target", "--profile-output", "--mem-profile-output":
+		case "-c", "--config", "-t", "--type", "-p", "--path", "--subpath", "--target", "--profile-output", "--mem-profile-output",
+			"--skill", "--kind", "--title", "--body", "--body-file":
 			needsValue = true
 		case "-h", "--help", "--version", "--debug", "--profile", "--dry-run", "-f", "--force", "--remove-orphans", "--keep-orphans", "--add-relations":
 		default:
@@ -77,6 +100,16 @@ func Parse(args []string) (Options, error) {
 				opts.ProfileOutput = value
 			case "--mem-profile-output":
 				opts.MemProfileOutput = value
+			case "--skill":
+				opts.Feedback.Skill = value
+			case "--kind":
+				opts.Feedback.Kind = value
+			case "--title":
+				opts.Feedback.Title = value
+			case "--body":
+				opts.Feedback.Body = value
+			case "--body-file":
+				opts.Feedback.BodyFile = value
 			}
 			continue
 		}
@@ -118,12 +151,44 @@ func Parse(args []string) (Options, error) {
 	if !opts.Help && !opts.Version && command == "" {
 		return opts, fmt.Errorf("a command is required: %s", strings.Join(Commands, ", "))
 	}
+	if err := checkFeedback(opts); err != nil {
+		return opts, err
+	}
 	switch opts.SourceType {
 	case "", "local", "github", "auto", "flat", "directory":
 	default:
 		return opts, fmt.Errorf("unknown source type %q", opts.SourceType)
 	}
 	return opts, nil
+}
+
+// checkFeedback: the feedback flags belong to feedback draft only, and
+// every action has what it needs.
+func checkFeedback(opts Options) error {
+	f := opts.Feedback
+	draftFlags := f.Skill != "" || f.Kind != "" || f.Title != "" || f.Body != "" || f.BodyFile != ""
+	if opts.Help || opts.Version {
+		return nil
+	}
+	if opts.Command != "feedback" || f.Action != "draft" {
+		if draftFlags {
+			return fmt.Errorf("--skill, --kind, --title, --body and --body-file are for feedback draft only")
+		}
+		if opts.Command != "feedback" {
+			return nil
+		}
+	}
+	switch {
+	case f.Action == "":
+		return fmt.Errorf("feedback needs an action: %s", strings.Join(FeedbackActions, ", "))
+	case f.Action != "draft" && f.ID == "":
+		return fmt.Errorf("feedback %s needs the draft id", f.Action)
+	case f.Action == "draft" && (f.Skill == "" || f.Kind == "" || f.Title == ""):
+		return fmt.Errorf("feedback draft needs --skill, --kind and --title")
+	case f.Action == "draft" && (f.Body == "") == (f.BodyFile == ""):
+		return fmt.Errorf("feedback draft needs either --body or --body-file")
+	}
+	return nil
 }
 
 const Usage = `Usage: aism [--debug] [--profile] <command> [options]
@@ -133,6 +198,15 @@ Commands:
   sync       Load the skills of the configured sources, check them and write
              them into every target folder
   validate   Check the configuration and the skills without writing anything
+  feedback   Report a bug or suggest an improvement to a skill's source
+             (a GitHub issue), sent only after the user confirms it:
+    feedback draft --skill NAME --kind bug|improvement --title TEXT
+                   (--body TEXT | --body-file FILE|-)
+               Write the draft to .ai-skills/feedback/ next to the config
+    feedback show ID     Show the draft and the issue it would open
+    feedback send ID     Show it, ask for confirmation, open the issue
+                         (asks in a terminal only: the user runs it)
+    feedback decline ID  Close the draft without sending; the file stays
 
 Options:
   -c, --config FILE        YAML or JSON config (default: ai-skills.yaml)

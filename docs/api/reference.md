@@ -2,14 +2,17 @@
 
 ## Команды и exit codes
 
-`aism` и `ai-skill-manager` — один исполняемый файл с двумя командами:
+`aism` и `ai-skill-manager` — один исполняемый файл с тремя командами:
 
 - `sync` — загрузить скилы источников, проверить и записать во все target;
-- `validate` — проверить конфигурацию и скилы, ничего не записывая.
+- `validate` — проверить конфигурацию и скилы, ничего не записывая;
+- `feedback` — сообщить об ошибке или предложить улучшение скила issue в
+  его GitHub-источник; отправляет только пользователь (см.
+  [feedback](#feedback)).
 
 | Код | Значение |
 | --- | --- |
-| 0 | Успех, dry-run, справка или версия |
+| 0 | Успех, dry-run, справка или версия; `feedback send`, на который ответили не `y` |
 | 1 | Проблемы конфигурации, скилов или target; ошибка источника, записи или профилирования |
 | 2 | Ошибка аргументов |
 
@@ -50,6 +53,34 @@ aism sync -c project/ai-skills.yaml --keep-orphans
 aism --profile --profile-output /tmp/aism.prof sync --dry-run
 go tool pprof /tmp/aism.prof
 ```
+
+## feedback
+
+Отзыв о скиле проходит три шага: агент пишет черновик, пользователь его
+проверяет и сам отправляет. Зачем так и как настроить доступ к GitHub —
+[docs/feedback.md](../feedback.md).
+
+```sh
+aism feedback draft --skill NAME --kind bug|improvement --title TEXT (--body TEXT | --body-file FILE|-)
+aism feedback show ID
+aism feedback send ID
+aism feedback decline ID
+```
+
+| Действие / флаг | Значение |
+| --- | --- |
+| `draft` | Записать черновик в `.ai-skills/feedback/<id>.md` рядом с конфигурацией. Ничего не отправляет; печатает итоговый issue и команду отправки |
+| `--skill` | Имя скила, как папка в target. Обязателен. Источник берётся из маркера `.ai-skills-managed` первой target с этим скилом |
+| `--kind` | `bug` (метка `bug`) или `improvement` (метка `enhancement`). Обязателен |
+| `--title` | Заголовок issue, одна строка. Обязателен |
+| `--body` / `--body-file` | Текст issue: строкой или из файла (`-` — stdin). Ровно один из двух |
+| `show ID` | Статус черновика (`draft`, `sent`, `declined`), ссылка на issue и итоговый issue |
+| `send ID` | Показать итоговый issue и открыть его после ответа `y`. Работает только в терминале: без него — код 1, ничего не отправлено |
+| `decline ID` | Закрыть черновик без отправки; файл остаётся |
+
+`ID` — имя черновика, его файл или путь к нему. `-c` указывает конфигурацию:
+от её папки считаются target и папка черновиков. Токен GitHub:
+`GH_TOKEN`, `GITHUB_TOKEN`, затем `gh auth token`.
 
 ## Схема YAML / JSON
 

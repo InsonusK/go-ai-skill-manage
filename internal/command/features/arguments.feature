@@ -25,9 +25,51 @@ Feature: CLI argument contract
   Then argument error contains "<error>"
   Examples:
    | args | error |
-   | [] | command is required: sync, validate |
+   | [] | command is required: sync, validate, feedback |
    | ["sync","extra"] | unexpected argument |
    | ["sync","validate"] | unexpected argument |
    | ["sync","--force=invalid"] | requires a boolean |
    | ["sync","--type","wrong"] | unknown source type |
    | ["sync","--config="] | requires a value |
+
+ Scenario: feedback draft takes the skill, the kind, the title and the body
+  When I parse argument list
+   """
+   ["feedback","draft","--skill","guide","--kind","bug","--title","Broken anchor","--body-file","-","-c","custom.yaml"]
+   """
+  Then parsed feedback options are
+   """
+   {"Action":"draft","ID":"","Skill":"guide","Kind":"bug","Title":"Broken anchor","Body":"","BodyFile":"-"}
+   """
+ Scenario Outline: feedback <action> takes the draft id
+  When I parse argument list
+   """
+   ["feedback","<action>","2026-09-27-guide"]
+   """
+  Then parsed feedback options are
+   """
+   {"Action":"<action>","ID":"2026-09-27-guide","Skill":"","Kind":"","Title":"","Body":"","BodyFile":""}
+   """
+  Examples:
+   | action  |
+   | show    |
+   | send    |
+   | decline |
+ Scenario Outline: Malformed feedback arguments fail parsing
+  When I parse argument list
+   """
+   <args>
+   """
+  Then argument error contains "<error>"
+  Examples:
+   | args | error |
+   | ["feedback"] | feedback needs an action: draft, show, send, decline |
+   | ["feedback","post"] | unknown feedback action "post" |
+   | ["feedback","send"] | feedback send needs the draft id |
+   | ["feedback","show","a","b"] | unexpected argument "b" |
+   | ["feedback","draft","x"] | unexpected argument "x" |
+   | ["feedback","draft","--skill","g","--title","t","--body","b"] | feedback draft needs --skill, --kind and --title |
+   | ["feedback","draft","--skill","g","--kind","bug","--title","t"] | needs either --body or --body-file |
+   | ["feedback","draft","--skill","g","--kind","bug","--title","t","--body","b","--body-file","f"] | needs either --body or --body-file |
+   | ["feedback","send","id","--title","t"] | are for feedback draft only |
+   | ["sync","--skill","g"] | are for feedback draft only |

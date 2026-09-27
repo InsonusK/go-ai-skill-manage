@@ -24,6 +24,7 @@ func initialize(sc *godog.ScenarioContext) {
 	var failure error
 	var state map[string]model.Managed
 
+	feedbackSteps(sc, &dir)
 	sc.Before(func(ctx context.Context, s *godog.Scenario) (context.Context, error) {
 		dir, skill, failure, state = "", nil, nil, nil
 		return ctx, nil

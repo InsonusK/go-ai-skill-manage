@@ -16,6 +16,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/filesystem"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/repository"
+	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/tracker"
 	"github.com/InsonusK/go-ai-skill-manage/internal/logging"
 	"github.com/InsonusK/go-ai-skill-manage/internal/profiling"
 	"github.com/InsonusK/go-ai-skill-manage/internal/version"
@@ -58,9 +59,28 @@ func run() (code int) {
 			Archive: repository.Archive{Client: &http.Client{Timeout: 60 * time.Second}},
 		},
 	}
-	app := command.App{Providers: providers, State: store, Writer: store, ReadFile: os.ReadFile, Out: os.Stdout, Err: os.Stderr, Version: version.Version}
+	github := tracker.GitHub{
+		Client: &http.Client{Timeout: 30 * time.Second},
+		Token:  tracker.TokenSource{Getenv: os.Getenv, GH: tracker.GHAuthToken}.Token,
+	}
+	app := command.App{
+		Providers: providers, State: store, Writer: store, ReadFile: os.ReadFile, Out: os.Stdout, Err: os.Stderr, Version: version.Version,
+		Markers:    store,
+		Drafts:     func(dir string) interfaces.FeedbackDrafts { return filesystem.FeedbackDrafts{Dir: dir} },
+		Trackers:   map[string]interfaces.IssueTracker{"github": github},
+		In:         os.Stdin,
+		IsTerminal: stdinIsTerminal,
+	}
 	logger.Debug("command started")
 	code = app.Execute(ctx, opts, cwd)
 	logger.Debug("command finished", "exit_code", code)
 	return code
+}
+
+// stdinIsTerminal tells whether stdin is a character device (a terminal),
+// not a pipe or a file, as an agent's shell gives. /dev/null passes too,
+// but then the answer is empty: not sent.
+func stdinIsTerminal() bool {
+	info, err := os.Stdin.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }

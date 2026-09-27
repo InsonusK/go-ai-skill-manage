@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"time"
 
 	configvalidator "github.com/InsonusK/go-ai-skill-manage/internal/config/validator"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/handler"
@@ -24,6 +25,21 @@ type App struct {
 	ReadFile  func(string) ([]byte, error)
 	Out, Err  io.Writer
 	Version   string
+
+	// The feedback command's ports: Markers read skills' markers in the
+	// targets, Drafts keeps drafts in a folder, Trackers open issues by
+	// source type.
+	Markers  interfaces.MarkerReader
+	Drafts   func(dir string) interfaces.FeedbackDrafts
+	Trackers map[string]interfaces.IssueTracker
+	// In is the user's input: the body of feedback draft --body-file -,
+	// the answer to feedback send.
+	In io.Reader
+	// IsTerminal tells whether In is the user's terminal; feedback send
+	// asks only there.
+	IsTerminal func() bool
+	// Now is the clock; nil means time.Now.
+	Now func() time.Time
 }
 
 // Execute runs opts and returns the exit code: 0 on success, 1 when the
@@ -49,6 +65,9 @@ func (a App) Execute(ctx context.Context, opts Options, cwd string) (code int) {
 	if problems := configvalidator.Validate(ctx, req); len(problems) > 0 {
 		PrintIssues(a.Err, reportables(problems))
 		return 1
+	}
+	if opts.Command == "feedback" {
+		return a.feedback(ctx, opts, req)
 	}
 	sources := sourcing.NewManager(a.Providers, req.TempDir)
 	defer func() {

@@ -132,13 +132,28 @@ Found 1 problem(s)
 
 Полный справочник флагов и конфигурации — [docs/api/reference.md](docs/api/reference.md).
 
+## Отзыв о скиле
+
+Если скил ошибается или его можно улучшить, агент пишет черновик issue в
+репозиторий, откуда скил пришёл, а вы проверяете его и отправляете сами:
+
+```sh
+aism feedback draft --skill guide --kind bug --title "Broken anchor" --body "The anchor #setup leads nowhere."
+# проверить .ai-skills/feedback/<id>.md, затем в своём терминале:
+aism feedback send <id>
+```
+
+Нужен вход в GitHub (`gh auth login`) или токен в `GH_TOKEN`. Как это
+устроено, какой токен выбрать и где его хранить — [docs/feedback.md](docs/feedback.md).
+
 ## Как читать проект
 
 1. [Справочник CLI и конфигурации](docs/api/reference.md).
-2. [Индекс возможностей, модулей и тестов](docs/features/sync.md).
-3. [Запуск тестов, coverage и mutation testing](docs/testing.md).
-4. [Инструкция для AI-агентов](docs/skills/go/ai-skill-manager.skill/ai-skill-manager.skill.md).
-5. [Состояние переделки и принятые решения](AGENTS.md).
+2. [Отзыв о скиле: черновик, проверка, отправка, доступ к GitHub](docs/feedback.md).
+3. [Индекс возможностей, модулей и тестов](docs/features/sync.md).
+4. [Запуск тестов, coverage и mutation testing](docs/testing.md).
+5. [Инструкция для AI-агентов](docs/skills/go/ai-skill-manager.skill/ai-skill-manager.skill.md).
+6. [Состояние переделки и принятые решения](AGENTS.md).
 
 Точка сборки зависимостей — [main.go](cmd/ai-skill-manager/main.go).
 Входной адаптер — [internal/command](internal/command/sync.go).

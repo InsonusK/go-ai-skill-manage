@@ -29,7 +29,13 @@ func argumentSteps(sc *godog.ScenarioContext) {
 		o := actual.Override
 		return testsupport.JSON(map[string]any{"command": actual.Command, "config": actual.Config, "type": actual.SourceType, "path": actual.SourcePath, "subpaths": actual.Subpaths, "target": o.Target, "dry": o.DryRun, "force": actual.Force, "orphans": o.RemoveOrphans, "relations": o.AddRelations, "debug": actual.Debug, "profile": actual.Profile, "profileOutput": actual.ProfileOutput, "memProfileOutput": actual.MemProfileOutput}, d)
 	})
-	sc.Step(`^argument error contains "([^"]*)"$`, func(ctx context.Context, want string) error {
+	sc.Step(`^parsed feedback options are$`, func(ctx context.Context, d *godog.DocString) error {
+		if failure != nil {
+			return failure
+		}
+		return testsupport.JSON(actual.Feedback, d)
+	})
+	sc.Step(`^argument error contains "(.*)"$`, func(ctx context.Context, want string) error {
 		testsupport.Log("error=%v", failure)
 		if failure == nil || !strings.Contains(failure.Error(), want) {
 			return fmt.Errorf("error=%v want %s", failure, want)

@@ -479,6 +479,9 @@ master или запустить workflow вручную.
      после подтверждения его отменяет); к телу дописывается блок
      контекста (скил, путь в источнике, коммит, версия CLI); `kind` →
      метка; черновик помечается отправленным со ссылкой на issue.
+- Корень проекта — папка `ai-skill.yaml`: черновики в
+  `{папка конфига}/.ai-skills/feedback/`, как и пути target считаются от
+  неё.
 - Проверки дублей нет — на совести пользователя.
 - `local`-источник → ошибка «локальный источник, правьте вручную».
 - Команда — `feedback` (не только баги, но и предложения).
@@ -489,9 +492,44 @@ master или запустить workflow вручную.
 1. ✅ `ManagedState` → `model`, `source` объектом, `commit` в маркере
    (`Repository.Commit` от провайдера `github`); заодно архив GitHub:
    pax global header больше не роняет распаковку.
-2. Черновик: порт трекера, чтение маркера, `handler` черновика и
-   отправки + сценарии с фейковым трекером.
-3. CLI `feedback` (`draft`, `send` с подтверждением в TTY).
+2. ✅ Черновик и отправка без CLI:
+   - `model.FeedbackDraft` (статус `draft` → `sent`/`declined`, дальше
+     не меняется), `model.NewIssue`;
+   - `services/feedback` — чистые правила: `ValidKind`, `CheckText`,
+     `DraftID` (`<дата>-<скил>-<slug заголовка>`, slug только латиница и
+     цифры), `Compose` (тело + блок контекста, `bug`→`bug`,
+     `improvement`→`enhancement`), `Hash` (source + итоговый issue);
+   - порты `interfaces.MarkerReader` (`ErrSkillNotManaged`),
+     `FeedbackDrafts`, `IssueTracker`;
+   - `handler.FeedbackService{Markers, Drafts, Trackers по типу source,
+     Now, Version}`: `Draft(ctx, targets, in)` (скил ищется по target по
+     порядку, первый с маркером; `local` и тип без трекера — ошибка до
+     записи черновика), `Preview`, `Send(ctx, id, hash)` (только
+     `draft`, текст непустой, хеш совпадает; сбой трекера — черновик
+     остаётся `draft`), `Decline`;
+   - infra: `filesystem.Store.ReadMarker` (только настоящая папка с
+     обычным файлом-маркером, как `Snapshot`; маркер старого формата —
+     «run sync»), `filesystem.FeedbackDrafts{Dir}`
+     (`FeedbackDraftsDir = .ai-skills/feedback`, файл `<id>.md`:
+     YAML-frontmatter с отступом 2, `# <title>`, тело; занятый id →
+     `-2`, `-3`…; id только `[a-z0-9-]`), `tracker.GitHub{Client,
+     BaseURL, Token func}` (REST `POST /repos/{o}/{r}/issues`, 201 →
+     `html_url`; нет токена — подсказка про `GITHUB_TOKEN`/`gh auth
+     login`). Откуда брать токен — шаг 3.
+3. ✅ CLI `feedback`: `draft --skill --kind --title (--body |
+   --body-file FILE|-)`, `show ID`, `send ID`, `decline ID` (ID — имя,
+   файл или путь черновика). Конфиг проходит `Validate`, как у `sync`;
+   папка черновиков — `command.FeedbackDraftsDir` от `req.Base`. `send`
+   без терминала (`App.IsTerminal`: stdin — char device) — код 1 и
+   подсказка пользователю; в терминале — итоговый issue и `[y/N]`, всё
+   кроме `y`/`yes` — «Not sent.», код 0. Токен —
+   `tracker.TokenSource`: `GH_TOKEN` → `GITHUB_TOKEN` → `gh auth
+   token` (свой токен не храним; SSH-ключ API не принимает); 401/403/404
+   и отсутствие токена отсылают к `docs/feedback.md`. Документация:
+   `docs/feedback.md` (шаги, черновики, выбор токена — fine-grained
+   только для своих репозиториев, classic `public_repo` для чужих
+   публичных; где хранить; Codespaces), раздел в README, `feedback` в
+   `docs/api/reference.md`.
 4. MCP-подкоманда с elicitation + документация.
 
 ## Идеи оптимизации (не внедрены, ждут решения)

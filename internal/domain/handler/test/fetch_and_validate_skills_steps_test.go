@@ -44,6 +44,7 @@ func initialize(sc *godog.ScenarioContext) {
 	var problems issues.SkillIssues
 
 	registerSyncSteps(sc, &trees, &req, &problems)
+	registerFeedbackSteps(sc)
 
 	sc.Before(func(ctx context.Context, s *godog.Scenario) (context.Context, error) {
 		trees, req, catalog, problems = map[string]fstest.MapFS{}, model.Request{}, nil, nil
