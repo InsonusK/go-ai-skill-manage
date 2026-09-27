@@ -7,13 +7,14 @@ const Marker = ".ai-skills-managed"
 const TransformVersion = "go-2"
 
 // DefaultExcludeFromChecks is the global exclusion list used when the
-// configuration doesn't set one: "examples" usually holds ready example
-// code whose links often lead nowhere on purpose.
-var DefaultExcludeFromChecks = []string{"examples"}
+// configuration doesn't set one: "examples" and "templates" usually hold
+// example code and templates whose links often lead nowhere on purpose
+// (placeholders, paths of a future place).
+var DefaultExcludeFromChecks = []string{"examples", "templates"}
 
 type SourceSpec struct {
-	Type, Path, Tree, Name string
-	Subpaths, Tags         []string
+	Type, Path, Tree string
+	Subpaths, Tags   []string
 	// ExcludeFromChecks are top-level folders of this source's skills that
 	// are loaded and copied with the skill but never checked (no
 	// nested-skill, no link checks). Adds to Request.ExcludeFromChecks.

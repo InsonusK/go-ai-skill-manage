@@ -143,7 +143,8 @@ func (l *Link) Skill(ctx context.Context, resolver SkillResolver) (*Skill, error
 // file's folder, "a/x" from the repository folder, "/x" from the OS root),
 // an empty one (a "#fragment"-only link) points to the file itself, and a
 // path with the ".md" left out (a/b/c meaning a/b/c.md) gets it written
-// explicitly. Fails for a web link, a path leaving the repository
+// explicitly -- a/b/c.md wins even when a/b/c exists too; a/b/c/ (trailing
+// "/") is the folder. Fails for a web link, a path leaving the repository
 // ("path-escape"), or a target that doesn't exist ("missing-link-target").
 func (l *Link) resolveTarget() (*model.PathInRepo, error) {
 	if l.target != nil {
@@ -169,16 +170,24 @@ func (l *Link) resolveTarget() (*model.PathInRepo, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A path without ".md" goes to its ".md" note when there is one, even
+	// if the path itself exists too (a folder "X.extend" beside the note
+	// "X.extend.md"), as a wikilink in Obsidian does; a trailing "/" asks
+	// for the folder.
+	if !strings.HasSuffix(strings.ToLower(p), ".md") && !strings.HasSuffix(written, "/") {
+		if _, err := fs.Stat(repo.FS, p+".md"); err == nil {
+			if target, err = model.MakePathInRepo(repo.RootPath, p+".md", model.RepoAbsolute, ""); err != nil {
+				return nil, err
+			}
+			l.target = &target
+			return l.target, nil
+		}
+	}
 	if _, err := fs.Stat(repo.FS, p); err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			return nil, err
 		}
-		if _, err := fs.Stat(repo.FS, p+".md"); err != nil {
-			return nil, issues.SkillIssue{Code: "missing-link-target", Link: l.Raw, File: p, Message: "link target does not exist"}
-		}
-		if target, err = model.MakePathInRepo(repo.RootPath, p+".md", model.RepoAbsolute, ""); err != nil {
-			return nil, err
-		}
+		return nil, issues.SkillIssue{Code: "missing-link-target", Link: l.Raw, File: p, Message: "link target does not exist"}
 	}
 	l.target = &target
 	return l.target, nil

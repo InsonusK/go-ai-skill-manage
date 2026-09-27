@@ -3,7 +3,7 @@ Feature: A Link knows the file it is written in and the path and skill it points
  Background:
   Given a repository "/src" holding
    """
-   {"a/SKILL.md":"---\nname: one\n---\n","a/guide.md":"g","a/docs/guide.md":"g","a/docs/page.md":"p","b/SKILL.md":"---\nname: two\n---\n","b/x.md":"x","b/y":"no extension"}
+   {"a/SKILL.md":"---\nname: one\n---\n","a/guide.md":"g","a/docs/guide.md":"g","a/docs/page.md":"p","b/SKILL.md":"---\nname: two\n---\n","b/x.md":"x","b/y":"no extension","b/z/inner.md":"folder","b/z.md":"note"}
    """
 
  Scenario Outline: MakeLink reads Raw from the file content and tells a web link by its path
@@ -51,7 +51,7 @@ Feature: A Link knows the file it is written in and the path and skill it points
    | [G](.)                | /src/a/docs           | a/docs          | .            |
    | [[b/x.md]]            | /src/b/x.md           | b/x.md          | ../../b/x.md |
 
- Scenario Outline: A link with the ".md" left out points to the ".md" file, written explicitly
+ Scenario Outline: A link with the ".md" left out points to the ".md" note, even beside a folder of that name; "X/" is the folder
   Given the file "docs/intro.md" of the skill at "a" contains
    """
    <link>
@@ -66,6 +66,10 @@ Feature: A Link knows the file it is written in and the path and skill it points
    | [[a/docs/page]]   | a/docs/page.md | ./page.md     |
    | [X](../../b/x)    | b/x.md         | ../../b/x.md  |
    | [Y](../../b/y)    | b/y            | ../../b/y     |
+   | [Z](../../b/z)    | b/z.md         | ../../b/z.md  |
+   | [[b/z#part]]      | b/z.md         | ../../b/z.md  |
+   | [Z](../../b/z.md) | b/z.md         | ../../b/z.md  |
+   | [Z](../../b/z/)   | b/z            | ../../b/z     |
 
  Scenario Outline: A link whose target is outside the repository, missing, or on the web has no path
   Given the file "docs/intro.md" of the skill at "a" contains
