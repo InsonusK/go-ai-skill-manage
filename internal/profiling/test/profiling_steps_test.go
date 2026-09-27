@@ -14,27 +14,32 @@ import (
 )
 
 func initialize(sc *godog.ScenarioContext) {
-	var dir, file string
+	var dir, file, memFile string
 	var failure error
 	sc.Before(func(ctx context.Context, s *godog.Scenario) (context.Context, error) {
 		var err error
 		dir, err = os.MkdirTemp("", "aism-prof-test-")
 		file = filepath.Join(dir, "cpu.prof")
+		memFile = filepath.Join(dir, "mem.prof")
 		return ctx, err
 	})
 	sc.After(func(ctx context.Context, s *godog.Scenario, err error) (context.Context, error) {
 		return ctx, os.RemoveAll(dir)
 	})
 	sc.Step(`^I record a CPU profile$`, func(ctx context.Context) error {
-		stop, err := profiling.Start(file)
+		stop, err := profiling.Start(file, memFile)
 		if err != nil {
 			return err
 		}
 		testsupport.Log("profile=%s", file)
 		return stop()
 	})
-	sc.Step(`^the profile is a readable gzip stream$`, func(ctx context.Context) error {
-		f, err := os.Open(file)
+	sc.Step(`^the (CPU|heap) profile is a readable gzip stream$`, func(ctx context.Context, kind string) error {
+		name := file
+		if kind == "heap" {
+			name = memFile
+		}
+		f, err := os.Open(name)
 		if err != nil {
 			return err
 		}
@@ -55,7 +60,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^I start profiling in a missing directory$`, func(ctx context.Context) error {
-		_, failure = profiling.Start(filepath.Join(dir, "missing/cpu.prof"))
+		_, failure = profiling.Start(filepath.Join(dir, "missing/cpu.prof"), "")
 		testsupport.Log("error=%v", failure)
 		return nil
 	})
