@@ -38,7 +38,6 @@ func Resolve(c Config, o Overrides, base string) (model.Request, error) {
 		r.Targets[i].Path = resolve(r.Targets[i].Path)
 	}
 	r.DryRun = r.DryRun || o.DryRun
-	r.Force = o.Force
 	if o.RemoveOrphans != nil {
 		r.RemoveOrphans = *o.RemoveOrphans
 	}

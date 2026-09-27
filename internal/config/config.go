@@ -4,17 +4,18 @@ import (
 	"fmt"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"go.yaml.in/yaml/v3"
+	"log/slog"
 )
 
 type Config struct{ Request model.Request }
 type Overrides struct {
 	Target                      string
-	DryRun, Force               bool
+	DryRun                      bool
 	RemoveOrphans, AddRelations *bool
 }
 
 func Parse(data []byte) (Config, error) {
-	req := model.Request{RemoveOrphans: true, Conflict: "error"}
+	req := model.Request{RemoveOrphans: true}
 	var node yaml.Node
 	if err := yaml.Unmarshal(data, &node); err != nil {
 		return Config{}, fmt.Errorf("config: %w", err)
@@ -46,11 +47,8 @@ func Parse(data []byte) (Config, error) {
 	if req.AddRelations, err = boolean(settings, "add_relations", false); err != nil {
 		return Config{}, err
 	}
-	if req.Conflict, err = stringValue(settings, "on_conflict", "error"); err != nil {
-		return Config{}, err
-	}
-	if req.Conflict != "error" && req.Conflict != "last_wins" {
-		return Config{}, fmt.Errorf("unknown on_conflict %q", req.Conflict)
+	if _, set := settings["on_conflict"]; set {
+		slog.Warn("deprecated setting, remove it: skills with the same name are always an error", "key", "settings.on_conflict")
 	}
 	if req.ExcludeFromChecks, err = globalExcludeFromChecks(settings); err != nil {
 		return Config{}, err

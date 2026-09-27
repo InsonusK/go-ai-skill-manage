@@ -103,8 +103,7 @@ PYTHONPATH=deprecated/ai-skill-manager/src .venv/bin/python -m pytest deprecated
 ```
 
 Baseline Python: 386 passed. Зависимости Python устанавливаются отдельно
-только для сравнений. Методика и подтверждённые отличия:
-[совместимость](architecture/compatibility.md).
+только для сравнений.
 
 ## Диаграмма модулей
 

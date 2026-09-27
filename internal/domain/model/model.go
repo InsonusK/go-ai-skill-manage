@@ -28,12 +28,11 @@ type Target struct {
 	Adapters   []string
 }
 type Request struct {
-	Base                                       string
-	TempDir                                    string
-	Sources                                    []SourceSpec
-	Targets                                    []Target
-	DryRun, Force, RemoveOrphans, AddRelations bool
-	Conflict                                   string
+	Base                                string
+	TempDir                             string
+	Sources                             []SourceSpec
+	Targets                             []Target
+	DryRun, RemoveOrphans, AddRelations bool
 	// ExcludeFromChecks are top-level skill folders excluded from checks in
 	// every source (see SourceSpec.ExcludeFromChecks).
 	ExcludeFromChecks []string

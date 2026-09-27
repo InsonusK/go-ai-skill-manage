@@ -14,9 +14,6 @@ sources:
       - skills/go/architecture/plateau/plateau-http-service
       
 target:
-  for_each:
-    adapters:
-      - link-adapter
   default:
     path: .agents/skills
   claude:
@@ -26,6 +23,5 @@ target:
 
 settings:
   remove_orphans: true
-  on_conflict: error
   dry_run: false
   add_relations: true

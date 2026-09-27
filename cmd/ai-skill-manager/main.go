@@ -11,13 +11,9 @@ import (
 	"time"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/command"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/discovery"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/relations"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
-	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/document"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/filesystem"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/repository"
 	"github.com/InsonusK/go-ai-skill-manage/internal/logging"
@@ -53,39 +49,16 @@ func run() (code int) {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	// Resolved here (rather than left to Execute alone) so its TempDir is
-	// known before the Manager -- which needs it at construction -- is
-	// built below. Execute resolves it again itself; a config file read/
-	// parse is cheap, and this keeps Execute's own contract unchanged. A
-	// resolution failure here is silently ignored -- Execute reports it
-	// properly, once, when it resolves the request itself.
-	var tempDir string
-	if !opts.Help && !opts.Version {
-		if req, reqErr := (command.App{ReadFile: os.ReadFile, Err: os.Stderr}).Request(opts, cwd); reqErr == nil {
-			tempDir = req.TempDir
-		}
-	}
-	codec := document.Codec{}
+	entity.SetDefaultLinkSearcher(links.NewDefaultLinkFactory())
 	store := filesystem.Store{}
-	detector := discovery.SkillSelector{Codec: codec}
-	sources := sourcing.NewManager(map[string]interfaces.SourceProvider{
+	providers := map[string]interfaces.SourceProvider{
 		"local": repository.Local{},
 		"github": repository.Fetcher{
 			Git:     repository.GitCloner{Runner: repository.GitProcess{}},
 			Archive: repository.Archive{Client: &http.Client{Timeout: 60 * time.Second}},
 		},
-	}, tempDir)
-	defer func() {
-		if err := sources.Close(ctx); err != nil {
-			logger.Error("close sources", "error", err)
-			code = 1
-		}
-	}()
-	service := &services.SyncService{
-		Sources: sources, Codec: codec, Lookup: sources, Detector: detector, Relations: relations.Expander{Detector: detector},
-		Planner: planning.Planner{State: store, Codec: codec}, Writer: store,
 	}
-	app := command.App{Sync: service, ReadFile: os.ReadFile, Out: os.Stdout, Err: os.Stderr, Version: version.Version}
+	app := command.App{Providers: providers, State: store, Writer: store, ReadFile: os.ReadFile, Out: os.Stdout, Err: os.Stderr, Version: version.Version}
 	logger.Debug("command started")
 	code = app.Execute(ctx, opts, cwd)
 	logger.Debug("command finished", "exit_code", code)

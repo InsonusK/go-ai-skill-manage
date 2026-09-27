@@ -48,7 +48,7 @@ func initialize(sc *godog.ScenarioContext) {
 		for _, t := range req.Targets {
 			targets = append(targets, map[string]any{"name": t.Name, "path": t.Path, "adapters": t.Adapters})
 		}
-		actual = map[string]any{"sources": sources, "targets": targets, "tempDir": req.TempDir, "dry": req.DryRun, "orphans": req.RemoveOrphans, "relations": req.AddRelations, "conflict": req.Conflict, "exclude": req.ExcludeFromChecks}
+		actual = map[string]any{"sources": sources, "targets": targets, "tempDir": req.TempDir, "dry": req.DryRun, "orphans": req.RemoveOrphans, "relations": req.AddRelations, "exclude": req.ExcludeFromChecks}
 		return nil
 	})
 	sc.Step(`^the configuration is$`, func(ctx context.Context, d *godog.DocString) error {

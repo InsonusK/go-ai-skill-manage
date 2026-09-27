@@ -9,9 +9,7 @@ import (
 )
 
 // Request resolves opts (plus, when applicable, the ai-skills.yaml config
-// file it points at) into a model.Request. Exported so main.go can resolve
-// it once, up front -- before constructing a sourcing.Manager, which needs
-// the resolved TempDir -- instead of only inside Execute.
+// file it points at) into a model.Request.
 func (a App) Request(opts Options, cwd string) (model.Request, error) {
 	base := cwd
 	var cfg config.Config

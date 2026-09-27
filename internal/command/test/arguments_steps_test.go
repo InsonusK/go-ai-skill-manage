@@ -27,7 +27,7 @@ func argumentSteps(sc *godog.ScenarioContext) {
 			return failure
 		}
 		o := actual.Override
-		return testsupport.JSON(map[string]any{"config": actual.Config, "type": actual.SourceType, "path": actual.SourcePath, "subpaths": actual.Subpaths, "target": o.Target, "dry": o.DryRun, "force": o.Force, "orphans": o.RemoveOrphans, "relations": o.AddRelations, "debug": actual.Debug, "profile": actual.Profile, "profileOutput": actual.ProfileOutput}, d)
+		return testsupport.JSON(map[string]any{"command": actual.Command, "config": actual.Config, "type": actual.SourceType, "path": actual.SourcePath, "subpaths": actual.Subpaths, "target": o.Target, "dry": o.DryRun, "force": actual.Force, "orphans": o.RemoveOrphans, "relations": o.AddRelations, "debug": actual.Debug, "profile": actual.Profile, "profileOutput": actual.ProfileOutput}, d)
 	})
 	sc.Step(`^argument error contains "([^"]*)"$`, func(ctx context.Context, want string) error {
 		testsupport.Log("error=%v", failure)

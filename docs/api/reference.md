@@ -2,15 +2,19 @@
 
 ## Команды и exit codes
 
-`aism sync [options]` и `ai-skill-manager sync [options]` запускают один use case.
+`aism` и `ai-skill-manager` — один исполняемый файл с двумя командами:
+
+- `sync` — загрузить скилы источников, проверить и записать во все target;
+- `validate` — проверить конфигурацию и скилы, ничего не записывая.
 
 | Код | Значение |
 | --- | --- |
 | 0 | Успех, dry-run, справка или версия |
-| 1 | Ошибка конфигурации, источника, проверки, записи или профилирования |
+| 1 | Проблемы конфигурации, скилов или target; ошибка источника, записи или профилирования |
 | 2 | Ошибка аргументов |
 
-План и итог выводятся в stdout; ошибки и структурированные логи — в stderr.
+План и итог выводятся в stdout; проблемы (деревом «источник → скил → файл →
+ссылка» или «target → скил»), ошибки и структурированные логи — в stderr.
 Вывод предназначен для человека; стабильный JSON-протокол пока не заявлен.
 
 ## Флаги
@@ -21,9 +25,9 @@
 | `-t, --type` | `local` / `github` | Прямой режим без конфигурации |
 | `-p, --path` | строка | Источник; GitHub: URL или `"URL branch"` |
 | `--subpath` | повторяемый путь | Для прямого GitHub-режима; default `skills` |
-| `--target` | путь | Заменить все цели одной с link-adapter |
+| `--target` | путь | Заменить все цели одной, без адаптеров |
 | `--dry-run` | bool, false | Проверить и вывести план без записи целей |
-| `-f, --force` | bool, false | Переписать неизменившиеся скилы |
+| `-f, --force` | bool, false | Устарел, ни на что не влияет (warning): управляемые папки перезаписываются всегда |
 | `--remove-orphans` | bool | Включить удаление управляемых orphan-скилов |
 | `--keep-orphans` | bool | Выключить удаление; при обоих флагах побеждает remove |
 | `--add-relations` | bool | Добавить связанные скилы; можно `=false` |
@@ -33,7 +37,7 @@
 | `--version` | bool | Версия из VERSION при make build |
 | `-h, --help` | bool | Справка |
 
-Флаги принимаются до и после `sync`; значения можно передать через `=`.
+Флаги принимаются до и после команды; значения можно передать через `=`.
 Устаревшие типы `auto`, `flat`, `directory` работают как `local`.
 Приоритет источников: явный `--config` → `--type` + `--path` → файл по умолчанию.
 CLI overrides имеют приоритет над настройками. Dry-run из конфигурации
@@ -41,6 +45,7 @@ CLI overrides имеют приоритет над настройками. Dry-r
 
 ```sh
 aism sync -t github -p "https://github.com/InsonusK/ai-skills.git master" --subpath skills/go --add-relations --dry-run
+aism validate -c project/ai-skills.yaml
 aism sync -c project/ai-skills.yaml --keep-orphans
 aism --profile --profile-output /tmp/aism.prof sync --dry-run
 go tool pprof /tmp/aism.prof
@@ -57,8 +62,6 @@ sources:
     tags: ["stack/go & !deprecated"]
     exclude_from_checks: [demo]
 target:
-  for_each:
-    adapters: [link-adapter]
   default:
     path: .agents/skills
   claude:
@@ -69,7 +72,6 @@ settings:
   dry_run: false
   remove_orphans: true
   add_relations: true
-  on_conflict: error
   validation:
     exclude_from_checks: [examples]
 ```
@@ -81,10 +83,10 @@ settings:
 | `type` | `local` | local / github / legacy aliases |
 | `path` | обязательное | Локальный путь или Git URL |
 | `tree` | `master` | Ветка или тег Git |
-| `subpath` | GitHub: `skills`; local: корень | Строка или список; отсутствующий путь даёт пустой выбор |
+| `subpath` | GitHub: `skills`; local: корень | Строка или список; отсутствующий путь — проблема `missing-subpath`, путь за пределы источника — `unsafe-subpath` |
 | `tags` | без фильтра | Строка или список выражений; список объединяется AND. **Пока не поддерживается**: источник с `tags` — ошибка конфигурации `unsupported-tags` |
 | `exclude_from_checks` | нет | Папки первого уровня скилов этого источника, исключённые из проверок; дополняют `settings.validation.exclude_from_checks` |
-| `name` | исходное имя | Override допустим при ровно одном выбранном скиле |
+| `name` | — | **Пока не поддерживается**: разбирается, но игнорируется |
 
 Папки из `exclude_from_checks` **загружаются и копируются вместе со скилом**,
 но не проверяются: ни на вложенные скилы, ни на битые ссылки. Обычно там
@@ -108,12 +110,17 @@ Legacy-форма `settings.target` принимается только при �
 Для `default` путь по умолчанию `.agents/skills`, для `claude` —
 `.claude/skills`; остальные имена требуют `path`.
 `for_each.adapters` объединяется с adapters каждой цели без дублей.
-Если список пуст, включается `link-adapter`. Claude-преобразование включается
-явным `claude-property-adapter`. Неизвестный адаптер вызывает ошибку.
+Единственный адаптер — `claude-property-adapter`: переименовывает `whenToUse`
+во frontmatter в `when_to_use`, которое понимает Claude Code. Раскладка
+`{name}/SKILL.md` с переписанными ссылками делается всегда; устаревший
+`link-adapter` принимается с warning и ничего не меняет. Неизвестный адаптер
+вызывает ошибку.
 
-Defaults: `dry_run=false`, `remove_orphans=true`, `add_relations=false`,
-`on_conflict=error`. По умолчанию `temp_dir` пуст, поэтому используется системный временный каталог. Относительный `temp_dir` разрешается от каталога с `ai-skills.yaml`; указанный каталог должен уже существовать и быть доступен для записи. При `last_wins` одноимённый скил последнего источника
-заменяет предыдущий. Пересекающиеся каталоги целей запрещены.
+Defaults: `dry_run=false`, `remove_orphans=true`, `add_relations=false`.
+По умолчанию `temp_dir` пуст, поэтому используется системный временный каталог. Относительный `temp_dir` разрешается от каталога с `ai-skills.yaml`; указанный каталог должен уже существовать и быть доступен для записи.
+Одноимённые скилы — всегда проблема `duplicate-name`; устаревший
+`settings.on_conflict` принимается с warning и ничего не меняет.
+Пересекающиеся каталоги целей — проблема `target-overlap`.
 
 ## Форматы скилов
 
@@ -144,18 +151,29 @@ YAML frontmatter должен содержать `name`: lowercase буквы, �
 Исключаются web-ссылки, anchors, inline code, блоки `example`
 и настроенные папки. Как в Python, inline code даже внутри подписи исключает ссылку.
 
-Ссылки переписываются относительно каталога конфигурации, а не выходного Markdown.
-Внешние файлы/папки копируются в `target/files/`; совпадающие basename
-получают суффиксы `_1`, `_2`.
-Ссылки внутри внешних вложений не обходятся рекурсивно.
-Имя скила `files` конфликтует с этим каталогом при наличии внешних вложений.
+Ссылка должна вести в файл или папку загруженного скила: на скил, который не
+выбран, — проблема `unselected-skill` (или он догружается при
+`add_relations`), на файл вне всех скилов — `missing-link-target`/`path-escape`.
+При записи ссылки переписываются относительно нового места файла в target
+(`./x`, `../other/SKILL.md`); ссылка, которая уже ведёт куда нужно, остаётся
+как написана. Wikilink'и становятся markdown-ссылками. В папках
+`exclude_from_checks` и не-`.md` файлах ссылки не переписываются.
 
 ## Диагностика
 
-Ошибка содержит код, скил, файл и исходную ссылку, если этот контекст доступен.
-Частые коды: `invalid-name`, `duplicate-name`, `missing-link`,
-`unselected-skill`, `path-escape`, `unmanaged-target`, `output-collision`.
-Исправьте источник или настройки и повторите dry-run.
+Проблемы печатаются деревом по месту: источник → скил → файл → ссылка,
+настройка конфига или target → скил. Частые коды:
+
+- конфиг: `unsupported-tags`, `invalid-tags`, `unsafe-subpath`,
+  `duplicate-source`, `conflicting-exclude`, `target-overlap`;
+- источник: `source-acquire`, `missing-subpath`;
+- скил: `invalid-name`, `invalid-skill`, `pattern-conflict`, `nested-skill`,
+  `duplicate-name`;
+- ссылки: `missing-link-target`, `missing-anchor`, `path-escape`,
+  `unselected-skill`;
+- target: `unmanaged-target` (одноимённая папка без `.ai-skills-managed`).
+
+Исправьте источник или настройки и повторите `aism validate`.
 
 Проверки всех целей выполняются до записи. I/O-сбой при применении может
 оставить часть целей обновлёнными; общий rollback между целями отсутствует.

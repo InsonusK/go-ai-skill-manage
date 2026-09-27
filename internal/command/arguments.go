@@ -2,16 +2,26 @@ package command
 
 import (
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/config"
+	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/InsonusK/go-ai-skill-manage/internal/config"
 )
 
+// Commands are the commands the CLI runs.
+var Commands = []string{"sync", "validate"}
+
 type Options struct {
+	// Command is "sync" or "validate".
+	Command                                       string
 	Config, SourceType, SourcePath, ProfileOutput string
 	Subpaths                                      []string
 	Override                                      config.Overrides
 	Help, Version, Debug, Profile                 bool
+	// Force is the deprecated --force: without a hash to skip unchanged
+	// skills every managed folder is rewritten anyway.
+	Force bool
 }
 
 func Parse(args []string) (Options, error) {
@@ -23,10 +33,11 @@ func Parse(args []string) (Options, error) {
 			if command != "" {
 				return opts, fmt.Errorf("unexpected argument %q", arg)
 			}
-			if arg != "sync" {
+			if !slices.Contains(Commands, arg) {
 				return opts, fmt.Errorf("unknown command %q", arg)
 			}
 			command = arg
+			opts.Command = arg
 			continue
 		}
 		key, value, hasValue := strings.Cut(arg, "=")
@@ -85,7 +96,7 @@ func Parse(args []string) (Options, error) {
 		case "--dry-run":
 			opts.Override.DryRun = enabled
 		case "-f", "--force":
-			opts.Override.Force = enabled
+			opts.Force = enabled
 		case "--remove-orphans":
 			if enabled {
 				v := true
@@ -101,7 +112,7 @@ func Parse(args []string) (Options, error) {
 		}
 	}
 	if !opts.Help && !opts.Version && command == "" {
-		return opts, fmt.Errorf("a command is required: sync")
+		return opts, fmt.Errorf("a command is required: %s", strings.Join(Commands, ", "))
 	}
 	switch opts.SourceType {
 	case "", "local", "github", "auto", "flat", "directory":
@@ -111,24 +122,29 @@ func Parse(args []string) (Options, error) {
 	return opts, nil
 }
 
-const Usage = `Usage: ai-skill-manager [--debug] [--profile] sync [options]
-       aism sync [options]
+const Usage = `Usage: aism [--debug] [--profile] <command> [options]
+       ai-skill-manager <command> [options]
 
-Synchronize AI skills from local directories or Git repositories.
+Commands:
+  sync       Load the skills of the configured sources, check them and write
+             them into every target folder
+  validate   Check the configuration and the skills without writing anything
 
+Options:
   -c, --config FILE        YAML or JSON config (default: ai-skills.yaml)
-  -t, --type TYPE          local or github (legacy: auto, flat, directory)
+  -t, --type TYPE          Source without a config: local or github
   -p, --path PATH          Source path or "repository-url branch"
       --subpath PATH       Repository subpath; repeatable
-      --target PATH        Override all configured targets
-      --dry-run            Validate and show changes without writing targets
-  -f, --force              Recopy unchanged skills
-      --remove-orphans     Remove previously managed skills no longer selected
-      --keep-orphans       Keep obsolete skills
-      --add-relations      Include skills referenced outside selected paths
-      --debug              Enable structured debug logs on stderr
+      --target PATH        Write into this folder instead of the configured targets
+      --dry-run            Plan the changes and print them without writing
+      --remove-orphans     Remove managed skill folders no longer synchronized
+      --keep-orphans       Keep them
+      --add-relations      Also load the skills that selected skills link to
+      --debug              Structured debug logs on stderr
       --profile            Write a Go CPU profile
       --profile-output FILE  Profile path (default: ai-skill-manager.prof)
-      --version            Print build version
+      --version            Print the build version
   -h, --help               Show this help
+  -f, --force              Deprecated, has no effect: every managed skill
+                           folder is rewritten on each sync
 `

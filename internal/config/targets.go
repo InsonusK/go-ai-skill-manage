@@ -2,10 +2,19 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
+
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"go.yaml.in/yaml/v3"
 )
 
+// LinkAdapter is the deprecated adapter that turned on link rewriting;
+// skills are now always laid out with their links rewritten, so it is
+// accepted with a warning and dropped.
+const LinkAdapter = "link-adapter"
+
+// adapters reads an adapters list. link-adapter is accepted with a
+// warning and left out: it no longer changes anything.
 func adapters(v any) ([]string, error) {
 	list, err := listValue(v, "adapters", nil)
 	if err != nil {
@@ -14,7 +23,11 @@ func adapters(v any) ([]string, error) {
 	out := []string{}
 	seen := map[string]bool{}
 	for _, a := range list {
-		if a != "link-adapter" && a != "claude-property-adapter" {
+		if a == LinkAdapter {
+			slog.Warn("deprecated adapter, remove it: links are always rewritten", "adapter", a)
+			continue
+		}
+		if a != "claude-property-adapter" {
 			return nil, fmt.Errorf("unknown adapter %q", a)
 		}
 		if !seen[a] {
@@ -32,7 +45,7 @@ func parseTargets(v any, node *yaml.Node) ([]model.Target, error) {
 		if s == "" {
 			return nil, fmt.Errorf("target path cannot be empty")
 		}
-		return []model.Target{{Name: "default", Path: s, Adapters: []string{"link-adapter"}}}, nil
+		return []model.Target{{Name: "default", Path: s, Adapters: []string{}}}, nil
 	}
 	m, err := mapping(v, "target")
 	if err != nil {
@@ -55,9 +68,6 @@ func parseTargets(v any, node *yaml.Node) ([]model.Target, error) {
 		}
 	}
 	if len(names) == 0 {
-		if len(shared) == 0 {
-			shared = []string{"link-adapter"}
-		}
 		return []model.Target{{Name: "default", Path: ".agents/skills", Adapters: shared}}, nil
 	}
 	out := []model.Target{}
@@ -95,9 +105,6 @@ func parseTargets(v any, node *yaml.Node) ([]model.Target, error) {
 			if !found {
 				merged = append(merged, a)
 			}
-		}
-		if len(merged) == 0 {
-			merged = []string{"link-adapter"}
 		}
 		out = append(out, model.Target{Name: name, Path: p, Adapters: merged})
 	}

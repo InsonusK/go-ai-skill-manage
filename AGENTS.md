@@ -12,9 +12,8 @@
   разрешения, пользователь сам смотрит диф и коммитит.
 - Решение, которое меняет уже принятое (цикл импортов, «кто кому
   принадлежит», новые имена), — сначала обсудить, потом код.
-- Весь `go build ./...` сейчас **не собирается** (см. «Старые пакеты» ниже).
-  Критерий готовности шага: `go vet` и `go test` зелёные во всех
-  затронутых пакетах, список несобираемых пакетов не вырос.
+- Критерий готовности шага: `go build ./...`, `go vet ./...` и `go test`
+  затронутых пакетов зелёные.
   `internal/infrastructure/repository/test` падает и на чистом `HEAD`
   (сценарий про имя временной папки) — не наша регрессия.
 - Тесты — godog-сценарии (`features/*.feature` + `test/*_steps_test.go`).
@@ -338,13 +337,36 @@
    `SkillCatalog.Owner`/`Destination`/`relativePath` (правило `ownsPath`
    проверяется через `GetByPathUp`), `model.NestedRepoPath`, типы
    `model.TargetPlan`/`Operation`/`OutputFile`/`Result`.
-Следующий этап — `command`/`cmd` (подключение, печать ошибок, `validate`).
 
-## Старые пакеты (ещё не переведены, не собираются)
 
-`command`, `cmd/ai-skill-manager` — следующий этап. Ссылаются на удалённые
-`services.SyncService`, `relations`, `planning.Planner`,
-`infrastructure/document`, `model.Result`.
+## `command` и `cmd` ✅
+
+- Команды `sync` и `validate` (`Options.Command`). `App{Providers, State,
+  Writer, ReadFile, Out, Err, Version}.Execute`: `Request` (опции + конфиг)
+  → `config/validator.Validate` (проблемы → дерево, код 1) →
+  `sourcing.NewManager(Providers, req.TempDir)` (создаётся здесь, после
+  разбора запроса; конфиг читается один раз) → `validate`:
+  `FetchAndValidateSkills`; `sync`: `handler.SyncService.Run`.
+- Проблемы любого вида печатает `PrintIssues` (`command/format.go`) по
+  `Report()`: строки группируются по месту (стабильная сортировка по
+  `Where`), место печатается один раз, затем `Found N problem(s)`; в
+  stderr. `PrintResult` — операции по target и итог в stdout.
+- Устаревшее (warning через `slog`): флаг `-f/--force` (`Options.Force`),
+  `settings.on_conflict` (ключ задан), адаптер `link-adapter` (только если
+  указан явно; из умолчаний убран, в `Target.Adapters` не попадает). Поля
+  `Request.Force`/`Conflict`, `Overrides.Force` удалены.
+- `main.go`: `SetDefaultLinkSearcher`, провайдеры `local`/`github`,
+  `filesystem.Store` как `State` и `Writer`.
+- `go build ./...` и `go vet ./...` собираются целиком.
+- Поле источника `name` разбирается, но **игнорируется** (документировано);
+  при желании — отказывать им в валидаторе конфига, как `tags`.
+- `docs/architecture/` удалён пользователем. README и
+  `docs/api/reference.md` актуальны; `docs/features/sync.md` (индекс
+  модулей) и `docs/skills/...` ещё описывают старые пакеты.
+
+## Старые пакеты
+
+Не осталось: весь модуль собирается.
 
 `services/test` (проверка архитектуры домена) с переездом `sync.go`
 снова собирается и проходит. Внешние библиотеки домену запрещены, кроме
