@@ -25,13 +25,22 @@ Feature: CLI argument contract
   Then argument error contains "<error>"
   Examples:
    | args | error |
-   | [] | command is required: sync, validate, feedback |
+   | [] | command is required: sync, validate, feedback, mcp |
    | ["sync","extra"] | unexpected argument |
    | ["sync","validate"] | unexpected argument |
    | ["sync","--force=invalid"] | requires a boolean |
    | ["sync","--type","wrong"] | unknown source type |
    | ["sync","--config="] | requires a value |
 
+ Scenario: mcp takes the config
+  When I parse argument list
+   """
+   ["mcp","-c","custom.yaml"]
+   """
+  Then parsed options are
+   """
+   {"command":"mcp","config":"custom.yaml","type":"","path":"","subpaths":null,"target":"","dry":false,"force":false,"orphans":null,"relations":null,"debug":false,"profile":false,"profileOutput":"ai-skill-manager.prof","memProfileOutput":"ai-skill-manager.mem.prof"}
+   """
  Scenario: feedback draft takes the skill, the kind, the title and the body
   When I parse argument list
    """

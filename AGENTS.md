@@ -449,7 +449,7 @@ master или запустить workflow вручную.
   (в примере action только выставляет `bumped`); `main` в
   `./cmd/ai-skill-manager` в сборке релиза; версия из `version.go`.
 
-## Текущая задача: обратная связь в источник скила (`feedback`) ⏳
+## Обратная связь в источник скила (`feedback`) ✅
 
 Цель: агент, пользуясь скилом, может сообщить в его источник о баге или
 предложить улучшение; CLI-команда `feedback` и MCP-сервер поверх неё.
@@ -530,7 +530,21 @@ master или запустить workflow вручную.
    только для своих репозиториев, classic `public_repo` для чужих
    публичных; где хранить; Codespaces), раздел в README, `feedback` в
    `docs/api/reference.md`.
-4. MCP-подкоманда с elicitation + документация.
+4. ✅ `aism mcp` (stdio, `internal/mcpserver`, Go SDK
+   `github.com/modelcontextprotocol/go-sdk` v1.8.0): `feedback_draft`,
+   `feedback_submit`. Подтверждение — multi round-trip (SEP-2322): первый
+   вызов возвращает `InputRequests` с формой (галочка `send`, по
+   умолчанию снята) и хешем показанного issue в `RequestState`, повтор
+   отправляет только при `accept` **и** `send=true` и только этот хеш
+   (правка во время диалога — не отправлено). Серверный `Elicit` на
+   ревизии 2026-07-28 запрещён; для старых клиентов SDK сам делает те же
+   раунды через него — тесты на обеих ревизиях. Клиент без формы
+   (`req.ClientCapabilities()`: нет elicitation или только URL) —
+   «Not sent» и `aism feedback send`. Конфиг перечитывается на каждый
+   вызов (`Request` → `Validate`); корень — `CLAUDE_PROJECT_DIR`, если
+   задан. stdout — только протокол. Документация: раздел MCP в
+   `docs/feedback.md` (`.mcp.json`, `claude mcp add`, не ставить
+   авто-ответ хуком `Elicitation`).
 
 ## Идеи оптимизации (не внедрены, ждут решения)
 

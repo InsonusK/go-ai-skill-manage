@@ -22,12 +22,7 @@ const FeedbackDraftsDir = ".ai-skills/feedback"
 // draft, but only the user sends.
 func (a App) feedback(ctx context.Context, opts Options, req model.Request) int {
 	f := opts.Feedback
-	now := a.Now
-	if now == nil {
-		now = time.Now
-	}
-	dir := filepath.Join(req.Base, FeedbackDraftsDir)
-	service := handler.FeedbackService{Markers: a.Markers, Drafts: a.Drafts(dir), Trackers: a.Trackers, Now: now, Version: a.Version}
+	service, dir := a.feedbackService(req)
 	id := draftID(f.ID)
 	switch f.Action {
 	case "draft":
@@ -72,6 +67,17 @@ func (a App) feedback(ctx context.Context, opts Options, req model.Request) int 
 	default:
 		return a.sendFeedback(ctx, opts, service, id)
 	}
+}
+
+// feedbackService is the feedback service of req's project and its drafts
+// folder -- the same for the CLI and the MCP server.
+func (a App) feedbackService(req model.Request) (handler.FeedbackService, string) {
+	now := a.Now
+	if now == nil {
+		now = time.Now
+	}
+	dir := filepath.Join(req.Base, FeedbackDraftsDir)
+	return handler.FeedbackService{Markers: a.Markers, Drafts: a.Drafts(dir), Trackers: a.Trackers, Now: now, Version: a.Version}, dir
 }
 
 // sendFeedback shows what would be sent and sends it only on the user's

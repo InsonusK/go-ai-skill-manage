@@ -11,6 +11,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/handler"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // App runs one command line: it resolves the request from the options and
@@ -40,6 +41,8 @@ type App struct {
 	IsTerminal func() bool
 	// Now is the clock; nil means time.Now.
 	Now func() time.Time
+	// MCPTransport is what the mcp command serves on (stdio).
+	MCPTransport mcp.Transport
 }
 
 // Execute runs opts and returns the exit code: 0 on success, 1 when the
@@ -56,6 +59,9 @@ func (a App) Execute(ctx context.Context, opts Options, cwd string) (code int) {
 	}
 	if opts.Force {
 		slog.WarnContext(ctx, "deprecated flag, remove it: every managed skill folder is rewritten on each sync", "flag", "--force")
+	}
+	if opts.Command == "mcp" {
+		return a.serveMCP(ctx, opts, cwd)
 	}
 	req, err := a.Request(opts, cwd)
 	if err != nil {

@@ -135,7 +135,28 @@ Found 1 problem(s)
 ## Отзыв о скиле
 
 Если скил ошибается или его можно улучшить, агент пишет черновик issue в
-репозиторий, откуда скил пришёл, а вы проверяете его и отправляете сами:
+GitHub-репозиторий, откуда скил пришёл, а отправляете его вы: в диалоге
+Claude Code или командой в своём терминале. Черновики лежат в
+`.ai-skills/feedback/` и коммитятся вместе с проектом.
+
+Настройка — один раз:
+
+```sh
+# 1. Вход в GitHub через GitHub CLI (https://cli.github.com/): токен хранит gh
+gh auth login
+gh auth status
+
+# 2. MCP-сервер для Claude Code в этом проекте (пишет .mcp.json — закоммитьте)
+claude mcp add --scope project ai-skills -- aism mcp
+claude mcp list          # ai-skills: aism mcp - ✔ Connected
+```
+
+При первом запуске `claude` в проекте одобрите сервер `ai-skills`. Дальше
+попросите агента написать отзыв о скиле: он вызовет `feedback_draft`, затем
+`feedback_submit`, и Claude Code покажет итоговый issue с галочкой
+«Open this issue» — без неё ничего не отправится.
+
+Без MCP — те же шаги командами:
 
 ```sh
 aism feedback draft --skill guide --kind bug --title "Broken anchor" --body "The anchor #setup leads nowhere."
@@ -143,8 +164,10 @@ aism feedback draft --skill guide --kind bug --title "Broken anchor" --body "The
 aism feedback send <id>
 ```
 
-Нужен вход в GitHub (`gh auth login`) или токен в `GH_TOKEN`. Как это
-устроено, какой токен выбрать и где его хранить — [docs/feedback.md](docs/feedback.md).
+Подробно — [docs/feedback.md](docs/feedback.md): [пошаговая настройка
+`gh` и MCP](docs/feedback.md#настройка) (установка `gh` на разных системах,
+вход из контейнера, одобрение сервера, проверка), свой токен вместо `gh` и
+где его хранить, ошибки.
 
 ## Как читать проект
 

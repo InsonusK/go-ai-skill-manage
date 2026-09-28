@@ -10,7 +10,7 @@ import (
 )
 
 // Commands are the commands the CLI runs.
-var Commands = []string{"sync", "validate", "feedback"}
+var Commands = []string{"sync", "validate", "feedback", "mcp"}
 
 // FeedbackActions are the actions of the feedback command.
 var FeedbackActions = []string{"draft", "show", "send", "decline"}
@@ -207,6 +207,8 @@ Commands:
     feedback send ID     Show it, ask for confirmation, open the issue
                          (asks in a terminal only: the user runs it)
     feedback decline ID  Close the draft without sending; the file stays
+  mcp        Serve the feedback tools to an agent over MCP (stdio): the
+             agent drafts, the user confirms in the client's dialog
 
 Options:
   -c, --config FILE        YAML or JSON config (default: ai-skills.yaml)

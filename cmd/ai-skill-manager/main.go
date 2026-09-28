@@ -20,6 +20,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/logging"
 	"github.com/InsonusK/go-ai-skill-manage/internal/profiling"
 	"github.com/InsonusK/go-ai-skill-manage/internal/version"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func main() { os.Exit(run()) }
@@ -48,6 +49,12 @@ func run() (code int) {
 		logger.Error("working directory", "error", err)
 		return 1
 	}
+	if dir := os.Getenv("CLAUDE_PROJECT_DIR"); opts.Command == "mcp" && dir != "" {
+		// Claude Code gives the MCP server the project's root: the config
+		// (and so the drafts) are found from there, whatever the server's
+		// working directory.
+		cwd = dir
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	entity.SetDefaultLinkSearcher(links.NewDefaultLinkFactory())
@@ -65,11 +72,12 @@ func run() (code int) {
 	}
 	app := command.App{
 		Providers: providers, State: store, Writer: store, ReadFile: os.ReadFile, Out: os.Stdout, Err: os.Stderr, Version: version.Version,
-		Markers:    store,
-		Drafts:     func(dir string) interfaces.FeedbackDrafts { return filesystem.FeedbackDrafts{Dir: dir} },
-		Trackers:   map[string]interfaces.IssueTracker{"github": github},
-		In:         os.Stdin,
-		IsTerminal: stdinIsTerminal,
+		Markers:      store,
+		Drafts:       func(dir string) interfaces.FeedbackDrafts { return filesystem.FeedbackDrafts{Dir: dir} },
+		Trackers:     map[string]interfaces.IssueTracker{"github": github},
+		In:           os.Stdin,
+		IsTerminal:   stdinIsTerminal,
+		MCPTransport: &mcp.StdioTransport{},
 	}
 	logger.Debug("command started")
 	code = app.Execute(ctx, opts, cwd)
