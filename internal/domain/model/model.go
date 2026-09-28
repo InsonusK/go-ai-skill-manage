@@ -4,7 +4,7 @@
 package model
 
 const Marker = ".ai-skills-managed"
-const TransformVersion = "go-2"
+const TransformVersion = "go-3"
 
 // DefaultExcludeFromChecks is the global exclusion list used when the
 // configuration doesn't set one: "examples" and "templates" usually hold

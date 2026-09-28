@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
+	"time"
 
 	configvalidator "github.com/InsonusK/go-ai-skill-manage/internal/config/validator"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/handler"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // App runs one command line: it resolves the request from the options and
@@ -24,6 +27,28 @@ type App struct {
 	ReadFile  func(string) ([]byte, error)
 	Out, Err  io.Writer
 	Version   string
+
+	// The feedback command's ports: Markers read skills' markers in the
+	// targets, Drafts keeps drafts in a folder, Trackers open issues by
+	// source type.
+	Markers  interfaces.MarkerReader
+	Drafts   func(dir string) interfaces.FeedbackDrafts
+	Trackers map[string]interfaces.IssueTracker
+	// In is the user's input: the body of feedback draft --body-file -,
+	// the answer to feedback send.
+	In io.Reader
+	// IsTerminal tells whether In is the user's terminal; feedback send
+	// asks only there.
+	IsTerminal func() bool
+	// Now is the clock; nil means time.Now.
+	Now func() time.Time
+	// MCPTransport is what the mcp command serves on (stdio).
+	MCPTransport mcp.Transport
+	// WriteFile writes .mcp.json for mcp install/uninstall.
+	WriteFile func(string, []byte, os.FileMode) error
+	// Self is how .mcp.json should run this tool: the name it runs under,
+	// when that name finds it in PATH (inPath), else its absolute path.
+	Self func() (command string, inPath bool)
 }
 
 // Execute runs opts and returns the exit code: 0 on success, 1 when the
@@ -41,6 +66,15 @@ func (a App) Execute(ctx context.Context, opts Options, cwd string) (code int) {
 	if opts.Force {
 		slog.WarnContext(ctx, "deprecated flag, remove it: every managed skill folder is rewritten on each sync", "flag", "--force")
 	}
+	if opts.Command == "mcp" {
+		switch opts.MCP.Action {
+		case "install":
+			return a.installMCP(opts, cwd)
+		case "uninstall":
+			return a.uninstallMCP(opts, cwd)
+		}
+		return a.serveMCP(ctx, opts, cwd)
+	}
 	req, err := a.Request(opts, cwd)
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
@@ -49,6 +83,9 @@ func (a App) Execute(ctx context.Context, opts Options, cwd string) (code int) {
 	if problems := configvalidator.Validate(ctx, req); len(problems) > 0 {
 		PrintIssues(a.Err, reportables(problems))
 		return 1
+	}
+	if opts.Command == "feedback" {
+		return a.feedback(ctx, opts, req)
 	}
 	sources := sourcing.NewManager(a.Providers, req.TempDir)
 	defer func() {

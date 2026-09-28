@@ -37,10 +37,15 @@ type Archive struct {
 	BaseURL string
 }
 
-func (a Archive) Fetch(ctx context.Context, raw, tree, dest string) (string, error) {
+var commitSHA = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
+// Fetch extracts GitHub's archive of tree below dest and returns its root
+// folder and commit. GitHub (git archive) names the commit in the pax
+// global header's "comment" record.
+func (a Archive) Fetch(ctx context.Context, raw, tree, dest string) (string, string, error) {
 	owner, repo, err := GitHubURL(raw)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	base := a.BaseURL
 	if base == "" {
@@ -49,93 +54,100 @@ func (a Archive) Fetch(ctx context.Context, raw, tree, dest string) (string, err
 	address := base + "/" + url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/archive/" + url.PathEscape(tree) + ".tar.gz"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	response, err := a.Client.Do(req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("archive HTTP status %d", response.StatusCode)
+		return "", "", fmt.Errorf("archive HTTP status %d", response.StatusCode)
 	}
 	gz, err := gzip.NewReader(response.Body)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer gz.Close()
 	if err := os.MkdirAll(dest, 0755); err != nil {
-		return "", err
+		return "", "", err
 	}
 	root, err := os.OpenRoot(dest)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer root.Close()
 	reader := tar.NewReader(gz)
 	top := ""
+	commit := ""
 	var total int64
 	for {
 		if err := ctx.Err(); err != nil {
-			return "", err
+			return "", "", err
 		}
 		header, err := reader.Next()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return "", err
+			return "", "", err
+		}
+		if header.Typeflag == tar.TypeXGlobalHeader {
+			if c := header.PAXRecords["comment"]; commitSHA.MatchString(c) {
+				commit = c
+			}
+			continue
 		}
 		name := strings.TrimSuffix(strings.TrimPrefix(header.Name, "./"), "/")
 		if !fs.ValidPath(name) || name == "." || strings.ContainsAny(name, "\\:") {
-			return "", fmt.Errorf("unsafe archive path %q", header.Name)
+			return "", "", fmt.Errorf("unsafe archive path %q", header.Name)
 		}
 		first := strings.Split(name, "/")[0]
 		if top == "" {
 			top = first
 		}
 		if first != top {
-			return "", fmt.Errorf("archive must contain one root directory")
+			return "", "", fmt.Errorf("archive must contain one root directory")
 		}
 		mode := os.FileMode(header.Mode) & 0777
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err := root.MkdirAll(filepath.FromSlash(name), 0755); err != nil {
-				return "", err
+				return "", "", err
 			}
 		case tar.TypeReg, tar.TypeRegA:
 			total += header.Size
 			if header.Size < 0 || total > 512<<20 {
-				return "", fmt.Errorf("archive exceeds 512 MiB")
+				return "", "", fmt.Errorf("archive exceeds 512 MiB")
 			}
 			if err := root.MkdirAll(filepath.FromSlash(path.Dir(name)), 0755); err != nil {
-				return "", err
+				return "", "", err
 			}
 			file, err := root.OpenFile(filepath.FromSlash(name), os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 			if err != nil {
-				return "", err
+				return "", "", err
 			}
 			_, copyErr := io.Copy(file, reader)
 			closeErr := file.Close()
 			if copyErr != nil {
-				return "", copyErr
+				return "", "", copyErr
 			}
 			if closeErr != nil {
-				return "", closeErr
+				return "", "", closeErr
 			}
 		default:
-			return "", fmt.Errorf("unsafe archive entry type %d", header.Typeflag)
+			return "", "", fmt.Errorf("unsafe archive entry type %d", header.Typeflag)
 		}
 	}
 	if top == "" {
-		return "", fmt.Errorf("empty archive")
+		return "", "", fmt.Errorf("empty archive")
 	}
 	info, err := root.Stat(top)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if !info.IsDir() {
-		return "", fmt.Errorf("archive root must be a directory")
+		return "", "", fmt.Errorf("archive root must be a directory")
 	}
-	return filepath.Join(dest, top), nil
+	return filepath.Join(dest, top), commit, nil
 }

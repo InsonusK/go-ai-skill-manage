@@ -14,8 +14,6 @@
   принадлежит», новые имена), — сначала обсудить, потом код.
 - Критерий готовности шага: `go build ./...`, `go vet ./...` и `go test`
   затронутых пакетов зелёные.
-  `internal/infrastructure/repository/test` падает и на чистом `HEAD`
-  (сценарий про имя временной папки) — не наша регрессия.
 - Тесты — godog-сценарии (`features/*.feature` + `test/*_steps_test.go`).
   Для новых сценариев проверять, что они ловят поломку (временно сломать
   код → сценарий падает → вернуть).
@@ -290,8 +288,9 @@
 - Маркер `.ai-skills-managed` (`model.Marker`, имя не менять — по нему
   распознаются уже синхронизированные папки) — трансформер, последний в
   каждом target (`ManagedMarkerTransformer`, `managed-marker`): JSON
-  `ManagedState{source, skill_path (DirOrMarkerPath), transformers
-  (применённые до него, без себя), version (model.TransformVersion)}`;
+  `model.ManagedState{source (SourceKey объектом), commit (если известен),
+  skill_path (DirOrMarkerPath), transformers (применённые до него, без
+  себя), version (model.TransformVersion)}`;
   маркер, уже лежащий в исходном скиле (папка target как источник),
   заменяется, а не дублируется.
   Запись (`filesystem.Store`) маркер **не пишет**, только проверяет, что
@@ -449,6 +448,115 @@ master или запустить workflow вручную.
   check-changes; шаг, который роняет version-check при неподнятой версии
   (в примере action только выставляет `bumped`); `main` в
   `./cmd/ai-skill-manager` в сборке релиза; версия из `version.go`.
+
+## Обратная связь в источник скила (`feedback`) ✅
+
+Цель: агент, пользуясь скилом, может сообщить в его источник о баге или
+предложить улучшение; CLI-команда `feedback` и MCP-сервер поверх неё.
+
+Принятые решения:
+- **Обратная связь — маркер `.ai-skills-managed`** (`model.ManagedState`):
+  `source` — `SourceKey` объектом (`type`, `path`, `tree`), `commit` —
+  точный коммит, из которого собран скил (git: `rev-parse HEAD`; архив
+  GitHub: pax global header `comment`; `local` — пусто), `skill_path`.
+  Агент источник не знает — на вход **имя скила**, источник берётся из
+  маркера его папки в target.
+- **Три этапа, отправляет только пользователь.** У агента нет
+  инструмента, который отправляет без человека (от случайной утечки
+  данных проекта в публичный issue; от злонамеренного агента с shell это
+  не защищает, и не цель):
+  1. черновик — файл `.ai-skills/feedback/<id>.md` в репозитории
+     проекта (не во временной папке пользователя); **коммитится** вместе
+     с проектом, чтобы оставался след (в `.gitignore` не добавляем),
+     frontmatter: skill, kind (`bug`/`improvement`),
+     repo, commit; дальше title/body. Файл — единственный источник
+     правды, пользователь может править его в редакторе;
+  2. подтверждение — MCP elicitation (клиент показывает итоговый текст,
+     Accept/Decline); клиент без elicitation → агенту ответ «попросите
+     пользователя выполнить `ai-skill-manager feedback send <id>`»:
+     показ текста и `y/N`, **только в TTY**;
+  3. отправка — из файла, со сверкой хеша показанного текста (правка
+     после подтверждения его отменяет); к телу дописывается блок
+     контекста (скил, путь в источнике, коммит, версия CLI); `kind` →
+     метка; черновик помечается отправленным со ссылкой на issue.
+- Корень проекта — папка `ai-skill.yaml`: черновики в
+  `{папка конфига}/.ai-skills/feedback/`, как и пути target считаются от
+  неё.
+- Проверки дублей нет — на совести пользователя.
+- `local`-источник → ошибка «локальный источник, правьте вручную».
+- Команда — `feedback` (не только баги, но и предложения).
+- MCP — подкоманда того же бинарника (stdio), инструменты — обёртки
+  над теми же обработчиками, что и CLI.
+
+Шаги (после каждого — стоп):
+1. ✅ `ManagedState` → `model`, `source` объектом, `commit` в маркере
+   (`Repository.Commit` от провайдера `github`); заодно архив GitHub:
+   pax global header больше не роняет распаковку.
+2. ✅ Черновик и отправка без CLI:
+   - `model.FeedbackDraft` (статус `draft` → `sent`/`declined`, дальше
+     не меняется), `model.NewIssue`;
+   - `services/feedback` — чистые правила: `ValidKind`, `CheckText`,
+     `DraftID` (`<дата>-<скил>-<slug заголовка>`, slug только латиница и
+     цифры), `Compose` (тело + блок контекста, `bug`→`bug`,
+     `improvement`→`enhancement`), `Hash` (source + итоговый issue);
+   - порты `interfaces.MarkerReader` (`ErrSkillNotManaged`),
+     `FeedbackDrafts`, `IssueTracker`;
+   - `handler.FeedbackService{Markers, Drafts, Trackers по типу source,
+     Now, Version}`: `Draft(ctx, targets, in)` (скил ищется по target по
+     порядку, первый с маркером; `local` и тип без трекера — ошибка до
+     записи черновика), `Preview`, `Send(ctx, id, hash)` (только
+     `draft`, текст непустой, хеш совпадает; сбой трекера — черновик
+     остаётся `draft`), `Decline`;
+   - infra: `filesystem.Store.ReadMarker` (только настоящая папка с
+     обычным файлом-маркером, как `Snapshot`; маркер старого формата —
+     «run sync»), `filesystem.FeedbackDrafts{Dir}`
+     (`FeedbackDraftsDir = .ai-skills/feedback`, файл `<id>.md`:
+     YAML-frontmatter с отступом 2, `# <title>`, тело; занятый id →
+     `-2`, `-3`…; id только `[a-z0-9-]`), `tracker.GitHub{Client,
+     BaseURL, Token func}` (REST `POST /repos/{o}/{r}/issues`, 201 →
+     `html_url`; нет токена — подсказка про `GITHUB_TOKEN`/`gh auth
+     login`). Откуда брать токен — шаг 3.
+3. ✅ CLI `feedback`: `draft --skill --kind --title (--body |
+   --body-file FILE|-)`, `show ID`, `send ID`, `decline ID` (ID — имя,
+   файл или путь черновика). Конфиг проходит `Validate`, как у `sync`;
+   папка черновиков — `command.FeedbackDraftsDir` от `req.Base`. `send`
+   без терминала (`App.IsTerminal`: stdin — char device) — код 1 и
+   подсказка пользователю; в терминале — итоговый issue и `[y/N]`, всё
+   кроме `y`/`yes` — «Not sent.», код 0. Токен —
+   `tracker.TokenSource`: `GH_TOKEN` → `GITHUB_TOKEN` → `gh auth
+   token` (свой токен не храним; SSH-ключ API не принимает); 401/403/404
+   и отсутствие токена отсылают к `docs/feedback.md`. Документация:
+   `docs/feedback.md` (шаги, черновики, выбор токена — fine-grained
+   только для своих репозиториев, classic `public_repo` для чужих
+   публичных; где хранить; Codespaces), раздел в README, `feedback` в
+   `docs/api/reference.md`.
+4. ✅ `aism mcp` (stdio, `internal/mcpserver`, Go SDK
+   `github.com/modelcontextprotocol/go-sdk` v1.8.0): `feedback_draft`,
+   `feedback_submit`. Подтверждение — multi round-trip (SEP-2322): первый
+   вызов возвращает `InputRequests` с формой (галочка `send`, по
+   умолчанию снята) и хешем показанного issue в `RequestState`, повтор
+   отправляет только при `accept` **и** `send=true` и только этот хеш
+   (правка во время диалога — не отправлено). Серверный `Elicit` на
+   ревизии 2026-07-28 запрещён; для старых клиентов SDK сам делает те же
+   раунды через него — тесты на обеих ревизиях. Клиент без формы
+   (`req.ClientCapabilities()`: нет elicitation или только URL) —
+   «Not sent» и `aism feedback send`. Конфиг перечитывается на каждый
+   вызов (`Request` → `Validate`); корень — `CLAUDE_PROJECT_DIR`, если
+   задан. stdout — только протокол. Документация: раздел MCP в
+   `docs/feedback.md` (`.mcp.json`, `claude mcp add`, не ставить
+   авто-ответ хуком `Elicitation`).
+5. ✅ `aism mcp install|uninstall [-c] [--name ai-skills] [--replace]` —
+   только Claude Code: запись в `.mcp.json` рядом с конфигом (корень
+   проекта). `--name`/`--replace` — только установке, серверу не
+   передаются; `-c` с именем не `ai-skills.yaml` попадает в `args`.
+   `command` — имя, под которым запущен, если оно находит этот же файл в
+   `PATH` (`App.Self`), иначе абсолютный путь + warning (файл
+   коммитится). Прочее содержимое `.mcp.json` сохраняется (ключи
+   сортируются — `encoding/json`); та же запись — ничего не делает, другая
+   под тем же именем — отказ без `--replace`; невалидный JSON — отказ,
+   файл не трогается. `CLAUDE_PROJECT_DIR` подменяет cwd только для
+   запуска сервера. Другие клиенты (VS Code, Cursor, Codex) — позже,
+   флагом `--client`.
 
 ## Идеи оптимизации (не внедрены, ждут решения)
 

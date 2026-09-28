@@ -132,13 +132,51 @@ Found 1 problem(s)
 
 Полный справочник флагов и конфигурации — [docs/api/reference.md](docs/api/reference.md).
 
+## Отзыв о скиле
+
+Если скил ошибается или его можно улучшить, агент пишет черновик issue в
+GitHub-репозиторий, откуда скил пришёл, а отправляете его вы: в диалоге
+Claude Code или командой в своём терминале. Черновики лежат в
+`.ai-skills/feedback/` и коммитятся вместе с проектом.
+
+Настройка — один раз:
+
+```sh
+# 1. Вход в GitHub через GitHub CLI (https://cli.github.com/): токен хранит gh
+gh auth login
+gh auth status
+
+# 2. MCP-сервер для Claude Code в этом проекте (пишет .mcp.json — закоммитьте)
+aism mcp install
+claude mcp list          # ai-skills: aism mcp - ✔ Connected
+```
+
+При первом запуске `claude` в проекте одобрите сервер `ai-skills`. Дальше
+попросите агента написать отзыв о скиле: он вызовет `feedback_draft`, затем
+`feedback_submit`, и Claude Code покажет итоговый issue с галочкой
+«Open this issue» — без неё ничего не отправится.
+
+Без MCP — те же шаги командами:
+
+```sh
+aism feedback draft --skill guide --kind bug --title "Broken anchor" --body "The anchor #setup leads nowhere."
+# проверить .ai-skills/feedback/<id>.md, затем в своём терминале:
+aism feedback send <id>
+```
+
+Подробно — [docs/feedback.md](docs/feedback.md): [пошаговая настройка
+`gh` и MCP](docs/feedback.md#настройка) (установка `gh` на разных системах,
+вход из контейнера, одобрение сервера, проверка), свой токен вместо `gh` и
+где его хранить, ошибки.
+
 ## Как читать проект
 
 1. [Справочник CLI и конфигурации](docs/api/reference.md).
-2. [Индекс возможностей, модулей и тестов](docs/features/sync.md).
-3. [Запуск тестов, coverage и mutation testing](docs/testing.md).
-4. [Инструкция для AI-агентов](docs/skills/go/ai-skill-manager.skill/ai-skill-manager.skill.md).
-5. [Состояние переделки и принятые решения](AGENTS.md).
+2. [Отзыв о скиле: черновик, проверка, отправка, доступ к GitHub](docs/feedback.md).
+3. [Индекс возможностей, модулей и тестов](docs/features/sync.md).
+4. [Запуск тестов, coverage и mutation testing](docs/testing.md).
+5. [Инструкция для AI-агентов](docs/skills/go/ai-skill-manager.skill/ai-skill-manager.skill.md).
+6. [Состояние переделки и принятые решения](AGENTS.md).
 
 Точка сборки зависимостей — [main.go](cmd/ai-skill-manager/main.go).
 Входной адаптер — [internal/command](internal/command/sync.go).

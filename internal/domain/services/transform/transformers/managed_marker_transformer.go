@@ -9,29 +9,16 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/transform"
 )
 
-// ManagedState is the content of the marker file (model.Marker) that
-// marks a target folder as written by this tool: only such folders are
-// replaced or removed by a later sync.
-type ManagedState struct {
-	// Source is the source the skill comes from (model.SourceKey.String()).
-	Source string `json:"source"`
-	// SkillPath is where the skill lies in its source: its folder, or its
-	// marker file for a flat skill (entity.Skill.DirOrMarkerPath).
-	SkillPath string `json:"skill_path"`
-	// Transformers are the transformers applied before the marker, in order.
-	Transformers []string `json:"transformers"`
-	Version      string   `json:"version"`
-}
-
 // ManagedMarkerTransformer adds the marker file to every skill's folder.
 // It runs last in a target's pipeline, so the transformers it lists are
 // all the others. A marker the source skill already has (a target folder
 // used as a source) is replaced.
 //
-// Пример (скил guide из "a/guide" источника local:repo после flat и
-// claude-when-to-use) -> "guide/.ai-skills-managed":
-// {"source": "local:repo", "skill_path": "a/guide",
-// "transformers": ["flat", "claude-when-to-use"], "version": "go-2"}
+// Пример (скил guide из "a/guide" источника github:owner/repo@main,
+// коммит c0ffee, после flat и claude-when-to-use) -> "guide/.ai-skills-managed":
+// {"source": {"type": "github", "path": "owner/repo", "tree": "main"},
+// "commit": "c0ffee", "skill_path": "a/guide",
+// "transformers": ["flat", "claude-when-to-use"], "version": "go-3"}
 type ManagedMarkerTransformer struct{}
 
 var _ transform.Transformer = ManagedMarkerTransformer{}
@@ -44,7 +31,8 @@ func (ManagedMarkerTransformer) Transform(ctx context.Context, catalog *entity.T
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		state := ManagedState{Source: s.Origin().Repo.Key.String(), SkillPath: s.Origin().DirOrMarkerPath(), Transformers: applied, Version: model.TransformVersion}
+		repo := s.Origin().Repo
+		state := model.ManagedState{Source: repo.Key, Commit: repo.Commit, SkillPath: s.Origin().DirOrMarkerPath(), Transformers: applied, Version: model.TransformVersion}
 		if state.Transformers == nil {
 			state.Transformers = []string{}
 		}

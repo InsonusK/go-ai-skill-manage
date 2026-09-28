@@ -25,16 +25,16 @@ Feature: Sync loads the skills, transforms them for each target, plans every tar
   And "/p/.claude/skills" is written with
    """
    {"guide/SKILL.md":"---\nname: guide\nwhen_to_use: on review\n---\n[x](./docs/x.md)\n","guide/docs/x.md":"[back](../SKILL.md)\n",
-    "guide/.ai-skills-managed":"{\n  \"source\": \"local:repo\",\n  \"skill_path\": \"a/guide\",\n  \"transformers\": [\n    \"flat\",\n    \"claude-when-to-use\"\n  ],\n  \"version\": \"go-2\"\n}\n",
+    "guide/.ai-skills-managed":"{\n  \"source\": {\n    \"type\": \"local\",\n    \"path\": \"repo\"\n  },\n  \"skill_path\": \"a/guide\",\n  \"transformers\": [\n    \"flat\",\n    \"claude-when-to-use\"\n  ],\n  \"version\": \"go-3\"\n}\n",
     "h/SKILL.md":"---\nname: h\n---\n[g](../guide/docs/x.md)\n",
-    "h/.ai-skills-managed":"{\n  \"source\": \"local:repo\",\n  \"skill_path\": \"h.skill\",\n  \"transformers\": [\n    \"flat\",\n    \"claude-when-to-use\"\n  ],\n  \"version\": \"go-2\"\n}\n"}
+    "h/.ai-skills-managed":"{\n  \"source\": {\n    \"type\": \"local\",\n    \"path\": \"repo\"\n  },\n  \"skill_path\": \"h.skill\",\n  \"transformers\": [\n    \"flat\",\n    \"claude-when-to-use\"\n  ],\n  \"version\": \"go-3\"\n}\n"}
    """
   And "/p/.agents/skills" is written with
    """
    {"guide/SKILL.md":"---\nname: guide\nwhenToUse: on review\n---\n[x](./docs/x.md)\n","guide/docs/x.md":"[back](../SKILL.md)\n",
-    "guide/.ai-skills-managed":"{\n  \"source\": \"local:repo\",\n  \"skill_path\": \"a/guide\",\n  \"transformers\": [\n    \"flat\"\n  ],\n  \"version\": \"go-2\"\n}\n",
+    "guide/.ai-skills-managed":"{\n  \"source\": {\n    \"type\": \"local\",\n    \"path\": \"repo\"\n  },\n  \"skill_path\": \"a/guide\",\n  \"transformers\": [\n    \"flat\"\n  ],\n  \"version\": \"go-3\"\n}\n",
     "h/SKILL.md":"---\nname: h\n---\n[g](../guide/docs/x.md)\n",
-    "h/.ai-skills-managed":"{\n  \"source\": \"local:repo\",\n  \"skill_path\": \"h.skill\",\n  \"transformers\": [\n    \"flat\"\n  ],\n  \"version\": \"go-2\"\n}\n"}
+    "h/.ai-skills-managed":"{\n  \"source\": {\n    \"type\": \"local\",\n    \"path\": \"repo\"\n  },\n  \"skill_path\": \"h.skill\",\n  \"transformers\": [\n    \"flat\"\n  ],\n  \"version\": \"go-3\"\n}\n"}
    """
 
  Scenario: Each target is planned against what its folder holds

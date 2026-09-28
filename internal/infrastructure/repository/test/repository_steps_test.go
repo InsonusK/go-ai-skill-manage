@@ -23,18 +23,18 @@ import (
 
 type cloneStub struct{ fail bool }
 
-func (s cloneStub) Clone(ctx context.Context, url, tree, dest string) error {
+func (s cloneStub) Clone(ctx context.Context, url, tree, dest string) (string, error) {
 	if s.fail {
-		return fmt.Errorf("clone unavailable")
+		return "", fmt.Errorf("clone unavailable")
 	}
-	return fixture(dest)
+	return "clone-commit", fixture(dest)
 }
 
 type archiveStub struct{ calls *int }
 
-func (s archiveStub) Fetch(ctx context.Context, url, tree, dest string) (string, error) {
+func (s archiveStub) Fetch(ctx context.Context, url, tree, dest string) (string, string, error) {
 	*s.calls++
-	return dest, fixture(dest)
+	return dest, "archive-commit", fixture(dest)
 }
 func fixture(dir string) error {
 	if err := os.MkdirAll(filepath.Join(dir, "skills"), 0755); err != nil {
@@ -91,10 +91,18 @@ func initialize(sc *godog.ScenarioContext) {
 		repo, err = fetcher.Acquire(ctx, model.SourceKey{Type: "github", Path: "https://github.com/owner/repo.git", Tree: "main"}, model.AcquisitionOptions{TempDir: temp})
 		return err
 	})
-	sc.Step(`^I extract an archive with path "([^"]*)"$`, func(ctx context.Context, p string) error {
+	var archiveCommit string
+	extract := func(ctx context.Context, p, commit string) error {
 		var b bytes.Buffer
 		gz := gzip.NewWriter(&b)
 		tw := tar.NewWriter(gz)
+		if commit != "" {
+			// As git archive (and so GitHub) writes it: a pax global header
+			// before the entries.
+			if err := tw.WriteHeader(&tar.Header{Typeflag: tar.TypeXGlobalHeader, Name: "pax_global_header", PAXRecords: map[string]string{"comment": commit}}); err != nil {
+				return err
+			}
+		}
 		body := "content"
 		if err := tw.WriteHeader(&tar.Header{Name: p, Mode: 0644, Size: int64(len(body))}); err != nil {
 			return err
@@ -111,14 +119,20 @@ func initialize(sc *godog.ScenarioContext) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(b.Bytes()) }))
 		defer server.Close()
 		fetcher := repository.Archive{Client: server.Client(), BaseURL: server.URL}
-		root, err := fetcher.Fetch(ctx, "https://github.com/owner/repo", "main", filepath.Join(temp, "archive"))
+		root, commit, err := fetcher.Fetch(ctx, "https://github.com/owner/repo", "main", filepath.Join(temp, "archive"))
 		failure = err
+		archiveCommit = commit
+		testsupport.Log("root=%s commit=%s error=%v", root, commit, err)
 		if err == nil {
 			repo, err = (repository.Local{}).Acquire(ctx, model.SourceKey{Path: root}, model.AcquisitionOptions{})
 			return err
 		}
 		return nil
-	})
+	}
+	sc.Step(`^I extract an archive with path "([^"]*)"$`, func(ctx context.Context, p string) error { return extract(ctx, p, "") })
+	sc.Step(`^I extract an archive with path "([^"]*)" of commit "([^"]*)"$`, extract)
+	sc.Step(`^the archive commit is "([^"]*)"$`, func(ctx context.Context, want string) error { return testsupport.Equal(archiveCommit, want) })
+	sc.Step(`^the acquired commit is "([^"]*)"$`, func(ctx context.Context, want string) error { return testsupport.Equal(repo.Commit, want) })
 	sc.Step(`^acquired file "([^"]*)" equals "([^"]*)"$`, func(ctx context.Context, p, want string) error {
 		raw, err := fs.ReadFile(repo.FS, p)
 		if err != nil {

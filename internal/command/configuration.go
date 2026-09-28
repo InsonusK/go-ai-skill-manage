@@ -8,6 +8,9 @@ import (
 	"strings"
 )
 
+// DefaultConfigFile is the config read without --config.
+const DefaultConfigFile = "ai-skills.yaml"
+
 // Request resolves opts (plus, when applicable, the ai-skills.yaml config
 // file it points at) into a model.Request.
 func (a App) Request(opts Options, cwd string) (model.Request, error) {
@@ -16,7 +19,7 @@ func (a App) Request(opts Options, cwd string) (model.Request, error) {
 	if opts.Config != "" || opts.SourceType == "" {
 		filename := opts.Config
 		if filename == "" {
-			filename = "ai-skills.yaml"
+			filename = DefaultConfigFile
 		}
 		if !filepath.IsAbs(filename) {
 			filename = filepath.Join(cwd, filename)

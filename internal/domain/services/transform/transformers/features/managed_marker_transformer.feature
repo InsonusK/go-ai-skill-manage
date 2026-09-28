@@ -13,9 +13,24 @@ Feature: ManagedMarkerTransformer marks every skill folder as written by this to
   Then the target holds
    """
    {"guide/SKILL.md":"---\nname: guide\n---\n","guide/docs/x.md":"x",
-    "guide/.ai-skills-managed":"{\n  \"source\": \"local:repo\",\n  \"skill_path\": \"a/guide\",\n  \"transformers\": [\n    \"flat\",\n    \"claude-when-to-use\"\n  ],\n  \"version\": \"go-2\"\n}\n",
+    "guide/.ai-skills-managed":"{\n  \"source\": {\n    \"type\": \"local\",\n    \"path\": \"repo\"\n  },\n  \"skill_path\": \"a/guide\",\n  \"transformers\": [\n    \"flat\",\n    \"claude-when-to-use\"\n  ],\n  \"version\": \"go-3\"\n}\n",
     "f/SKILL.md":"---\nname: f\n---\n",
-    "f/.ai-skills-managed":"{\n  \"source\": \"local:repo\",\n  \"skill_path\": \"f.skill.md\",\n  \"transformers\": [\n    \"flat\",\n    \"claude-when-to-use\"\n  ],\n  \"version\": \"go-2\"\n}\n"}
+    "f/.ai-skills-managed":"{\n  \"source\": {\n    \"type\": \"local\",\n    \"path\": \"repo\"\n  },\n  \"skill_path\": \"f.skill.md\",\n  \"transformers\": [\n    \"flat\",\n    \"claude-when-to-use\"\n  ],\n  \"version\": \"go-3\"\n}\n"}
+   """
+
+ Scenario: The marker names the commit the skill was taken from, when the source knows it
+  Given a repository "repo" holding
+   """
+   {"a/guide/SKILL.md":"---\nname: guide\n---\n"}
+   """
+  And repository "repo" is at commit "c0ffee"
+  And skills at "." of "repo" are loaded
+  When I make the target catalog
+  And I run the transformers "flat,managed-marker"
+  Then the target holds
+   """
+   {"guide/SKILL.md":"---\nname: guide\n---\n",
+    "guide/.ai-skills-managed":"{\n  \"source\": {\n    \"type\": \"local\",\n    \"path\": \"repo\"\n  },\n  \"commit\": \"c0ffee\",\n  \"skill_path\": \"a/guide\",\n  \"transformers\": [\n    \"flat\"\n  ],\n  \"version\": \"go-3\"\n}\n"}
    """
 
  Scenario: A marker the source skill already has is replaced, not doubled
@@ -29,5 +44,5 @@ Feature: ManagedMarkerTransformer marks every skill folder as written by this to
   Then the target holds
    """
    {"guide/SKILL.md":"---\nname: guide\n---\n",
-    "guide/.ai-skills-managed":"{\n  \"source\": \"local:repo\",\n  \"skill_path\": \"a/guide\",\n  \"transformers\": [\n    \"flat\"\n  ],\n  \"version\": \"go-2\"\n}\n"}
+    "guide/.ai-skills-managed":"{\n  \"source\": {\n    \"type\": \"local\",\n    \"path\": \"repo\"\n  },\n  \"skill_path\": \"a/guide\",\n  \"transformers\": [\n    \"flat\"\n  ],\n  \"version\": \"go-3\"\n}\n"}
    """
