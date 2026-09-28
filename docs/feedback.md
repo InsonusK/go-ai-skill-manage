@@ -84,7 +84,19 @@ github.com
 
 ### 4. Подключите MCP-сервер к Claude Code
 
-Для всей команды — файл `.mcp.json` в корне проекта, его коммитят:
+В корне проекта (рядом с `ai-skills.yaml`):
+
+```sh
+aism mcp install
+```
+
+```text
+Added MCP server ai-skills to /project/.mcp.json: aism mcp
+Commit .mcp.json. Claude Code asks to approve the server ai-skills the first time you run claude in this project.
+```
+
+Команда добавляет в `.mcp.json` (файл MCP-серверов проекта для Claude Code)
+запись:
 
 ```json
 {
@@ -97,17 +109,26 @@ github.com
 }
 ```
 
-или то же командой:
+- `.mcp.json` коммитится — сервер появится у всей команды. Остальные серверы
+  и ключи файла остаются; ключи при записи сортируются, форматирование
+  файла заменяется на отступ в два пробела. Повторный `install` ничего не
+  меняет.
+- `command` — имя, под которым вы запустили `aism` (`aism` или
+  `ai-skill-manager`), если по нему он находится в `PATH`: у коллег путь к
+  файлу другой. Не в `PATH` — пишется абсолютный путь с предупреждением;
+  такую запись не коммитьте.
+- `-c cfg.yaml` — `.mcp.json` ляжет рядом с этим конфигом, а в `args`
+  добавится `"-c", "cfg.yaml"`, чтобы сервер читал тот же конфиг. Claude
+  Code читает `.mcp.json` в папке, где запущен `claude`, поэтому конфиг
+  держите в корне проекта.
+- `--name NAME` — другое имя сервера (по умолчанию `ai-skills`). Под этим
+  именем уже другая запись — `install` откажет и покажет обе; `--replace`
+  перезапишет.
+- `aism mcp uninstall [--name NAME]` — убрать запись.
 
-```sh
-claude mcp add --scope project ai-skills -- aism mcp
-```
-
-Только для себя, без файла в репозитории:
-
-```sh
-claude mcp add ai-skills -- aism mcp
-```
+Без `aism mcp install` — то же командой Claude Code:
+`claude mcp add --scope project ai-skills -- aism mcp`, или только для
+себя, без файла в репозитории: `claude mcp add ai-skills -- aism mcp`.
 
 - Сервер из `.mcp.json` Claude Code запускает только после вашего
   одобрения: при первом запуске `claude` в проекте он спросит, доверять ли
@@ -115,10 +136,8 @@ claude mcp add ai-skills -- aism mcp
   `⏸ Pending approval`.
 - Корень проекта сервер получает от Claude Code (`CLAUDE_PROJECT_DIR`): от
   него ищется `ai-skills.yaml`, черновики лежат в `.ai-skills/feedback/`
-  рядом. Конфиг в другом месте — `"args": ["mcp", "-c", "path/to/ai-skills.yaml"]`
-  (путь от корня проекта). Конфиг перечитывается на каждый вызов,
-  перезапускать сервер после правки не нужно.
-- Нет `aism` в `PATH` — укажите в `command` полный путь.
+  рядом. Конфиг перечитывается на каждый вызов, перезапускать сервер после
+  правки не нужно.
 - Токен сервер ищет так же, как CLI: с `gh` ничего не нужно. Свой токен —
   через `"env": {"GH_TOKEN": "${GH_TOKEN:-}"}`: значение подставляется из
   окружения, в котором запущен `claude`, сам токен в файл не попадает;

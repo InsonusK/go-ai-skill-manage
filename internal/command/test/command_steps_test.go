@@ -39,9 +39,20 @@ func initialize(sc *godog.ScenarioContext) {
 	var opened []string
 	var terminal bool
 	var input string
+	var selfCommand string
+	var selfInPath bool
 	sc.Before(func(ctx context.Context, s *godog.Scenario) (context.Context, error) {
 		opened, terminal, input = []string{}, false, ""
+		selfCommand, selfInPath = "aism", true
 		return ctx, nil
+	})
+	sc.Step(`^the tool runs as "([^"]*)" found in PATH$`, func(ctx context.Context, name string) error {
+		selfCommand, selfInPath = name, true
+		return nil
+	})
+	sc.Step(`^the tool isn't in PATH and lies at "([^"]*)"$`, func(ctx context.Context, path string) error {
+		selfCommand, selfInPath = path, false
+		return nil
 	})
 	sc.Step(`^the user's terminal answers "([^"]*)"$`, func(ctx context.Context, answer string) error {
 		terminal, input = true, answer+"\n"
@@ -123,6 +134,8 @@ func initialize(sc *godog.ScenarioContext) {
 			In:         strings.NewReader(input),
 			IsTerminal: func() bool { return terminal },
 			Now:        func() time.Time { return time.Date(2026, 9, 27, 10, 0, 0, 0, time.UTC) },
+			WriteFile:  os.WriteFile,
+			Self:       func() (string, bool) { return selfCommand, selfInPath },
 		}
 		code = app.Execute(ctx, opts, dir)
 		testsupport.Log("exit=%d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
@@ -167,6 +180,19 @@ func initialize(sc *godog.ScenarioContext) {
 			return fmt.Errorf("file %s lacks %q:\n%s", p, unescape(want), raw)
 		}
 		return nil
+	})
+	// project JSON file is: the file's JSON, compared as data.
+	sc.Step(`^project JSON file "([^"]*)" is$`, func(ctx context.Context, p string, d *godog.DocString) error {
+		raw, err := os.ReadFile(filepath.Join(dir, p))
+		if err != nil {
+			return err
+		}
+		testsupport.Log("file=%s content=%s", p, raw)
+		var got any
+		if err := json.Unmarshal(raw, &got); err != nil {
+			return err
+		}
+		return testsupport.JSON(got, d)
 	})
 	sc.Step(`^project path "([^"]*)" exists "([^"]*)"$`, func(ctx context.Context, p, want string) error {
 		_, err := os.Stat(filepath.Join(dir, p))

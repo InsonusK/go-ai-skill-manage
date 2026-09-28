@@ -15,6 +15,12 @@ var Commands = []string{"sync", "validate", "feedback", "mcp"}
 // FeedbackActions are the actions of the feedback command.
 var FeedbackActions = []string{"draft", "show", "send", "decline"}
 
+// MCPActions are the actions of the mcp command; without one it serves.
+var MCPActions = []string{"install", "uninstall"}
+
+// DefaultMCPServerName is the server's name in .mcp.json.
+const DefaultMCPServerName = "ai-skills"
+
 type Options struct {
 	// Command is "sync" or "validate".
 	Command                                       string
@@ -29,6 +35,16 @@ type Options struct {
 	Force bool
 	// Feedback is what the feedback command was given.
 	Feedback FeedbackOptions
+	// MCP is what the mcp command was given.
+	MCP MCPOptions
+}
+
+// MCPOptions: Action is "" (serve) or one of MCPActions; Name is the
+// server's key in .mcp.json; Replace lets install overwrite another entry
+// under that name. Neither reaches the server.
+type MCPOptions struct {
+	Action, Name string
+	Replace      bool
 }
 
 // FeedbackOptions: Action is one of FeedbackActions; draft takes Skill,
@@ -38,7 +54,7 @@ type FeedbackOptions struct {
 }
 
 func Parse(args []string) (Options, error) {
-	opts := Options{ProfileOutput: "ai-skill-manager.prof", MemProfileOutput: "ai-skill-manager.mem.prof"}
+	opts := Options{ProfileOutput: "ai-skill-manager.prof", MemProfileOutput: "ai-skill-manager.mem.prof", MCP: MCPOptions{Name: DefaultMCPServerName}}
 	command := ""
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -48,6 +64,13 @@ func Parse(args []string) (Options, error) {
 					return opts, fmt.Errorf("unknown feedback action %q: use %s", arg, strings.Join(FeedbackActions, ", "))
 				}
 				opts.Feedback.Action = arg
+				continue
+			}
+			if command == "mcp" && opts.MCP.Action == "" {
+				if !slices.Contains(MCPActions, arg) {
+					return opts, fmt.Errorf("unknown mcp action %q: use %s, or none to serve", arg, strings.Join(MCPActions, ", "))
+				}
+				opts.MCP.Action = arg
 				continue
 			}
 			if command == "feedback" && opts.Feedback.Action != "draft" && opts.Feedback.ID == "" {
@@ -68,9 +91,10 @@ func Parse(args []string) (Options, error) {
 		needsValue := false
 		switch key {
 		case "-c", "--config", "-t", "--type", "-p", "--path", "--subpath", "--target", "--profile-output", "--mem-profile-output",
-			"--skill", "--kind", "--title", "--body", "--body-file":
+			"--skill", "--kind", "--title", "--body", "--body-file", "--name":
 			needsValue = true
-		case "-h", "--help", "--version", "--debug", "--profile", "--dry-run", "-f", "--force", "--remove-orphans", "--keep-orphans", "--add-relations":
+		case "-h", "--help", "--version", "--debug", "--profile", "--dry-run", "-f", "--force", "--remove-orphans", "--keep-orphans", "--add-relations",
+			"--replace":
 		default:
 			return opts, fmt.Errorf("unknown flag %q", key)
 		}
@@ -110,6 +134,8 @@ func Parse(args []string) (Options, error) {
 				opts.Feedback.Body = value
 			case "--body-file":
 				opts.Feedback.BodyFile = value
+			case "--name":
+				opts.MCP.Name = value
 			}
 			continue
 		}
@@ -146,12 +172,17 @@ func Parse(args []string) (Options, error) {
 			}
 		case "--add-relations":
 			opts.Override.AddRelations = &enabled
+		case "--replace":
+			opts.MCP.Replace = enabled
 		}
 	}
 	if !opts.Help && !opts.Version && command == "" {
 		return opts, fmt.Errorf("a command is required: %s", strings.Join(Commands, ", "))
 	}
 	if err := checkFeedback(opts); err != nil {
+		return opts, err
+	}
+	if err := checkMCP(opts, args); err != nil {
 		return opts, err
 	}
 	switch opts.SourceType {
@@ -191,6 +222,24 @@ func checkFeedback(opts Options) error {
 	return nil
 }
 
+// checkMCP: --name belongs to mcp install/uninstall, --replace to install;
+// the server set up by install reads a config file, not --type/--path.
+func checkMCP(opts Options, args []string) error {
+	if opts.Help || opts.Version {
+		return nil
+	}
+	named := slices.ContainsFunc(args, func(a string) bool { return a == "--name" || strings.HasPrefix(a, "--name=") })
+	switch {
+	case named && (opts.Command != "mcp" || opts.MCP.Action == ""):
+		return fmt.Errorf("--name is for mcp install and mcp uninstall only")
+	case opts.MCP.Replace && opts.MCP.Action != "install":
+		return fmt.Errorf("--replace is for mcp install only")
+	case opts.Command == "mcp" && opts.SourceType != "":
+		return fmt.Errorf("mcp works with a config file (-c), not --type/--path")
+	}
+	return nil
+}
+
 const Usage = `Usage: aism [--debug] [--profile] <command> [options]
        ai-skill-manager <command> [options]
 
@@ -209,6 +258,11 @@ Commands:
     feedback decline ID  Close the draft without sending; the file stays
   mcp        Serve the feedback tools to an agent over MCP (stdio): the
              agent drafts, the user confirms in the client's dialog
+    mcp install [--name ai-skills] [--replace]
+               Add this server to .mcp.json next to the config (Claude Code);
+               -c, when given, is passed to the server too
+    mcp uninstall [--name ai-skills]
+               Remove it from .mcp.json
 
 Options:
   -c, --config FILE        YAML or JSON config (default: ai-skills.yaml)

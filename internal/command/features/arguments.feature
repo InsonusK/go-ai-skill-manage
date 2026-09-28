@@ -82,3 +82,17 @@ Feature: CLI argument contract
    | ["feedback","draft","--skill","g","--kind","bug","--title","t","--body","b","--body-file","f"] | needs either --body or --body-file |
    | ["feedback","send","id","--title","t"] | are for feedback draft only |
    | ["sync","--skill","g"] | are for feedback draft only |
+ Scenario Outline: mcp takes install or uninstall; --name and --replace belong to them
+  When I parse argument list
+   """
+   <args>
+   """
+  Then argument error contains "<error>"
+  Examples:
+   | args | error |
+   | ["mcp","add"] | unknown mcp action "add": use install, uninstall, or none to serve |
+   | ["mcp","--name","x"] | --name is for mcp install and mcp uninstall only |
+   | ["sync","--name","x"] | --name is for mcp install and mcp uninstall only |
+   | ["mcp","uninstall","--replace"] | --replace is for mcp install only |
+   | ["mcp","install","-t","local","-p","x"] | mcp works with a config file (-c), not --type/--path |
+   | ["mcp","install","extra"] | unexpected argument "extra" |

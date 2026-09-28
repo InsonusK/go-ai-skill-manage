@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -49,7 +52,7 @@ func run() (code int) {
 		logger.Error("working directory", "error", err)
 		return 1
 	}
-	if dir := os.Getenv("CLAUDE_PROJECT_DIR"); opts.Command == "mcp" && dir != "" {
+	if dir := os.Getenv("CLAUDE_PROJECT_DIR"); opts.Command == "mcp" && opts.MCP.Action == "" && dir != "" {
 		// Claude Code gives the MCP server the project's root: the config
 		// (and so the drafts) are found from there, whatever the server's
 		// working directory.
@@ -78,6 +81,8 @@ func run() (code int) {
 		In:           os.Stdin,
 		IsTerminal:   stdinIsTerminal,
 		MCPTransport: &mcp.StdioTransport{},
+		WriteFile:    os.WriteFile,
+		Self:         self,
 	}
 	logger.Debug("command started")
 	code = app.Execute(ctx, opts, cwd)
@@ -91,4 +96,23 @@ func run() (code int) {
 func stdinIsTerminal() bool {
 	info, err := os.Stdin.Stat()
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
+}
+
+// self is how .mcp.json should run this tool: the name it was run under
+// (aism or ai-skill-manager) when that name finds this same file in PATH,
+// else this file's absolute path.
+func self() (string, bool) {
+	path, err := os.Executable()
+	if err != nil {
+		return "ai-skill-manager", false
+	}
+	name := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
+	if found, err := exec.LookPath(name); err == nil {
+		a, errA := os.Stat(found)
+		b, errB := os.Stat(path)
+		if errA == nil && errB == nil && os.SameFile(a, b) {
+			return name, true
+		}
+	}
+	return path, false
 }

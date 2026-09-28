@@ -84,6 +84,14 @@ aism feedback decline ID
 `feedback_submit`; конфигурация ищется от `CLAUDE_PROJECT_DIR`, если он
 задан, и перечитывается на каждый вызов.
 
+`aism mcp install [-c FILE] [--name NAME] [--replace]` добавляет сервер в
+`.mcp.json` рядом с конфигурацией (Claude Code): `command` — имя из `PATH`
+или абсолютный путь с предупреждением, `args` — `["mcp"]`, плюс `-c` для
+конфига не с именем `ai-skills.yaml`. `--name` (default `ai-skills`) — ключ
+в `mcpServers`, `--replace` — перезаписать другую запись под этим именем.
+`aism mcp uninstall [--name NAME]` убирает запись. Остальное содержимое
+`.mcp.json` сохраняется.
+
 `ID` — имя черновика, его файл или путь к нему. `-c` указывает конфигурацию:
 от её папки считаются target и папка черновиков. Токен GitHub:
 `GH_TOKEN`, `GITHUB_TOKEN`, затем `gh auth token`.

@@ -147,7 +147,7 @@ gh auth login
 gh auth status
 
 # 2. MCP-сервер для Claude Code в этом проекте (пишет .mcp.json — закоммитьте)
-claude mcp add --scope project ai-skills -- aism mcp
+aism mcp install
 claude mcp list          # ai-skills: aism mcp - ✔ Connected
 ```
 

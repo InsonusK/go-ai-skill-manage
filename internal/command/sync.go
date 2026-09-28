@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"time"
 
 	configvalidator "github.com/InsonusK/go-ai-skill-manage/internal/config/validator"
@@ -43,6 +44,11 @@ type App struct {
 	Now func() time.Time
 	// MCPTransport is what the mcp command serves on (stdio).
 	MCPTransport mcp.Transport
+	// WriteFile writes .mcp.json for mcp install/uninstall.
+	WriteFile func(string, []byte, os.FileMode) error
+	// Self is how .mcp.json should run this tool: the name it runs under,
+	// when that name finds it in PATH (inPath), else its absolute path.
+	Self func() (command string, inPath bool)
 }
 
 // Execute runs opts and returns the exit code: 0 on success, 1 when the
@@ -61,6 +67,12 @@ func (a App) Execute(ctx context.Context, opts Options, cwd string) (code int) {
 		slog.WarnContext(ctx, "deprecated flag, remove it: every managed skill folder is rewritten on each sync", "flag", "--force")
 	}
 	if opts.Command == "mcp" {
+		switch opts.MCP.Action {
+		case "install":
+			return a.installMCP(opts, cwd)
+		case "uninstall":
+			return a.uninstallMCP(opts, cwd)
+		}
 		return a.serveMCP(ctx, opts, cwd)
 	}
 	req, err := a.Request(opts, cwd)
