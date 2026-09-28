@@ -67,10 +67,10 @@ Feature: Command line: sync and validate
    """
   When I run arguments "<command>"
   Then exit code is "1"
-  And console contains "  skill a (a)\n    duplicate-name: "
-  And console contains "    file SKILL.md\n      link [x](./gone.md)\n        missing-link-target: "
+  And console contains "├── skill a (a)\n│   ├── duplicate-name\n"
+  And console contains "│   └── file SKILL.md\n│       └── link [x](./gone.md)\n│           └── missing-link-target\n"
   And console contains "Found 3 problem(s)"
-  And console shows "  skill a (a)\n" once
+  And console shows "skill a (a)\n" once
   And project path "out" exists "false"
   Examples:
    | command  |
@@ -91,6 +91,20 @@ Feature: Command line: sync and validate
    | validate | tags: [go]         | unsupported-tags |
    | sync     | subpath: ../escape | unsafe-subpath   |
 
+ Scenario Outline: Color mode controls logs and problem reports
+  Given CLI project
+   """
+   {"ai-skills.yaml":"sources:\n  - path: skills\n    tags: [go]\ntarget: out\n","skills/a/SKILL.md":"---\nname: a\n---\n"}
+   """
+  When I run arguments "validate --color <mode>"
+  Then exit code is "1"
+  And console contains ANSI "<ansi>"
+  And problem code "unsupported-tags" is colored "<ansi>"
+  Examples:
+   | mode   | ansi  |
+   | always | true  |
+   | never  | false |
+
  Scenario: A missing subpath is a problem
   Given CLI project
    """
@@ -107,7 +121,7 @@ Feature: Command line: sync and validate
    """
   When I run arguments "sync"
   Then exit code is "1"
-  And console contains "\n  skill a\n    unmanaged-target: "
+  And console contains "\n└── skill a\n    └── unmanaged-target\n"
   And project file "out/a/SKILL.md" contains "mine"
 
  Scenario: Deprecated options still work, with a warning

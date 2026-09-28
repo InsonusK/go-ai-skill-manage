@@ -37,6 +37,7 @@
 | `--keep-orphans` | bool | Выключить удаление; при обоих флагах побеждает remove |
 | `--add-relations` | bool | Добавить связанные скилы; можно `=false` |
 | `--debug` | bool, false | Подробные логи этапов |
+| `--color` | `auto` / `always` / `never`, `auto` | Цвет логов и проблем; `auto` красит только терминал и учитывает `NO_COLOR` |
 | `--profile` | bool, false | Записать Go CPU profile |
 | `--profile-output` | путь, `ai-skill-manager.prof` | Файл профиля |
 | `--version` | bool | Версия приложения (`internal/version/version.go`) |

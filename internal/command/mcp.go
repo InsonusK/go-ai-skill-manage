@@ -22,7 +22,7 @@ func (a App) serveMCP(ctx context.Context, opts Options, cwd string) int {
 		}
 		if problems := configvalidator.Validate(ctx, req); len(problems) > 0 {
 			var b strings.Builder
-			PrintIssues(&b, reportables(problems))
+			PrintIssues(&b, reportables(problems), false)
 			return mcpserver.Project{}, errors.New("configuration problems:\n" + b.String())
 		}
 		service, dir := a.feedbackService(req)

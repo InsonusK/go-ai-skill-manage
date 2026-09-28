@@ -23,8 +23,8 @@ const DefaultMCPServerName = "ai-skills"
 
 type Options struct {
 	// Command is "sync" or "validate".
-	Command                                       string
-	Config, SourceType, SourcePath, ProfileOutput string
+	Command                                              string
+	Config, SourceType, SourcePath, ProfileOutput, Color string
 	// MemProfileOutput is where --profile writes the heap profile.
 	MemProfileOutput              string
 	Subpaths                      []string
@@ -54,7 +54,7 @@ type FeedbackOptions struct {
 }
 
 func Parse(args []string) (Options, error) {
-	opts := Options{ProfileOutput: "ai-skill-manager.prof", MemProfileOutput: "ai-skill-manager.mem.prof", MCP: MCPOptions{Name: DefaultMCPServerName}}
+	opts := Options{ProfileOutput: "ai-skill-manager.prof", MemProfileOutput: "ai-skill-manager.mem.prof", Color: "auto", MCP: MCPOptions{Name: DefaultMCPServerName}}
 	command := ""
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -91,7 +91,7 @@ func Parse(args []string) (Options, error) {
 		needsValue := false
 		switch key {
 		case "-c", "--config", "-t", "--type", "-p", "--path", "--subpath", "--target", "--profile-output", "--mem-profile-output",
-			"--skill", "--kind", "--title", "--body", "--body-file", "--name":
+			"--color", "--skill", "--kind", "--title", "--body", "--body-file", "--name":
 			needsValue = true
 		case "-h", "--help", "--version", "--debug", "--profile", "--dry-run", "-f", "--force", "--remove-orphans", "--keep-orphans", "--add-relations",
 			"--replace":
@@ -124,6 +124,8 @@ func Parse(args []string) (Options, error) {
 				opts.ProfileOutput = value
 			case "--mem-profile-output":
 				opts.MemProfileOutput = value
+			case "--color":
+				opts.Color = value
 			case "--skill":
 				opts.Feedback.Skill = value
 			case "--kind":
@@ -178,6 +180,9 @@ func Parse(args []string) (Options, error) {
 	}
 	if !opts.Help && !opts.Version && command == "" {
 		return opts, fmt.Errorf("a command is required: %s", strings.Join(Commands, ", "))
+	}
+	if !slices.Contains([]string{"auto", "always", "never"}, opts.Color) {
+		return opts, fmt.Errorf("--color must be auto, always or never")
 	}
 	if err := checkFeedback(opts); err != nil {
 		return opts, err
@@ -240,7 +245,7 @@ func checkMCP(opts Options, args []string) error {
 	return nil
 }
 
-const Usage = `Usage: aism [--debug] [--profile] <command> [options]
+const Usage = `Usage: aism [--debug] [--color MODE] [--profile] <command> [options]
        ai-skill-manager <command> [options]
 
 Commands:
@@ -275,6 +280,7 @@ Options:
       --keep-orphans       Keep them
       --add-relations      Also load the skills that selected skills link to
       --debug              Structured debug logs on stderr
+      --color MODE         Color output: auto, always or never (default: auto)
       --profile            Write Go CPU and heap profiles, log memory totals
       --profile-output FILE      CPU profile path (default: ai-skill-manager.prof)
       --mem-profile-output FILE  Heap profile path (default: ai-skill-manager.mem.prof)

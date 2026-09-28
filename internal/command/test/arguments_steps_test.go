@@ -27,7 +27,7 @@ func argumentSteps(sc *godog.ScenarioContext) {
 			return failure
 		}
 		o := actual.Override
-		return testsupport.JSON(map[string]any{"command": actual.Command, "config": actual.Config, "type": actual.SourceType, "path": actual.SourcePath, "subpaths": actual.Subpaths, "target": o.Target, "dry": o.DryRun, "force": actual.Force, "orphans": o.RemoveOrphans, "relations": o.AddRelations, "debug": actual.Debug, "profile": actual.Profile, "profileOutput": actual.ProfileOutput, "memProfileOutput": actual.MemProfileOutput}, d)
+		return testsupport.JSON(map[string]any{"command": actual.Command, "config": actual.Config, "type": actual.SourceType, "path": actual.SourcePath, "subpaths": actual.Subpaths, "target": o.Target, "dry": o.DryRun, "force": actual.Force, "orphans": o.RemoveOrphans, "relations": o.AddRelations, "debug": actual.Debug, "color": actual.Color, "profile": actual.Profile, "profileOutput": actual.ProfileOutput, "memProfileOutput": actual.MemProfileOutput}, d)
 	})
 	sc.Step(`^parsed feedback options are$`, func(ctx context.Context, d *godog.DocString) error {
 		if failure != nil {
