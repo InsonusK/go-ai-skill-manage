@@ -27,6 +27,8 @@ type App struct {
 	ReadFile  func(string) ([]byte, error)
 	Out, Err  io.Writer
 	Version   string
+	// Color enables ANSI styling for human-facing output.
+	Color bool
 
 	// The feedback command's ports: Markers read skills' markers in the
 	// targets, Drafts keeps drafts in a folder, Trackers open issues by
@@ -81,7 +83,7 @@ func (a App) Execute(ctx context.Context, opts Options, cwd string) (code int) {
 		return 1
 	}
 	if problems := configvalidator.Validate(ctx, req); len(problems) > 0 {
-		PrintIssues(a.Err, reportables(problems))
+		PrintIssues(a.Err, reportables(problems), a.Color)
 		return 1
 	}
 	if opts.Command == "feedback" {
@@ -98,7 +100,7 @@ func (a App) Execute(ctx context.Context, opts Options, cwd string) (code int) {
 	case "validate":
 		catalog, problems := handler.FetchAndValidateSkills(ctx, sources, req)
 		if len(problems) > 0 {
-			PrintIssues(a.Err, reportables(problems))
+			PrintIssues(a.Err, reportables(problems), a.Color)
 			return 1
 		}
 		fmt.Fprintf(a.Out, "Checked %d skill(s): no problems\n", len(catalog.Skills()))
@@ -107,7 +109,7 @@ func (a App) Execute(ctx context.Context, opts Options, cwd string) (code int) {
 		result, err := handler.SyncService{Sources: sources, State: a.State, Writer: a.Writer}.Run(ctx, req)
 		if err != nil {
 			if rows := reportables(err); rows != nil {
-				PrintIssues(a.Err, rows)
+				PrintIssues(a.Err, rows, a.Color)
 			} else {
 				fmt.Fprintln(a.Err, err)
 			}

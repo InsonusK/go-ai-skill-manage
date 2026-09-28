@@ -19,6 +19,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/filesystem"
 	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/repository"
+	"github.com/InsonusK/go-ai-skill-manage/internal/logging"
 	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
 	"github.com/cucumber/godog"
 )
@@ -123,11 +124,13 @@ func initialize(sc *godog.ScenarioContext) {
 			return nil
 		}
 		previous := slog.Default()
-		slog.SetDefault(slog.New(slog.NewTextHandler(&stderr, nil)))
+		color := logging.ColorEnabled(opts.Color, false, "")
+		logging.Init(&stderr, false, color)
 		defer slog.SetDefault(previous)
 		store := filesystem.Store{}
 		app := command.App{
 			Providers: map[string]interfaces.SourceProvider{"local": repository.Local{}}, State: store, Writer: store, ReadFile: os.ReadFile, Out: &stdout, Err: &stderr, Version: "test-version",
+			Color:      color,
 			Markers:    store,
 			Drafts:     func(dir string) interfaces.FeedbackDrafts { return filesystem.FeedbackDrafts{Dir: dir} },
 			Trackers:   map[string]interfaces.IssueTracker{"github": issues{titles: &opened}},
@@ -169,6 +172,13 @@ func initialize(sc *godog.ScenarioContext) {
 	sc.Step(`^console shows "(.*)" once$`, func(ctx context.Context, s string) error {
 		all := stdout.String() + stderr.String()
 		return testsupport.Equal(strings.Count(all, unescape(s)), 1)
+	})
+	sc.Step(`^console contains ANSI "([^"]*)"$`, func(ctx context.Context, want string) error {
+		return testsupport.Equal(strings.Contains(stdout.String()+stderr.String(), "\x1b["), want == "true")
+	})
+	sc.Step(`^problem code "([^"]*)" is colored "([^"]*)"$`, func(ctx context.Context, code, want string) error {
+		colored := "\x1b[1;31m" + code + "\x1b[0m"
+		return testsupport.Equal(strings.Contains(stderr.String(), colored), want == "true")
 	})
 	sc.Step(`^project file "([^"]*)" contains "(.*)"$`, func(ctx context.Context, p, want string) error {
 		raw, err := os.ReadFile(filepath.Join(dir, p))

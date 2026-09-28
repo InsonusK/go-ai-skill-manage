@@ -33,7 +33,8 @@ func run() (code int) {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
-	logger := logging.Init(os.Stderr, opts.Debug)
+	color := logging.ColorEnabled(opts.Color, fileIsTerminal(os.Stderr), os.Getenv("NO_COLOR"))
+	logger := logging.Init(os.Stderr, opts.Debug, color)
 	if opts.Profile && !opts.Help && !opts.Version {
 		stop, err := profiling.Start(opts.ProfileOutput, opts.MemProfileOutput)
 		if err != nil {
@@ -75,6 +76,7 @@ func run() (code int) {
 	}
 	app := command.App{
 		Providers: providers, State: store, Writer: store, ReadFile: os.ReadFile, Out: os.Stdout, Err: os.Stderr, Version: version.Version,
+		Color:        color,
 		Markers:      store,
 		Drafts:       func(dir string) interfaces.FeedbackDrafts { return filesystem.FeedbackDrafts{Dir: dir} },
 		Trackers:     map[string]interfaces.IssueTracker{"github": github},
@@ -94,7 +96,11 @@ func run() (code int) {
 // not a pipe or a file, as an agent's shell gives. /dev/null passes too,
 // but then the answer is empty: not sent.
 func stdinIsTerminal() bool {
-	info, err := os.Stdin.Stat()
+	return fileIsTerminal(os.Stdin)
+}
+
+func fileIsTerminal(file *os.File) bool {
+	info, err := file.Stat()
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 

@@ -41,18 +41,21 @@ func PrintResult(out io.Writer, result handler.SyncResult) {
 // Пример:
 //
 //	source local:/p/skills
-//	  skill guide (a/guide)
-//	    duplicate-name: also defined at local:/p/other guide
-//	    file SKILL.md
-//	      link [x](./gone.md)
-//	        missing-link-target: link target does not exist
+//	└── skill guide (a/guide)
+//	    ├── duplicate-name
+//	    │   also defined at local:/p/other guide
+//	    └── file SKILL.md
+//	        └── link [x](./gone.md)
+//	            └── missing-link-target
+//	                link target does not exist
 //	Found 2 problem(s)
-func PrintIssues(out io.Writer, list []issues.Reportable) {
+func PrintIssues(out io.Writer, list []issues.Reportable, colored bool) {
 	rows := make([]issues.IssueReportRow, 0, len(list))
 	for _, i := range list {
 		rows = append(rows, i.Report())
 	}
-	// Group by place; rows at the same place keep their order.
+	// Sort locations while preserving the validators' order for problems at
+	// the same location.
 	slices.SortStableFunc(rows, func(a, b issues.IssueReportRow) int {
 		return slices.CompareFunc(a.Where, b.Where, func(x, y issues.Location) int {
 			if c := strings.Compare(string(x.Kind), string(y.Kind)); c != 0 {
@@ -61,19 +64,87 @@ func PrintIssues(out io.Writer, list []issues.Reportable) {
 			return strings.Compare(x.Value, y.Value)
 		})
 	})
-	var shown []issues.Location
+	root := &issueNode{}
 	for _, row := range rows {
-		common := 0
-		for common < len(shown) && common < len(row.Where) && shown[common] == row.Where[common] {
-			common++
+		node := root
+		for _, location := range row.Where {
+			child := node.child(location)
+			if child == nil {
+				child = &issueNode{location: location}
+				node.children = append(node.children, child)
+			}
+			node = child
 		}
-		for depth := common; depth < len(row.Where); depth++ {
-			fmt.Fprintf(out, "%s%s %s\n", strings.Repeat("  ", depth), row.Where[depth].Kind, row.Where[depth].Value)
-		}
-		shown = row.Where
-		fmt.Fprintf(out, "%s%s: %s\n", strings.Repeat("  ", len(row.Where)), row.Code, row.Message)
+		node.rows = append(node.rows, row)
+	}
+	for i, row := range root.rows {
+		printIssueRow(out, "", i == len(root.rows)-1, row, colored)
+	}
+	for _, node := range root.children {
+		fmt.Fprintln(out, issueLocationText(node.location, colored))
+		printIssueContents(out, node, "", colored)
 	}
 	fmt.Fprintf(out, "Found %d problem(s)\n", len(rows))
+}
+
+type issueNode struct {
+	location issues.Location
+	children []*issueNode
+	rows     []issues.IssueReportRow
+}
+
+func (n *issueNode) child(location issues.Location) *issueNode {
+	for _, child := range n.children {
+		if child.location == location {
+			return child
+		}
+	}
+	return nil
+}
+
+func printIssueContents(out io.Writer, node *issueNode, prefix string, color bool) {
+	total := len(node.rows) + len(node.children)
+	entry := 0
+	for _, row := range node.rows {
+		printIssueRow(out, prefix, entry == total-1, row, color)
+		entry++
+	}
+	for _, child := range node.children {
+		last := entry == total-1
+		branch := "├── "
+		continuation := "│   "
+		if last {
+			branch = "└── "
+			continuation = "    "
+		}
+		fmt.Fprintf(out, "%s%s%s\n", prefix, branch, issueLocationText(child.location, color))
+		printIssueContents(out, child, prefix+continuation, color)
+		entry++
+	}
+}
+
+func printIssueRow(out io.Writer, prefix string, last bool, row issues.IssueReportRow, color bool) {
+	branch := "├── "
+	continuation := "│   "
+	if last {
+		branch = "└── "
+		continuation = "    "
+	}
+	fmt.Fprintf(out, "%s%s%s\n", prefix, branch, ansi(row.Code, "1;31", color))
+	fmt.Fprintf(out, "%s%s%s\n", prefix, continuation, row.Message)
+}
+
+func issueLocationText(location issues.Location, color bool) string {
+	kind := ansi(string(location.Kind), "90", color)
+	value := ansi(location.Value, "1", color)
+	return kind + " " + value
+}
+
+func ansi(text, code string, enabled bool) string {
+	if !enabled {
+		return text
+	}
+	return "\x1b[" + code + "m" + text + "\x1b[0m"
 }
 
 // reportables returns the problems err carries, nil if it carries none.

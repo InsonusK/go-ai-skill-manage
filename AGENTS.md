@@ -342,15 +342,19 @@
 ## `command` и `cmd` ✅
 
 - Команды `sync` и `validate` (`Options.Command`). `App{Providers, State,
-  Writer, ReadFile, Out, Err, Version}.Execute`: `Request` (опции + конфиг)
-  → `config/validator.Validate` (проблемы → дерево, код 1) →
+  Writer, ReadFile, Out, Err, Version, Color}.Execute`: `Request` (опции +
+  конфиг) → `config/validator.Validate` (проблемы → дерево, код 1) →
   `sourcing.NewManager(Providers, req.TempDir)` (создаётся здесь, после
   разбора запроса; конфиг читается один раз) → `validate`:
   `FetchAndValidateSkills`; `sync`: `handler.SyncService.Run`.
 - Проблемы любого вида печатает `PrintIssues` (`command/format.go`) по
   `Report()`: строки группируются по месту (стабильная сортировка по
-  `Where`), место печатается один раз, затем `Found N problem(s)`; в
-  stderr. `PrintResult` — операции по target и итог в stdout.
+  `Where`) в дерево с `├──`/`└──`, код и сообщение — отдельные строки,
+  место печатается один раз, затем `Found N problem(s)`; в stderr.
+  `PrintResult` — операции по target и итог в stdout.
+- `--color auto|always|never` (default `auto`) управляет ANSI-цветами логов
+  и проблем; `auto` красит только stderr-терминал и учитывает `NO_COLOR`.
+  Уровни `slog`: DEBUG серый, INFO голубой, WARN жёлтый, ERROR красный;
 - Устаревшее (warning через `slog`): флаг `-f/--force` (`Options.Force`),
   `settings.on_conflict` (ключ задан), адаптер `link-adapter` (только если
   указан явно; из умолчаний убран, в `Target.Adapters` не попадает). Поля

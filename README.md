@@ -109,12 +109,17 @@ aism sync --type github --path "https://github.com/InsonusK/ai-skills.git master
 
 ```text
 source local:/project/my-skills@master
-  skill code-review (code-review)
-    file SKILL.md
-      link [the checklist](./docs/checklist.md)
-        missing-link-target: code-review/docs/checklist.md: link target does not exist
+└── skill code-review (code-review)
+    └── file SKILL.md
+        └── link [the checklist](./docs/checklist.md)
+            └── missing-link-target
+                code-review/docs/checklist.md: link target does not exist
 Found 1 problem(s)
 ```
+
+Логи и коды проблем окрашиваются по умолчанию только при выводе в терминал.
+`--color always` принудительно включает ANSI-цвета, `--color never` отключает
+их; переменная окружения `NO_COLOR` отключает автоматический режим.
 
 ## Что делает `sync`
 
