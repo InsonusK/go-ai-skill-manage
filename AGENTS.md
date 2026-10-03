@@ -468,9 +468,17 @@ godog-сценарии старой и новой реализации (обсу
 `actions/setup-go` → агрегирующий `report`, его и требовать в branch
 protection); `release-info-publish.yml` (push в master при поднятом
 версии или ручной запуск → Release `v{версия}` с бинарниками
-`ai-skill-manager_{v}_{linux,windows,darwin}_amd64` + checksums; сборка
+`ai-skill-manager_{v}_{os}_{arch}` (linux и darwin — amd64 и arm64, windows — amd64) + checksums; сборка
 `./cmd/ai-skill-manager` без `-X`). Первый Release: поднять версию в PR в
 master или запустить workflow вручную.
+- `release-test-report.yml` (push в master / ручной запуск): `make unit-test
+  WITH_CODE_COVERAGE=true` + полный `make mutation-test` (не блокирует) →
+  `make test-report` → `public/` на GitHub Pages. Бейджи в README читают
+  оттуда `tests-badge.json`, `coverage-badge.json`,
+  `mutation-score-badge.json` (имя — от метки `mutation score`; в примере
+  скила — `mutation-badge.json` и `mutation/reports/mutation-report.html`,
+  которых `tools/test_report` не создаёт). Нужно один раз включить Pages:
+  Settings → Pages → Source: GitHub Actions.
 - **Версия приложения — только `internal/version/version.go`** (решение
   пользователя): `var Version = "X.Y.Z"`, поднимать там; файла `VERSION` и
   `-ldflags -X` нет, любая сборка (`go build`/`go install`/`make build`)
@@ -552,7 +560,10 @@ master или запустить workflow вручную.
      login`). Откуда брать токен — шаг 3.
 3. ✅ CLI `feedback`: `draft --skill --kind --title (--body |
    --body-file FILE|-)`, `show ID`, `send ID`, `decline ID` (ID — имя,
-   файл или путь черновика). Конфиг проходит `Validate`, как у `sync`;
+   файл или путь черновика). `send all` — все черновики в статусе `draft`
+   по порядку id (`FeedbackDrafts.List` → `FeedbackService.Pending`):
+   каждый показывается и отправляется только после своего `y`; сбой
+   одного (в том числе нечитаемый файл) не останавливает остальные, код 1. Конфиг проходит `Validate`, как у `sync`;
    папка черновиков — `command.FeedbackDraftsDir` от `req.Base`. `send`
    без терминала (`App.IsTerminal`: stdin — char device) — код 1 и
    подсказка пользователю; в терминале — итоговый issue и `[y/N]`, всё

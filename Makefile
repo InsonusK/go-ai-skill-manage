@@ -6,12 +6,21 @@ GREMLINS_VERSION := v0.6.0
 GREMLINS := $(CURDIR)/bin/gremlins
 COVERPKG := $(shell go list ./cmd/... ./internal/... | grep -Ev '/(test|gen)(/|$$)' | paste -sd, -)
 
-.PHONY: build run profile conformance conformance-python conformance-compare lint unit-test mutation-test test-report test-and-report
+.PHONY: build install run profile conformance conformance-python conformance-compare lint unit-test mutation-test test-report test-and-report
 
 build:
 	@mkdir -p bin
 	go build -trimpath -o bin/ai-skill-manager ./cmd/ai-skill-manager
 	cp bin/ai-skill-manager bin/aism
+
+# Put both names into Go's bin folder (GOBIN, else GOPATH/bin), which is in
+# PATH: `aism` then runs this build from any folder.
+INSTALL_DIR := $(or $(shell go env GOBIN),$(shell go env GOPATH)/bin)
+
+install: build
+	@mkdir -p "$(INSTALL_DIR)"
+	cp bin/ai-skill-manager bin/aism "$(INSTALL_DIR)/"
+	@echo "installed aism and ai-skill-manager into $(INSTALL_DIR)"
 
 run: build
 	./bin/aism $(ARGS)
