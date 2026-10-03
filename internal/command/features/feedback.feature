@@ -90,6 +90,69 @@ Feature: Command line: feedback -- the agent drafts, the user confirms and sends
    |        |
    | yep    |
 
+ Scenario: send all asks about every draft not yet sent or declined, each on its own answer
+  Given I run argv
+   """
+   ["feedback","draft","--skill","guide","--kind","bug","--title","B","--body","b"]
+   """
+  And I run argv
+   """
+   ["feedback","draft","--skill","guide","--kind","bug","--title","A","--body","a"]
+   """
+  And I run argv
+   """
+   ["feedback","draft","--skill","guide","--kind","bug","--title","C","--body","c"]
+   """
+  And I run arguments "feedback decline 2026-09-27-guide-c"
+  And the user's terminal answers "y\nn"
+  When I run arguments "feedback send all"
+  Then exit code is "0"
+  And stdout contains "Feedback 2026-09-27-guide-a (1 of 2)\n\nRepository: github https://github.com/o/r\nLabels: bug\nTitle: A\n\na\n"
+  And stdout contains "[y/N] Sent: https://github.com/o/r/issues/1\n\nFeedback 2026-09-27-guide-b (2 of 2)\n\n"
+  And stdout contains "[y/N] Not sent.\n"
+  And the opened issues are "A"
+  And project file ".ai-skills/feedback/2026-09-27-guide-a.md" contains "status: sent"
+  And project file ".ai-skills/feedback/2026-09-27-guide-b.md" contains "status: draft"
+  Given the user's terminal answers "y"
+  When I run arguments "feedback send all"
+  Then exit code is "0"
+  And stdout contains "Feedback 2026-09-27-guide-b (1 of 1)"
+  And the opened issues are "A,B"
+  And project file ".ai-skills/feedback/2026-09-27-guide-c.md" contains "status: declined"
+  When I run arguments "feedback send all"
+  Then exit code is "0"
+  And stdout contains "No feedback drafts to send.\n"
+  And the opened issues are "A,B"
+
+ Scenario: send all without the user's terminal sends nothing
+  Given I run argv
+   """
+   ["feedback","draft","--skill","guide","--kind","bug","--title","T","--body","B"]
+   """
+  And stdin holds "y\n"
+  When I run arguments "feedback send all"
+  Then exit code is "1"
+  And console contains "needs a terminal: ask the user to run it:\n  ai-skill-manager feedback send all\n"
+  And the opened issues are ""
+
+ Scenario: send all sends the readable drafts and fails on a draft file it can't read
+  Given CLI project
+   """
+   {"ai-skills.yaml":"sources:\n  - path: skills\ntarget: out\n",
+    "skills/notes/SKILL.md":"---\nname: notes\n---\n",
+    "out/guide/.ai-skills-managed":"{\"source\":{\"type\":\"github\",\"path\":\"https://github.com/o/r\"},\"skill_path\":\"guide\",\"transformers\":[],\"version\":\"go-3\"}",
+    ".ai-skills/feedback/broken.md":"no frontmatter"}
+   """
+  And I run argv
+   """
+   ["feedback","draft","--skill","guide","--kind","bug","--title","T","--body","B"]
+   """
+  And the user's terminal answers "y"
+  When I run arguments "feedback send all"
+  Then exit code is "1"
+  And console contains "feedback broken: no frontmatter"
+  And the opened issues are "T"
+
  Scenario: show tells the status; a declined draft stays and can't be sent
   Given I run argv
    """

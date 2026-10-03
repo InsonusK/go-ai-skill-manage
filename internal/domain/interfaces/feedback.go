@@ -26,6 +26,8 @@ type FeedbackDrafts interface {
 	// "id-N", and returns the id used.
 	Create(ctx context.Context, id string, draft model.FeedbackDraft) (string, error)
 	Load(ctx context.Context, id string) (model.FeedbackDraft, error)
+	// List returns the ids of all stored drafts, of any status, sorted.
+	List(ctx context.Context) ([]string, error)
 	// Save overwrites an existing draft.
 	Save(ctx context.Context, draft model.FeedbackDraft) error
 }

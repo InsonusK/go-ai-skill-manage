@@ -129,6 +129,23 @@ Feature: Feedback about a skill goes to its source's issue tracker only as the u
    []
    """
 
+ Scenario: Pending feedback is the drafts neither sent nor declined, by id
+  Given I draft a "bug" feedback on "guide" titled "C" with body "x"
+  And I draft a "bug" feedback on "guide" titled "A" with body "x"
+  And I draft a "bug" feedback on "guide" titled "B" with body "x"
+  And I draft a "bug" feedback on "guide" titled "D" with body "x"
+  And I preview "2026-09-27-guide-b"
+  And I send "2026-09-27-guide-b" with the shown hash
+  And I decline "2026-09-27-guide-d"
+  When I ask for the pending feedback
+  Then the feedback succeeds
+  And the pending feedback is "2026-09-27-guide-a,2026-09-27-guide-c"
+
+ Scenario: Without drafts nothing is pending
+  When I ask for the pending feedback
+  Then the feedback succeeds
+  And the pending feedback is ""
+
  Scenario: A tracker failure leaves the draft a draft
   Given I draft a "bug" feedback on "guide" titled "Broken anchor" with body "x"
   And the tracker fails with "401 Bad credentials"

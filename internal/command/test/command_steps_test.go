@@ -57,7 +57,7 @@ func initialize(sc *godog.ScenarioContext) {
 		return nil
 	})
 	sc.Step(`^the user's terminal answers "([^"]*)"$`, func(ctx context.Context, answer string) error {
-		terminal, input = true, answer+"\n"
+		terminal, input = true, unescape(answer)+"\n"
 		return nil
 	})
 	sc.Step(`^stdin holds "([^"]*)"$`, func(ctx context.Context, text string) error {
