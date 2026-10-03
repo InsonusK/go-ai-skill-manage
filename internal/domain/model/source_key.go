@@ -1,6 +1,7 @@
 package model
 
-// SourceKey identifies what to fetch (type/path/tree), excluding selection
+// SourceKey identifies what to fetch (type/path/tree; tree is a branch, a
+// tag or a full commit hash), excluding selection
 // fields (Subpaths/Tags/Name) that vary per SourceSpec even when they point at
 // the same underlying source. Used by SourceManager to dedup acquisitions.
 // Written as JSON into the marker (ManagedState.Source).

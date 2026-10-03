@@ -63,7 +63,7 @@ sources:
   - path: ./my-skills                  # локальная папка со скилами
   - type: github                       # или репозиторий GitHub
     path: https://github.com/InsonusK/ai-skills.git
-    tree: master
+    tree: master                       # ветка, тег или полный хеш коммита
     subpath: [skills/go]
 target:
   default: {}                          # .agents/skills
@@ -120,6 +120,22 @@ Found 1 problem(s)
 Логи и коды проблем окрашиваются по умолчанию только при выводе в терминал.
 `--color always` принудительно включает ANSI-цвета, `--color never` отключает
 их; переменная окружения `NO_COLOR` отключает автоматический режим.
+
+## Несколько наборов скилов
+
+Чтобы разные источники уходили в разные target, заведите по конфигу на набор
+и запускайте каждый отдельно:
+
+```sh
+aism sync -c ai-skills.backend.yaml
+aism sync -c ai-skills.docs.yaml
+```
+
+- Кладите конфиги в корень проекта: пути target, папка черновиков
+  `.ai-skills/feedback/` и `.mcp.json` считаются от папки конфига.
+- Наборы не должны делить target при `remove_orphans: true` — каждый
+  `sync` удалит скилы другого набора как «лишние». Подробнее и как быть —
+  [docs/api/reference.md](docs/api/reference.md#несколько-наборов-скилов).
 
 ## Что делает `sync`
 

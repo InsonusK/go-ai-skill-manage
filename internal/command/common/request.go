@@ -38,7 +38,7 @@ func (s *Source) Flags() []Flag {
 			}
 			return fmt.Errorf("unknown source type %q", v)
 		}, "-t", "--type"),
-		String(&s.Path, "PATH", `Source path, for github "repository-url [branch|tag]"`, "-p", "--path"),
+		String(&s.Path, "PATH", `Source path, for github "repository-url [branch|tag|commit]"`, "-p", "--path"),
 		Strings(&s.Subpaths, "PATH", "Repository subpath of a github source (default: skills);\nrepeatable", "--subpath"),
 	}
 }
