@@ -1,5 +1,5 @@
 ---
-status: draft
+status: sent
 kind: bug
 skill: devops-github-wf-release-test-report
 source:
@@ -9,6 +9,8 @@ source:
 commit: defd3f9cdf07a06d2a1b5a9abdd003745d5d31cb
 skill_path: skills/devops/workflows/devops-github-wf-release-test-report.skill
 created_at: 2026-10-03T16:22:13Z
+issue_url: https://github.com/InsonusK/ai-skills/issues/168
+sent_at: 2026-10-03T16:27:45Z
 ---
 
 # devops-github-wf-release-test-report: противоречие с wf-pull-request — мутационные тесты на PR
