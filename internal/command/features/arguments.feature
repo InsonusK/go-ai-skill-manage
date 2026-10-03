@@ -1,22 +1,54 @@
 Feature: CLI argument contract
- Scenario: All options are parsed without executing integrations
+ Global options go before or after the command; a command takes only its
+ own options (and, for feedback and mcp, those of the action).
+
+ Scenario: All sync options are parsed without executing integrations
   When I parse argument list
    """
    ["--debug","--color","always","--profile","--profile-output","cpu.prof","--mem-profile-output=mem.prof","sync","-c","custom.yaml","-t","github","-p","https://github.com/org/repo develop","--subpath","skills","--subpath","docs","--target=out","--dry-run","-f","--keep-orphans","--remove-orphans","--add-relations"]
    """
-  Then parsed options are
+  Then parsed global options are
    """
-   {"command":"sync","config":"custom.yaml","type":"github","path":"https://github.com/org/repo develop","subpaths":["skills","docs"],"target":"out","dry":true,"force":true,"orphans":true,"relations":true,"debug":true,"color":"always","profile":true,"profileOutput":"cpu.prof","memProfileOutput":"mem.prof"}
+   {"Help":false,"Version":false,"Debug":true,"Profile":true,"Color":"always","ProfileOutput":"cpu.prof","MemProfileOutput":"mem.prof"}
    """
- Scenario: validate takes the same source options
+  And parsed command "sync" options are
+   """
+   {"Source":{"Config":"custom.yaml","Type":"github","Path":"https://github.com/org/repo develop","Subpaths":["skills","docs"]},
+    "Override":{"Target":"out","DryRun":true,"RemoveOrphans":true,"AddRelations":true},"Force":true}
+   """
+
+ Scenario: Global options go after the command too
   When I parse argument list
    """
-   ["validate","-c","custom.yaml"]
+   ["sync","--debug","--color=never"]
    """
-  Then parsed options are
+  Then parsed global options are
    """
-   {"command":"validate","config":"custom.yaml","type":"","path":"","subpaths":null,"target":"","dry":false,"force":false,"orphans":null,"relations":null,"debug":false,"color":"auto","profile":false,"profileOutput":"ai-skill-manager.prof","memProfileOutput":"ai-skill-manager.mem.prof"}
+   {"Help":false,"Version":false,"Debug":true,"Profile":false,"Color":"never","ProfileOutput":"ai-skill-manager.prof","MemProfileOutput":"ai-skill-manager.mem.prof"}
    """
+
+ Scenario: --keep-orphans turns removal off; --add-relations=false keeps relations off
+  When I parse argument list
+   """
+   ["sync","--keep-orphans","--add-relations=false"]
+   """
+  Then parsed command "sync" options are
+   """
+   {"Source":{"Config":"","Type":"","Path":"","Subpaths":null},
+    "Override":{"Target":"","DryRun":false,"RemoveOrphans":false,"AddRelations":false},"Force":false}
+   """
+
+ Scenario: validate takes the source options and --add-relations
+  When I parse argument list
+   """
+   ["validate","-c","custom.yaml","--add-relations"]
+   """
+  Then parsed command "validate" options are
+   """
+   {"Source":{"Config":"custom.yaml","Type":"","Path":"","Subpaths":null},
+    "Override":{"Target":"","DryRun":false,"RemoveOrphans":null,"AddRelations":true}}
+   """
+
  Scenario Outline: Malformed arguments fail parsing
   When I parse argument list
    """
@@ -26,46 +58,82 @@ Feature: CLI argument contract
   Examples:
    | args | error |
    | [] | command is required: sync, validate, feedback, mcp |
-   | ["sync","extra"] | unexpected argument |
-   | ["sync","validate"] | unexpected argument |
-   | ["sync","--force=invalid"] | requires a boolean |
-   | ["sync","--type","wrong"] | unknown source type |
-   | ["sync","--color","bright"] | --color must be auto, always or never |
+   | ["check"] | unknown command "check": use sync, validate, feedback, mcp |
+   | ["sync","extra"] | unexpected argument "extra" |
+   | ["sync","validate"] | unexpected argument "validate" |
+   | ["sync","--force=invalid"] | --force requires a boolean |
+   | ["sync","--type","wrong"] | unknown source type "wrong" |
+   | ["sync","--color","bright"] | --color: must be auto, always or never |
+   | ["--color","bright"] | --color: must be auto, always or never |
    | ["sync","--color"] | --color requires a value |
-   | ["sync","--config="] | requires a value |
+   | ["sync","--config="] | --config requires a value |
+   | ["sync","--bad"] | unknown flag "--bad" for sync: see aism sync --help |
+   | ["-c","x.yaml","sync"] | unknown flag "-c": a command's flags go after the command |
+
+ Scenario Outline: A command takes only its own flags
+  When I parse argument list
+   """
+   <args>
+   """
+  Then argument error contains "<error>"
+  Examples:
+   | args | error |
+   | ["validate","--dry-run"] | unknown flag "--dry-run" for validate |
+   | ["validate","--target","out"] | unknown flag "--target" for validate |
+   | ["validate","-f"] | unknown flag "-f" for validate |
+   | ["sync","--skill","g"] | unknown flag "--skill" for sync |
+   | ["sync","--name","x"] | unknown flag "--name" for sync |
+   | ["feedback","show","id","-t","local"] | unknown flag "-t" for feedback show |
+   | ["feedback","send","id","--title","t"] | unknown flag "--title" for feedback send |
+   | ["mcp","--name","x"] | unknown flag "--name" for mcp |
+   | ["mcp","uninstall","--replace"] | unknown flag "--replace" for mcp uninstall |
+   | ["mcp","install","-t","local","-p","x"] | unknown flag "-t" for mcp install |
 
  Scenario: mcp takes the config
   When I parse argument list
    """
    ["mcp","-c","custom.yaml"]
    """
-  Then parsed options are
+  Then parsed command "mcp" options are
    """
-   {"command":"mcp","config":"custom.yaml","type":"","path":"","subpaths":null,"target":"","dry":false,"force":false,"orphans":null,"relations":null,"debug":false,"color":"auto","profile":false,"profileOutput":"ai-skill-manager.prof","memProfileOutput":"ai-skill-manager.mem.prof"}
+   {"Action":"","ServerName":"ai-skills","Replace":false,"Source":{"Config":"custom.yaml","Type":"","Path":"","Subpaths":null}}
    """
+
+ Scenario: mcp install takes the server's name and --replace
+  When I parse argument list
+   """
+   ["mcp","install","--name","skills-feedback","--replace"]
+   """
+  Then parsed command "mcp" options are
+   """
+   {"Action":"install","ServerName":"skills-feedback","Replace":true,"Source":{"Config":"","Type":"","Path":"","Subpaths":null}}
+   """
+
  Scenario: feedback draft takes the skill, the kind, the title and the body
   When I parse argument list
    """
    ["feedback","draft","--skill","guide","--kind","bug","--title","Broken anchor","--body-file","-","-c","custom.yaml"]
    """
-  Then parsed feedback options are
+  Then parsed command "feedback" options are
    """
-   {"Action":"draft","ID":"","Skill":"guide","Kind":"bug","Title":"Broken anchor","Body":"","BodyFile":"-"}
+   {"Action":"draft","ID":"","Source":{"Config":"custom.yaml","Type":"","Path":"","Subpaths":null},"Skill":"guide","Kind":"bug","Title":"Broken anchor","Body":"","BodyFile":"-"}
    """
+
  Scenario Outline: feedback <action> takes the draft id
   When I parse argument list
    """
    ["feedback","<action>","2026-09-27-guide"]
    """
-  Then parsed feedback options are
+  Then parsed command "feedback" options are
    """
-   {"Action":"<action>","ID":"2026-09-27-guide","Skill":"","Kind":"","Title":"","Body":"","BodyFile":""}
+   {"Action":"<action>","ID":"2026-09-27-guide","Source":{"Config":"","Type":"","Path":"","Subpaths":null},"Skill":"","Kind":"","Title":"","Body":"","BodyFile":""}
    """
   Examples:
    | action  |
    | show    |
    | send    |
    | decline |
+
  Scenario Outline: Malformed feedback arguments fail parsing
   When I parse argument list
    """
@@ -82,9 +150,8 @@ Feature: CLI argument contract
    | ["feedback","draft","--skill","g","--title","t","--body","b"] | feedback draft needs --skill, --kind and --title |
    | ["feedback","draft","--skill","g","--kind","bug","--title","t"] | needs either --body or --body-file |
    | ["feedback","draft","--skill","g","--kind","bug","--title","t","--body","b","--body-file","f"] | needs either --body or --body-file |
-   | ["feedback","send","id","--title","t"] | are for feedback draft only |
-   | ["sync","--skill","g"] | are for feedback draft only |
- Scenario Outline: mcp takes install or uninstall; --name and --replace belong to them
+
+ Scenario Outline: Malformed mcp arguments fail parsing
   When I parse argument list
    """
    <args>
@@ -93,8 +160,20 @@ Feature: CLI argument contract
   Examples:
    | args | error |
    | ["mcp","add"] | unknown mcp action "add": use install, uninstall, or none to serve |
-   | ["mcp","--name","x"] | --name is for mcp install and mcp uninstall only |
-   | ["sync","--name","x"] | --name is for mcp install and mcp uninstall only |
-   | ["mcp","uninstall","--replace"] | --replace is for mcp install only |
-   | ["mcp","install","-t","local","-p","x"] | mcp works with a config file (-c), not --type/--path |
    | ["mcp","install","extra"] | unexpected argument "extra" |
+
+ Scenario Outline: With --help a command's missing arguments don't matter
+  When I parse argument list
+   """
+   <args>
+   """
+  Then parsed global options are
+   """
+   {"Help":true,"Version":false,"Debug":false,"Profile":false,"Color":"auto","ProfileOutput":"ai-skill-manager.prof","MemProfileOutput":"ai-skill-manager.mem.prof"}
+   """
+  Examples:
+   | args |
+   | ["--help"] |
+   | ["feedback","--help"] |
+   | ["feedback","draft","-h"] |
+   | ["mcp","install","--help"] |

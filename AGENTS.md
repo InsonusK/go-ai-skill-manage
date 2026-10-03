@@ -341,12 +341,22 @@
 
 ## `command` и `cmd` ✅
 
-- Команды `sync` и `validate` (`Options.Command`). `App{Providers, State,
-  Writer, ReadFile, Out, Err, Version, Color}.Execute`: `Request` (опции +
-  конфиг) → `config/validator.Validate` (проблемы → дерево, код 1) →
-  `sourcing.NewManager(Providers, req.TempDir)` (создаётся здесь, после
-  разбора запроса; конфиг читается один раз) → `validate`:
-  `FetchAndValidateSkills`; `sync`: `handler.SyncService.Run`.
+- Раскладка: `command/command.go` — корень: глобальные флаги (`Global`:
+  `--debug`, `--color`, `--profile*`, `--version`, `-h`; до и после
+  команды), поиск команды (до неё — только глобальные флаги), общий help,
+  `Execute(ctx, *common.App, Invocation, cwd)`. Каждая команда — свой файл
+  и тип с методами `Name`/`Summary`/`Parse`/`Help`/`Run`
+  (`common.Command`): `sync.go`, `validate.go`, `feedback.go` (действия
+  draft/show/send/decline, флаги зависят от действия), `mcp.go` (serve,
+  install/uninstall; `.mcp.json` — `mcp_install.go`). `command/common` —
+  общее: таблица флагов `Flag` (по ней и разбор, и help — help не может
+  разойтись с разбором), `App` (порты), `Source` (`-c/-t/-p/--subpath`),
+  `Request`/`LoadRequest` (конфиг → `config/validator.Validate` → печать
+  проблем), `PrintIssues`, `FeedbackService`. Команда принимает только свои
+  флаги и глобальные, чужой — код 2. С `--help` ошибки разбора команды не
+  важны — печатается её help. `CLAUDE_PROJECT_DIR` читает `mcp` serve
+  (`App.Getenv`). `sourcing.NewManager` создаётся в `Run` команды, после
+  разбора запроса; конфиг читается один раз.
 - Проблемы любого вида печатает `PrintIssues` (`command/format.go`) по
   `Report()`: строки группируются по месту (стабильная сортировка по
   `Where`) в дерево с `├──`/`└──`, код и сообщение — отдельные строки,
@@ -355,11 +365,12 @@
 - `--color auto|always|never` (default `auto`) управляет ANSI-цветами логов
   и проблем; `auto` красит только stderr-терминал и учитывает `NO_COLOR`.
   Уровни `slog`: DEBUG серый, INFO голубой, WARN жёлтый, ERROR красный;
-- Устаревшее (warning через `slog`): флаг `-f/--force` (`Options.Force`),
+- Устаревшее (warning через `slog`): флаг `-f/--force` (`Sync.Force`),
   `settings.on_conflict` (ключ задан), адаптер `link-adapter` (только если
   указан явно; из умолчаний убран, в `Target.Adapters` не попадает). Поля
   `Request.Force`/`Conflict`, `Overrides.Force` удалены.
-- `main.go`: `SetDefaultLinkSearcher`, провайдеры `local`/`github`,
+- `main.go`: `command.Parse` → логи/профиль по `Global` →
+  `command.Execute`; `SetDefaultLinkSearcher`, провайдеры `local`/`github`,
   `filesystem.Store` как `State` и `Writer`.
 - `go build ./...` и `go vet ./...` собираются целиком.
 - Поле источника `name` разбирается, но **игнорируется** (документировано);
@@ -367,6 +378,25 @@
 - `docs/architecture/` удалён пользователем. README и
   `docs/api/reference.md` актуальны; `docs/features/sync.md` (индекс
   модулей) и `docs/skills/...` ещё описывают старые пакеты.
+
+## Команды CLI, `tree`, наборы ✅
+
+Шаги (после каждого — стоп):
+1. ✅ `command` по командам (см. «`command` и `cmd`»), help на всех
+   уровнях, строгие флаги.
+2. ✅ `tree` — ветка, тег или **полный** хеш коммита (`repository.IsCommit`:
+   40/64 hex): коммит забирается `git init` → `fetch --depth 1 url sha` →
+   `checkout FETCH_HEAD`, остальное — `clone --branch`. Короткий хеш
+   git-сервер не отдаёт: работает только у github.com через запасной архив.
+   Имя `tree` не меняется. Сценарии на настоящем git (`git.feature`).
+3. ✅ Документация наборов (README «Несколько наборов скилов», подробно —
+   `docs/api/reference.md`): набор = отдельный конфиг (`-c`), каждый
+   отдельной командой (решение пользователя); конфиги — в корне проекта
+   (`ai-skills.<набор>.yaml`), от их папки считаются target, `temp_dir`,
+   черновики, `.mcp.json`. Общий target у наборов: `remove_orphans` удаляет
+   скилы другого набора, одноимённый скил перезаписывается последним `sync`
+   (маркер не знает конфиг) — решено документацией, не кодом. MCP на набор —
+   своя запись `--name`.
 
 ## Профилирование (`profiling/`)
 

@@ -145,16 +145,58 @@ Feature: Command line: sync and validate
   Then exit code is "<code>"
   And console contains "<message>"
   Examples:
-   | args              | code | message             |
-   | --help            | 0    | Usage:              |
-   | sync --help       | 0    | --add-relations     |
-   | --version         | 0    | test-version        |
-   | sync              | 1    | ai-skills.yaml      |
-   | validate          | 1    | ai-skills.yaml      |
-   | sync --bad        | 2    | unknown flag        |
-   | check             | 2    | unknown command     |
-   | sync --type local | 1    | --path              |
-   | sync --config     | 2    | requires a value    |
+   | args                 | code | message             |
+   | --help               | 0    | Usage:              |
+   | --version            | 0    | test-version        |
+   | sync --version       | 0    | test-version        |
+   | sync                 | 1    | ai-skills.yaml      |
+   | validate             | 1    | ai-skills.yaml      |
+   | sync --bad           | 2    | unknown flag        |
+   | validate --dry-run   | 2    | unknown flag        |
+   | check                | 2    | unknown command     |
+   | sync --type local    | 1    | --path              |
+   | sync --config        | 2    | requires a value    |
+
+ Scenario: aism --help lists every command and the global options
+  Given CLI project
+   """
+   {}
+   """
+  When I run arguments "--help"
+  Then exit code is "0"
+  And stdout contains "Usage: aism [global options] <command> [options]"
+  And stdout contains "\n  sync      Load the skills"
+  And stdout contains "\n  validate  Check the configuration"
+  And stdout contains "\n  feedback  Report a bug"
+  And stdout contains "\n  mcp       Serve the feedback tools"
+  And stdout contains "Global options:\n      --debug"
+  And stdout contains "--color MODE"
+  And stdout contains "Run \"aism <command> --help\""
+  And stdout doesn't contain "--dry-run"
+
+ Scenario Outline: A command's help lists its own options and the global ones
+  Given CLI project
+   """
+   {}
+   """
+  When I run arguments "<args>"
+  Then exit code is "0"
+  And stdout contains "Usage: aism <usage>"
+  And stdout contains "<option>"
+  And stdout contains "Global options:\n      --debug"
+  And stdout doesn't contain "<foreign>"
+  Examples:
+   | args                     | usage                              | option                      | foreign        |
+   | sync --help              | sync [options]                     | --remove-orphans            | --skill        |
+   | sync --help              | sync [options]                     | -t, --type TYPE             | --name         |
+   | --help sync              | sync [options]                     | -f, --force                 | --skill        |
+   | validate --help          | validate [options]                 | --add-relations             | --dry-run      |
+   | feedback --help          | feedback <action> [options]        | decline  Close the draft     | --title        |
+   | feedback draft --help    | feedback draft --skill NAME        | --body-file FILE            | --dry-run      |
+   | feedback send -h         | feedback send ID [-c FILE]         | -c, --config FILE           | --title        |
+   | mcp --help               | mcp [-c FILE]                      | install    Add this server     | --replace      |
+   | mcp install --help       | mcp install [-c FILE]              | --replace                   | --dry-run      |
+   | mcp uninstall --help     | mcp uninstall [-c FILE]            | --name NAME                 | --replace      |
 
  Scenario: Whitespace GitHub path is a configuration error
   Given CLI project
