@@ -1,1 +1,0 @@
-ai-skill-manager @ git+https://github.com/InsonusK/ai-skill-manager.git
