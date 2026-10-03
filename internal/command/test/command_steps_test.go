@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/command"
+	"github.com/InsonusK/go-ai-skill-manage/internal/command/common"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
@@ -117,18 +118,18 @@ func initialize(sc *godog.ScenarioContext) {
 	runCommand := func(ctx context.Context, args []string) error {
 		stdout.Reset()
 		stderr.Reset()
-		opts, err := command.Parse(args)
+		inv, err := command.Parse(args)
 		if err != nil {
 			code = 2
 			fmt.Fprintln(&stderr, err)
 			return nil
 		}
 		previous := slog.Default()
-		color := logging.ColorEnabled(opts.Color, false, "")
+		color := logging.ColorEnabled(inv.Global.Color, false, "")
 		logging.Init(&stderr, false, color)
 		defer slog.SetDefault(previous)
 		store := filesystem.Store{}
-		app := command.App{
+		app := &common.App{
 			Providers: map[string]interfaces.SourceProvider{"local": repository.Local{}}, State: store, Writer: store, ReadFile: os.ReadFile, Out: &stdout, Err: &stderr, Version: "test-version",
 			Color:      color,
 			Markers:    store,
@@ -140,7 +141,7 @@ func initialize(sc *godog.ScenarioContext) {
 			WriteFile:  os.WriteFile,
 			Self:       func() (string, bool) { return selfCommand, selfInPath },
 		}
-		code = app.Execute(ctx, opts, dir)
+		code = command.Execute(ctx, app, inv, dir)
 		testsupport.Log("exit=%d\nstdout=%s\nstderr=%s", code, stdout.String(), stderr.String())
 		return nil
 	}
@@ -157,6 +158,12 @@ func initialize(sc *godog.ScenarioContext) {
 	sc.Step(`^stdout contains "(.*)"$`, func(ctx context.Context, s string) error {
 		if !strings.Contains(stdout.String(), unescape(s)) {
 			return fmt.Errorf("stdout lacks %q:\n%s", unescape(s), stdout.String())
+		}
+		return nil
+	})
+	sc.Step(`^stdout doesn't contain "(.*)"$`, func(ctx context.Context, s string) error {
+		if strings.Contains(stdout.String(), unescape(s)) {
+			return fmt.Errorf("stdout has %q:\n%s", unescape(s), stdout.String())
 		}
 		return nil
 	})

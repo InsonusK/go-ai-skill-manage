@@ -24,26 +24,46 @@
 
 ## Флаги
 
+`aism --help` — список команд и глобальные флаги; `aism <команда> --help`
+(и `aism feedback <действие> --help`, `aism mcp <действие> --help`) — все
+флаги команды. Справка строится из той же таблицы, по которой разбираются
+аргументы.
+
+Глобальные флаги принимаются до и после команды; флаги команды — только
+после неё. Команда принимает **только свои** флаги: чужой (`aism validate
+--dry-run`, `aism feedback send ID --title …`) — ошибка аргументов, код 2.
+Значения можно передать через `=`.
+
+Глобальные:
+
 | Флаг | Тип / default | Назначение |
 | --- | --- | --- |
-| `-c, --config` | путь, `ai-skills.yaml` | YAML или JSON |
-| `-t, --type` | `local` / `github` | Прямой режим без конфигурации |
-| `-p, --path` | строка | Источник; GitHub: URL или `"URL branch"` |
-| `--subpath` | повторяемый путь | Для прямого GitHub-режима; default `skills` |
-| `--target` | путь | Заменить все цели одной, без адаптеров |
-| `--dry-run` | bool, false | Проверить и вывести план без записи целей |
-| `-f, --force` | bool, false | Устарел, ни на что не влияет (warning): управляемые папки перезаписываются всегда |
-| `--remove-orphans` | bool | Включить удаление управляемых orphan-скилов |
-| `--keep-orphans` | bool | Выключить удаление; при обоих флагах побеждает remove |
-| `--add-relations` | bool | Добавить связанные скилы; можно `=false` |
 | `--debug` | bool, false | Подробные логи этапов |
 | `--color` | `auto` / `always` / `never`, `auto` | Цвет логов и проблем; `auto` красит только терминал и учитывает `NO_COLOR` |
-| `--profile` | bool, false | Записать Go CPU profile |
-| `--profile-output` | путь, `ai-skill-manager.prof` | Файл профиля |
+| `--profile` | bool, false | Записать Go CPU и heap профили |
+| `--profile-output` | путь, `ai-skill-manager.prof` | Файл CPU-профиля |
+| `--mem-profile-output` | путь, `ai-skill-manager.mem.prof` | Файл heap-профиля |
 | `--version` | bool | Версия приложения (`internal/version/version.go`) |
-| `-h, --help` | bool | Справка |
+| `-h, --help` | bool | Справка (команды, если она указана) |
 
-Флаги принимаются до и после команды; значения можно передать через `=`.
+`sync` и `validate`:
+
+| Флаг | Команды | Тип / default | Назначение |
+| --- | --- | --- | --- |
+| `-c, --config` | обе | путь, `ai-skills.yaml` | YAML или JSON |
+| `-t, --type` | обе | `local` / `github` | Прямой режим без конфигурации |
+| `-p, --path` | обе | строка | Источник; GitHub: URL или `"URL ветка-или-тег"` |
+| `--subpath` | обе | повторяемый путь | Для прямого GitHub-режима; default `skills` |
+| `--add-relations` | обе | bool | Добавить связанные скилы; можно `=false` |
+| `--target` | `sync` | путь | Заменить все цели одной, без адаптеров |
+| `--dry-run` | `sync` | bool, false | Проверить и вывести план без записи целей |
+| `--remove-orphans` | `sync` | bool | Включить удаление управляемых orphan-скилов |
+| `--keep-orphans` | `sync` | bool | Выключить удаление; при обоих флагах побеждает remove |
+| `-f, --force` | `sync` | bool, false | Устарел, ни на что не влияет (warning): управляемые папки перезаписываются всегда |
+
+`feedback` и `mcp` берут конфигурацию только из файла (`-c`); их флаги —
+в разделе [feedback](#feedback).
+
 Устаревшие типы `auto`, `flat`, `directory` работают как `local`.
 Приоритет источников: явный `--config` → `--type` + `--path` → файл по умолчанию.
 CLI overrides имеют приоритет над настройками. Dry-run из конфигурации

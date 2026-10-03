@@ -5,117 +5,122 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
-	"time"
 
-	configvalidator "github.com/InsonusK/go-ai-skill-manage/internal/config/validator"
+	"github.com/InsonusK/go-ai-skill-manage/internal/command/common"
+	"github.com/InsonusK/go-ai-skill-manage/internal/config"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/handler"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// App runs one command line: it resolves the request from the options and
-// the config file, checks the configuration (config/validator -- the
-// domain trusts the request after that), then runs the command. It makes
-// the source manager itself, once the request's temporary folder is known.
-type App struct {
-	// Providers acquire repositories by source type ("local", "github").
-	Providers map[string]interfaces.SourceProvider
-	State     interfaces.StateReader
-	Writer    interfaces.PlanWriter
-	ReadFile  func(string) ([]byte, error)
-	Out, Err  io.Writer
-	Version   string
-	// Color enables ANSI styling for human-facing output.
-	Color bool
-
-	// The feedback command's ports: Markers read skills' markers in the
-	// targets, Drafts keeps drafts in a folder, Trackers open issues by
-	// source type.
-	Markers  interfaces.MarkerReader
-	Drafts   func(dir string) interfaces.FeedbackDrafts
-	Trackers map[string]interfaces.IssueTracker
-	// In is the user's input: the body of feedback draft --body-file -,
-	// the answer to feedback send.
-	In io.Reader
-	// IsTerminal tells whether In is the user's terminal; feedback send
-	// asks only there.
-	IsTerminal func() bool
-	// Now is the clock; nil means time.Now.
-	Now func() time.Time
-	// MCPTransport is what the mcp command serves on (stdio).
-	MCPTransport mcp.Transport
-	// WriteFile writes .mcp.json for mcp install/uninstall.
-	WriteFile func(string, []byte, os.FileMode) error
-	// Self is how .mcp.json should run this tool: the name it runs under,
-	// when that name finds it in PATH (inPath), else its absolute path.
-	Self func() (command string, inPath bool)
+// Sync is the sync command: load the skills of the sources, check them
+// and write them into every target.
+type Sync struct {
+	Source   common.Source
+	Override config.Overrides
+	// Force is the deprecated --force: without a hash to skip unchanged
+	// skills every managed folder is rewritten anyway.
+	Force bool
 }
 
-// Execute runs opts and returns the exit code: 0 on success, 1 when the
-// configuration, the skills or a target have problems (printed as a tree
-// on Err) or the command fails.
-func (a App) Execute(ctx context.Context, opts Options, cwd string) (code int) {
-	if opts.Help {
-		fmt.Fprint(a.Out, Usage)
-		return 0
+func (s *Sync) Name() string { return "sync" }
+func (s *Sync) Summary() string {
+	return "Load the skills of the configured sources, check them and write\nthem into every target folder"
+}
+
+func (s *Sync) flags() []common.Flag {
+	o := &s.Override
+	return append(s.Source.Flags(),
+		common.String(&o.Target, "PATH", "Write into this folder instead of the configured targets", "--target"),
+		common.Bool(&o.DryRun, "Plan the changes and print them without writing", "--dry-run"),
+		common.BoolFunc("Remove managed skill folders no longer synchronized", func(v bool) {
+			if v {
+				o.RemoveOrphans = &v
+			}
+		}, "--remove-orphans"),
+		common.BoolFunc("Keep them (--remove-orphans wins over it)", func(v bool) {
+			if v && (o.RemoveOrphans == nil || !*o.RemoveOrphans) {
+				keep := false
+				o.RemoveOrphans = &keep
+			}
+		}, "--keep-orphans"),
+		common.AddRelationsFlag(o),
+		common.Bool(&s.Force, "Deprecated, has no effect: every managed skill\nfolder is rewritten on each sync", "-f", "--force"),
+	)
+}
+
+func (s *Sync) Parse(args []string, global []common.Flag) error {
+	rest, err := common.ParseFlags(args, append(s.flags(), global...), "sync")
+	if err != nil {
+		return err
 	}
-	if opts.Version {
-		fmt.Fprintln(a.Out, a.Version)
-		return 0
+	if len(rest) > 0 {
+		return fmt.Errorf("unexpected argument %q", rest[0])
 	}
-	if opts.Force {
+	return nil
+}
+
+func (s *Sync) Help(global []common.Flag) string {
+	return common.Help{
+		Usage: []string{"aism sync [options]"},
+		Description: "Load the skills of the configured sources, check them and write them into\n" +
+			"every target folder. Nothing is written when the configuration, a skill or\n" +
+			"a target has a problem: the problems are printed as a tree, exit code 1.",
+		Flags:  s.flags(),
+		Global: global,
+	}.String()
+}
+
+func (s *Sync) Run(ctx context.Context, app *common.App, cwd string) (code int) {
+	if s.Force {
 		slog.WarnContext(ctx, "deprecated flag, remove it: every managed skill folder is rewritten on each sync", "flag", "--force")
 	}
-	if opts.Command == "mcp" {
-		switch opts.MCP.Action {
-		case "install":
-			return a.installMCP(opts, cwd)
-		case "uninstall":
-			return a.uninstallMCP(opts, cwd)
-		}
-		return a.serveMCP(ctx, opts, cwd)
+	req, ok := app.LoadRequest(ctx, s.Source, s.Override, cwd)
+	if !ok {
+		return 1
 	}
-	req, err := a.Request(opts, cwd)
+	sources := sourcing.NewManager(app.Providers, req.TempDir)
+	defer closeSources(ctx, app, sources, &code)
+	result, err := handler.SyncService{Sources: sources, State: app.State, Writer: app.Writer}.Run(ctx, req)
 	if err != nil {
-		fmt.Fprintln(a.Err, err)
+		if rows := common.Reportables(err); rows != nil {
+			common.PrintIssues(app.Err, rows, app.Color)
+		} else {
+			fmt.Fprintln(app.Err, err)
+		}
 		return 1
 	}
-	if problems := configvalidator.Validate(ctx, req); len(problems) > 0 {
-		PrintIssues(a.Err, reportables(problems), a.Color)
-		return 1
+	PrintResult(app.Out, result)
+	return 0
+}
+
+// closeSources releases the acquired repositories; a failure fails the
+// command.
+func closeSources(ctx context.Context, app *common.App, sources *sourcing.Manager, code *int) {
+	if err := sources.Close(ctx); err != nil {
+		fmt.Fprintln(app.Err, "close sources:", err)
+		*code = 1
 	}
-	if opts.Command == "feedback" {
-		return a.feedback(ctx, opts, req)
+}
+
+// PrintResult prints what a sync did (or, for a dry run, would do): each
+// target with its operations, then a summary.
+//
+// Пример:
+//
+//	Target claude: /p/.claude/skills
+//	  create review
+//	  update guide
+//	Synced 2 skill(s) to 1 target(s)
+func PrintResult(out io.Writer, result handler.SyncResult) {
+	for _, plan := range result.Plans {
+		fmt.Fprintf(out, "Target %s: %s\n", plan.Target.Name, plan.Target.Path)
+		for _, op := range plan.Operations {
+			fmt.Fprintf(out, "  %s %s\n", op.Action, op.Name)
+		}
 	}
-	sources := sourcing.NewManager(a.Providers, req.TempDir)
-	defer func() {
-		if err := sources.Close(ctx); err != nil {
-			fmt.Fprintln(a.Err, "close sources:", err)
-			code = 1
-		}
-	}()
-	switch opts.Command {
-	case "validate":
-		catalog, problems := handler.FetchAndValidateSkills(ctx, sources, req)
-		if len(problems) > 0 {
-			PrintIssues(a.Err, reportables(problems), a.Color)
-			return 1
-		}
-		fmt.Fprintf(a.Out, "Checked %d skill(s): no problems\n", len(catalog.Skills()))
-		return 0
-	default:
-		result, err := handler.SyncService{Sources: sources, State: a.State, Writer: a.Writer}.Run(ctx, req)
-		if err != nil {
-			if rows := reportables(err); rows != nil {
-				PrintIssues(a.Err, rows, a.Color)
-			} else {
-				fmt.Fprintln(a.Err, err)
-			}
-			return 1
-		}
-		PrintResult(a.Out, result)
-		return 0
+	if result.DryRun {
+		fmt.Fprintf(out, "Dry run: %d skill(s), %d target(s); nothing written\n", len(result.Skills), len(result.Plans))
+		return
 	}
+	fmt.Fprintf(out, "Synced %d skill(s) to %d target(s)\n", len(result.Skills), len(result.Plans))
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/command"
+	"github.com/InsonusK/go-ai-skill-manage/internal/command/common"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
@@ -28,15 +29,16 @@ import (
 
 func main() { os.Exit(run()) }
 func run() (code int) {
-	opts, err := command.Parse(os.Args[1:])
+	inv, err := command.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
-	color := logging.ColorEnabled(opts.Color, fileIsTerminal(os.Stderr), os.Getenv("NO_COLOR"))
-	logger := logging.Init(os.Stderr, opts.Debug, color)
-	if opts.Profile && !opts.Help && !opts.Version {
-		stop, err := profiling.Start(opts.ProfileOutput, opts.MemProfileOutput)
+	global := inv.Global
+	color := logging.ColorEnabled(global.Color, fileIsTerminal(os.Stderr), os.Getenv("NO_COLOR"))
+	logger := logging.Init(os.Stderr, global.Debug, color)
+	if global.Profile && !global.Help && !global.Version {
+		stop, err := profiling.Start(global.ProfileOutput, global.MemProfileOutput)
 		if err != nil {
 			logger.Error("profiling", "error", err)
 			return 1
@@ -53,12 +55,6 @@ func run() (code int) {
 		logger.Error("working directory", "error", err)
 		return 1
 	}
-	if dir := os.Getenv("CLAUDE_PROJECT_DIR"); opts.Command == "mcp" && opts.MCP.Action == "" && dir != "" {
-		// Claude Code gives the MCP server the project's root: the config
-		// (and so the drafts) are found from there, whatever the server's
-		// working directory.
-		cwd = dir
-	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	entity.SetDefaultLinkSearcher(links.NewDefaultLinkFactory())
@@ -74,9 +70,10 @@ func run() (code int) {
 		Client: &http.Client{Timeout: 30 * time.Second},
 		Token:  tracker.TokenSource{Getenv: os.Getenv, GH: tracker.GHAuthToken}.Token,
 	}
-	app := command.App{
+	app := &common.App{
 		Providers: providers, State: store, Writer: store, ReadFile: os.ReadFile, Out: os.Stdout, Err: os.Stderr, Version: version.Version,
 		Color:        color,
+		Getenv:       os.Getenv,
 		Markers:      store,
 		Drafts:       func(dir string) interfaces.FeedbackDrafts { return filesystem.FeedbackDrafts{Dir: dir} },
 		Trackers:     map[string]interfaces.IssueTracker{"github": github},
@@ -87,7 +84,7 @@ func run() (code int) {
 		Self:         self,
 	}
 	logger.Debug("command started")
-	code = app.Execute(ctx, opts, cwd)
+	code = command.Execute(ctx, app, inv, cwd)
 	logger.Debug("command finished", "exit_code", code)
 	return code
 }
