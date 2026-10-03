@@ -53,6 +53,10 @@ func (d drafts) Load(ctx context.Context, id string) (model.FeedbackDraft, error
 	return draft, nil
 }
 
+func (d drafts) List(ctx context.Context) ([]string, error) {
+	return slices.Sorted(maps.Keys(d)), nil
+}
+
 func (d drafts) Save(ctx context.Context, draft model.FeedbackDraft) error {
 	if _, ok := d[draft.ID]; !ok {
 		return fmt.Errorf("no feedback %s", draft.ID)
@@ -163,6 +167,22 @@ func registerFeedbackSteps(sc *godog.ScenarioContext) {
 		preview, failure = service.Preview(ctx, id)
 		testsupport.Log("preview=%+v error=%v", preview, failure)
 		return nil
+	})
+	var pending []handler.FeedbackPreview
+	sc.Step(`^I ask for the pending feedback$`, func(ctx context.Context) error {
+		pending, failure = service.Pending(ctx)
+		testsupport.Log("pending=%+v error=%v", pending, failure)
+		return nil
+	})
+	sc.Step(`^the pending feedback is "([^"]*)"$`, func(ctx context.Context, want string) error {
+		var ids []string
+		for _, p := range pending {
+			if p.Hash == "" {
+				return fmt.Errorf("pending %s has no hash", p.Draft.ID)
+			}
+			ids = append(ids, p.Draft.ID)
+		}
+		return testsupport.Equal(strings.Join(ids, ","), want)
 	})
 	sc.Step(`^the user edits the body of "([^"]*)" to "([^"]*)"$`, func(ctx context.Context, id, body string) error {
 		d := stored[id]

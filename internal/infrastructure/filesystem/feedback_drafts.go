@@ -121,6 +121,26 @@ func (d FeedbackDrafts) Load(ctx context.Context, id string) (model.FeedbackDraf
 	return draft, nil
 }
 
+// List returns the ids of the "<id>.md" files in Dir, sorted; other files
+// and a missing Dir give none.
+func (d FeedbackDrafts) List(ctx context.Context) ([]string, error) {
+	entries, err := os.ReadDir(d.Dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, entry := range entries {
+		id, ok := strings.CutSuffix(entry.Name(), ".md")
+		if ok && entry.Type().IsRegular() && draftID.MatchString(id) {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
 // Save overwrites the existing file of draft.
 func (d FeedbackDrafts) Save(ctx context.Context, draft model.FeedbackDraft) error {
 	if !draftID.MatchString(draft.ID) {

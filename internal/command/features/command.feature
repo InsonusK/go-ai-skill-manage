@@ -193,7 +193,7 @@ Feature: Command line: sync and validate
    | validate --help          | validate [options]                 | --add-relations             | --dry-run      |
    | feedback --help          | feedback <action> [options]        | decline  Close the draft     | --title        |
    | feedback draft --help    | feedback draft --skill NAME        | --body-file FILE            | --dry-run      |
-   | feedback send -h         | feedback send ID [-c FILE]         | -c, --config FILE           | --title        |
+   | feedback send -h         | feedback send ID\|all [-c FILE]    | -c, --config FILE           | --title        |
    | mcp --help               | mcp [-c FILE]                      | install    Add this server     | --replace      |
    | mcp install --help       | mcp install [-c FILE]              | --replace                   | --dry-run      |
    | mcp uninstall --help     | mcp uninstall [-c FILE]            | --name NAME                 | --replace      |

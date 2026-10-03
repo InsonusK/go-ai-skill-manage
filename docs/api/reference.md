@@ -86,7 +86,7 @@ go tool pprof /tmp/aism.prof
 ```sh
 aism feedback draft --skill NAME --kind bug|improvement --title TEXT (--body TEXT | --body-file FILE|-)
 aism feedback show ID
-aism feedback send ID
+aism feedback send ID|all
 aism feedback decline ID
 ```
 
@@ -99,6 +99,7 @@ aism feedback decline ID
 | `--body` / `--body-file` | Текст issue: строкой или из файла (`-` — stdin). Ровно один из двух |
 | `show ID` | Статус черновика (`draft`, `sent`, `declined`), ссылка на issue и итоговый issue |
 | `send ID` | Показать итоговый issue и открыть его после ответа `y`. Работает только в терминале: без него — код 1, ничего не отправлено |
+| `send all` | То же для всех черновиков в статусе `draft`, по порядку id: каждый показывается и отправляется только после своего `y`. Сбой одного не останавливает остальные, код тогда 1; черновиков нет — `No feedback drafts to send.`, код 0 |
 | `decline ID` | Закрыть черновик без отправки; файл остаётся |
 
 `aism mcp [-c FILE]` отдаёт инструменты `feedback_draft` и

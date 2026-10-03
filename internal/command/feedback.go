@@ -18,19 +18,23 @@ import (
 // Feedback is the feedback command: report a bug or suggest an improvement
 // to a skill's source. Action is one of feedbackActions; draft takes
 // Skill, Kind, Title and Body or BodyFile ("-" for stdin); the others take
-// ID.
+// ID; send also takes sendAll in place of it.
 type Feedback struct {
 	Action, ID                         string
 	Source                             common.Source
 	Skill, Kind, Title, Body, BodyFile string
 }
 
+// sendAll in place of the draft id: every draft not yet sent or declined.
+// No draft has this id: an id starts with the date.
+const sendAll = "all"
+
 // feedbackActions: name, usage after "aism feedback", summary.
 var feedbackActions = [][3]string{
 	{"draft", "draft --skill NAME --kind bug|improvement --title TEXT\n      (--body TEXT | --body-file FILE|-) [-c FILE]",
 		"Write the draft to .ai-skills/feedback/ next to the config;\nnothing is sent"},
 	{"show", "show ID [-c FILE]", "Show the draft and the issue it would open"},
-	{"send", "send ID [-c FILE]", "Show it, ask for confirmation, open the issue\n(asks in a terminal only: the user runs it)"},
+	{"send", "send ID|all [-c FILE]", "Show it, ask for confirmation, open the issue\n(asks in a terminal only: the user runs it);\nall: every draft not yet sent or declined, asking for each"},
 	{"decline", "decline ID [-c FILE]", "Close the draft without sending; the file stays"},
 }
 
@@ -187,6 +191,11 @@ func (f *Feedback) send(ctx context.Context, app *common.App, service handler.Fe
 		fmt.Fprintf(app.Err, "feedback send asks the user to confirm and needs a terminal: ask the user to run it:\n  %s\n", f.sendCommand(id))
 		return 1
 	}
+	// One reader for all the answers: it reads ahead.
+	answers := bufio.NewReader(app.In)
+	if id == sendAll {
+		return sendPending(ctx, app, service, answers)
+	}
 	preview, err := service.Preview(ctx, id)
 	if err != nil {
 		fmt.Fprintln(app.Err, err)
@@ -196,24 +205,58 @@ func (f *Feedback) send(ctx context.Context, app *common.App, service handler.Fe
 		fmt.Fprintf(app.Err, "feedback %s is already %s\n", id, preview.Draft.Status)
 		return 1
 	}
-	printIssue(app.Out, preview)
-	fmt.Fprint(app.Out, "\nOpen this issue? It is public if the repository is. [y/N] ")
-	answer, err := bufio.NewReader(app.In).ReadString('\n')
-	if err != nil && err != io.EOF {
+	if err := confirmAndSend(ctx, app, service, answers, preview); err != nil {
 		fmt.Fprintln(app.Err, err)
 		return 1
+	}
+	return 0
+}
+
+// sendPending asks about every pending draft in turn: each is shown and
+// sent only on its own "y". A draft that fails doesn't stop the others;
+// the exit code is then 1.
+func sendPending(ctx context.Context, app *common.App, service handler.FeedbackService, answers *bufio.Reader) int {
+	code := 0
+	pending, err := service.Pending(ctx)
+	if err != nil {
+		fmt.Fprintln(app.Err, err)
+		code = 1
+	}
+	if len(pending) == 0 && code == 0 {
+		fmt.Fprintln(app.Out, "No feedback drafts to send.")
+	}
+	for i, preview := range pending {
+		if i > 0 {
+			fmt.Fprintln(app.Out)
+		}
+		fmt.Fprintf(app.Out, "Feedback %s (%d of %d)\n\n", preview.Draft.ID, i+1, len(pending))
+		if err := confirmAndSend(ctx, app, service, answers, preview); err != nil {
+			fmt.Fprintln(app.Err, err)
+			code = 1
+		}
+	}
+	return code
+}
+
+// confirmAndSend prints preview's issue and sends it if the next answer is
+// "y" or "yes"; it prints what it did.
+func confirmAndSend(ctx context.Context, app *common.App, service handler.FeedbackService, answers *bufio.Reader, preview handler.FeedbackPreview) error {
+	printIssue(app.Out, preview)
+	fmt.Fprint(app.Out, "\nOpen this issue? It is public if the repository is. [y/N] ")
+	answer, err := answers.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return err
 	}
 	if reply := strings.ToLower(strings.TrimSpace(answer)); reply != "y" && reply != "yes" {
 		fmt.Fprintln(app.Out, "Not sent.")
-		return 0
+		return nil
 	}
-	draft, err := service.Send(ctx, id, preview.Hash)
+	draft, err := service.Send(ctx, preview.Draft.ID, preview.Hash)
 	if err != nil {
-		fmt.Fprintln(app.Err, err)
-		return 1
+		return err
 	}
 	fmt.Fprintf(app.Out, "Sent: %s\n", draft.IssueURL)
-	return 0
+	return nil
 }
 
 func readBody(app *common.App, file string) (string, error) {

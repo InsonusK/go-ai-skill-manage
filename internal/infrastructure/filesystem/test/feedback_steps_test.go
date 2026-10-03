@@ -79,6 +79,15 @@ func feedbackSteps(sc *godog.ScenarioContext, dir *string) {
 		}
 		return testsupport.Equal(id, want)
 	})
+	var listed []string
+	sc.Step(`^I list the drafts$`, func(ctx context.Context) error {
+		listed, failure = drafts().List(ctx)
+		testsupport.Log("listed=%v error=%v", listed, failure)
+		return failure
+	})
+	sc.Step(`^the drafts listed are "([^"]*)"$`, func(ctx context.Context, want string) error {
+		return testsupport.Equal(strings.Join(listed, ","), want)
+	})
 	sc.Step(`^I load the draft "([^"]*)"$`, func(ctx context.Context, want string) error {
 		draft, failure = drafts().Load(ctx, want)
 		testsupport.Log("draft=%+v error=%v", draft, failure)

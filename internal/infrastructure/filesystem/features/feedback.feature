@@ -94,6 +94,29 @@ Feature: Store reads a skill's marker; FeedbackDrafts keeps feedback drafts as f
   When I create the draft "2026-09-27-guide" of a "bug" on "guide" titled "C" with body "c"
   Then the created id is "2026-09-27-guide-3"
 
+ Scenario: The drafts are listed by id, of any status; other files aren't drafts
+  Given an empty target
+  When I list the drafts
+  Then the drafts listed are ""
+  Given I create the draft "b" of a "bug" on "guide" titled "B" with body "b"
+  And I create the draft "a" of a "bug" on "guide" titled "A" with body "a"
+  And I load the draft "a"
+  And I mark the loaded draft sent as "https://github.com/o/r/issues/7" at "2026-09-27T11:00:00Z" and save it
+  And the draft file "notes.txt" contains
+   """
+   x
+   """
+  And the draft file "Upper.md" contains
+   """
+   x
+   """
+  And the draft file "folder.md/x" contains
+   """
+   x
+   """
+  When I list the drafts
+  Then the drafts listed are "a,b"
+
  Scenario: A sent draft records the issue and when it was sent
   Given an empty target
   And I create the draft "d" of a "improvement" on "guide" titled "T" with body "B"

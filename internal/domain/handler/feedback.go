@@ -16,6 +16,7 @@ import (
 // the skill's source in three stages, so that only the user sends it:
 // Draft stores it as a file in the project, Preview shows exactly what
 // would be sent (with its hash), Send opens the issue only for that hash.
+// Pending previews all drafts not yet sent or declined.
 // Decline closes a draft without sending.
 type FeedbackService struct {
 	Markers interfaces.MarkerReader
@@ -79,6 +80,32 @@ func (s FeedbackService) Preview(ctx context.Context, id string) (FeedbackPrevie
 		return FeedbackPreview{}, err
 	}
 	return s.preview(draft), nil
+}
+
+// Pending shows every stored draft still to be sent or declined, by id.
+// Drafts that can't be read are reported in the error next to the ones
+// that can.
+func (s FeedbackService) Pending(ctx context.Context) ([]FeedbackPreview, error) {
+	ids, err := s.Drafts.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var pending []FeedbackPreview
+	var failures []error
+	for _, id := range ids {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		draft, err := s.Drafts.Load(ctx, id)
+		if err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		if draft.Status == model.FeedbackDraftStatus {
+			pending = append(pending, s.preview(draft))
+		}
+	}
+	return pending, errors.Join(failures...)
 }
 
 // Send opens the issue of draft id, if it is still a draft and still what
