@@ -1,0 +1,117 @@
+name: Release test report
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.filter.outputs.code == 'true' || steps.filter.outputs.test == 'true' || steps.filter.outputs.workflow == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/check-changes
+        id: filter
+
+  unit-test:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests with coverage
+        run: make unit-test WITH_CODE_COVERAGE=true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: |
+            tmp/result
+            tmp/report/tests
+            tmp/report/coverage
+          if-no-files-found: error
+
+  mutation-test:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Full run (no ONLY_DELTA): this workflow only runs on master, where there's no PR
+      # base branch to diff against, so the whole project is mutated. It never gates:
+      # make mutation-test exits with the tool's own exit code (non-zero on a surviving
+      # mutant) - without continue-on-error that failure would fail the job and, since
+      # test-report's `needs` has no `if: always()`, cascade into skipping
+      # test-report/deploy entirely instead of just reporting the score.
+      - name: Run mutation tests
+        run: make mutation-test
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mutation-test-report
+          path: |
+            tmp/result
+            tmp/report/mutation
+          if-no-files-found: error
+
+  # test-report and deploy have no `if:` of their own - when unit-test/mutation-test
+  # are skipped by the path filter, `needs` makes these cascade-skip automatically.
+  test-report:
+    needs: [unit-test, mutation-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*-test-report"
+          merge-multiple: true
+          path: tmp
+
+      - name: Assemble GitHub Pages site
+        run: make test-report
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: test-report
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
