@@ -68,7 +68,7 @@ mutation-test:
 	@diff_args=(); \
 	if [ "$(ONLY_DELTA)" = "true" ]; then diff_args=(--diff "$(DELTA_BASE)"); fi; \
 	ulimit -v $(MUTATION_MEMORY_LIMIT_KB); \
-	"$(GREMLINS)" unleash --integration --workers=4 --coverpkg=$(COVERPKG) --exclude-files='tools/.*' --exclude-files='gen/.*' --exclude-files='[.]agents/.*' --exclude-files='[.]claude/.*' --exclude-files='deprecated/.*' "$${diff_args[@]}" \
+	"$(GREMLINS)" unleash --integration --workers=4 --coverpkg=$(COVERPKG) --exclude-files='tools/.*' --exclude-files='gen/.*' --exclude-files='[.]agents/.*' --exclude-files='[.]claude/.*' "$${diff_args[@]}" \
 		--output tmp/report/mutation/gremlins.json .; code=$$?; \
 	go run ./tools/normalize_mutation tmp/report/mutation/gremlins.json; normalizer=$$?; \
 	if [ "$$code" -ne 0 ]; then exit "$$code"; fi; exit "$$normalizer"

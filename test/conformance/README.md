@@ -7,7 +7,7 @@
 
 ```sh
 make conformance           # Go: bin/aism
-make conformance-python    # Python: .venv/bin/aism (коммит f89ab47, как deprecated/)
+make conformance-python    # Python: .venv/bin/aism (коммит f89ab47 репозитория InsonusK/ai-skill-manager)
 make conformance-compare   # обе, таблица «сценарий → GO / PYTHON», логи в tmp/conformance/
 ```
 

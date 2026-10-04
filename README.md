@@ -237,6 +237,3 @@ make test-report
 Сайт отчёта: `public/index.html`. Единая команда: `make test-and-report`.
 Тесты используют память, временные каталоги и локальный HTTP-сервер.
 Сеть для тестовых сценариев не нужна; первая загрузка Go-зависимостей требует сеть.
-
-Исходная Python-реализация сохранена в git submodule
-[deprecated/ai-skill-manager](deprecated/ai-skill-manager).

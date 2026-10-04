@@ -96,15 +96,6 @@ timeout не считается killed. Нулевые пороги gremlins о�
 артефактов не будет. Для полного сайта используйте `test-and-report`.
 Отчёты, бинарники и профили исключены из Git.
 
-## Python baseline и совместимость
-
-```sh
-PYTHONPATH=deprecated/ai-skill-manager/src .venv/bin/python -m pytest deprecated/ai-skill-manager/src -q
-```
-
-Baseline Python: 386 passed. Зависимости Python устанавливаются отдельно
-только для сравнений.
-
 ## Диаграмма модулей
 
 `make diagrams` запускает локальный `tools/diagram-renderer`.
