@@ -4,6 +4,13 @@ SHELL := /bin/bash
 # gremlins v0.6.0 emits an invalid Go argument with --test-cpu; omit that flag.
 GREMLINS_VERSION := v0.6.0
 GREMLINS := $(CURDIR)/bin/gremlins
+# Address-space cap (KB) for gremlins and the tests it starts. A mutant can turn
+# a loop into an endless one that keeps appending (inline_code.go:22 `!=` -> `==`
+# takes ~1.3 GB/s): without a cap it exhausts the machine before gremlins' own
+# timeout fires - a GitHub runner is then shut down mid-job. With the cap the
+# test dies with "out of memory" and the mutant counts as killed. 2 GB is too
+# little for the suite itself (git, mcpserver tests).
+MUTATION_MEMORY_LIMIT_KB := 4194304
 COVERPKG := $(shell go list ./cmd/... ./internal/... | grep -Ev '/(test|gen)(/|$$)' | paste -sd, -)
 
 .PHONY: build install run profile conformance conformance-python conformance-compare lint unit-test mutation-test test-report test-and-report
@@ -60,6 +67,7 @@ mutation-test:
 	@test -x "$(GREMLINS)" || GOBIN="$(CURDIR)/bin" go install github.com/go-gremlins/gremlins/cmd/gremlins@$(GREMLINS_VERSION)
 	@diff_args=(); \
 	if [ "$(ONLY_DELTA)" = "true" ]; then diff_args=(--diff "$(DELTA_BASE)"); fi; \
+	ulimit -v $(MUTATION_MEMORY_LIMIT_KB); \
 	"$(GREMLINS)" unleash --integration --workers=4 --coverpkg=$(COVERPKG) --exclude-files='tools/.*' --exclude-files='gen/.*' --exclude-files='[.]agents/.*' --exclude-files='[.]claude/.*' --exclude-files='deprecated/.*' "$${diff_args[@]}" \
 		--output tmp/report/mutation/gremlins.json .; code=$$?; \
 	go run ./tools/normalize_mutation tmp/report/mutation/gremlins.json; normalizer=$$?; \
