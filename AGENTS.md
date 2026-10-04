@@ -441,7 +441,7 @@ godog-сценарии старой и новой реализации (обсу
 обе реализации — CLI, шаги чёрного ящика одни). Без `AISM_CLI` — skip.
 `make conformance` / `conformance-python` / `conformance-compare`
 (`test/conformance/compare.sh`, логи в `tmp/conformance/`). Python — `.venv`
-(коммит `f89ab47` = `deprecated/`), понимает только `settings.target`.
+(коммит `f89ab47` репозитория `InsonusK/ai-skill-manager`), понимает только `settings.target`.
 Список расхождений — `test/conformance/README.md`; по всем решено
 оставить поведение Go (бейдж вне `examples`/`templates` — ошибка; ссылка за
 пределы источника — ошибка, риск ИБ).
