@@ -67,9 +67,9 @@ Feature: Command line: sync and validate
    """
   When I run arguments "<command>"
   Then exit code is "1"
-  And console contains "├── skill a (a)\n│   ├── duplicate-name\n"
-  And console contains "│   └── file SKILL.md\n│       └── link [x](./gone.md)\n│           └── missing-link-target\n"
-  And console contains "Found 3 problem(s)"
+  And console contains "├── skill a (a)\n│   ├── E208 duplicate-name\n"
+  And console contains "│   └── file SKILL.md\n│       └── link [x](./gone.md)\n│           └── E302 missing-link-target\n"
+  And console contains "Found 3 error(s), 0 warning(s)"
   And console shows "skill a (a)\n" once
   And project path "out" exists "false"
   Examples:
@@ -87,9 +87,9 @@ Feature: Command line: sync and validate
   And console contains "<code>"
   And project path "out" exists "false"
   Examples:
-   | command  | setting            | code             |
-   | validate | tags: [go]         | unsupported-tags |
-   | sync     | subpath: ../escape | unsafe-subpath   |
+   | command  | setting            | code                  |
+   | validate | tags: [go]         | E102 unsupported-tags |
+   | sync     | subpath: ../escape | E103 unsafe-subpath   |
 
  Scenario Outline: Color mode controls logs and problem reports
   Given CLI project
@@ -99,7 +99,7 @@ Feature: Command line: sync and validate
   When I run arguments "validate --color <mode>"
   Then exit code is "1"
   And console contains ANSI "<ansi>"
-  And problem code "unsupported-tags" is colored "<ansi>"
+  And problem code "E102 unsupported-tags" is colored "<ansi>"
   Examples:
    | mode   | ansi  |
    | always | true  |
@@ -121,8 +121,36 @@ Feature: Command line: sync and validate
    """
   When I run arguments "sync"
   Then exit code is "1"
-  And console contains "\n└── skill a\n    └── unmanaged-target\n"
+  And console contains "\n└── skill a\n    └── E401 unmanaged-target\n"
   And project file "out/a/SKILL.md" contains "mine"
+
+ Scenario Outline: Warnings are printed in the tree with their details and don't stop the command
+  Given CLI project
+   """
+   {"ai-skills.yaml":"sources:\n  - path: skills\ntarget: out\n","skills/a/SKILL.md":"---\nname: a\n---\n[n](../shared/notes.md)\n","skills/shared/notes.md":"[a](../a/SKILL.md) [web](https://example.com)\n"}
+   """
+  When I run arguments "<command>"
+  Then exit code is "0"
+  And console contains "└── file shared/notes.md\n    └── W311 shared-file-links\n        shared file outside skills is copied as written, check where its links lead:\n        - [a](../a/SKILL.md)\n        - [web](https://example.com)\n"
+  And console contains "Found 0 error(s), 1 warning(s)"
+  And stdout contains "<summary>"
+  And project path "out/a/SKILL.md" exists "<written>"
+  Examples:
+   | command  | summary                                   | written |
+   | validate | Checked 1 skill(s): no errors, 1 warning(s) | false   |
+   | sync     | Synced 1 skill(s) to 1 target(s)          | true    |
+
+ Scenario: Errors and warnings are printed as one tree and nothing is written
+  Given CLI project
+   """
+   {"ai-skills.yaml":"sources:\n  - path: skills\ntarget: out\nsettings:\n  on_conflict: last_wins\n","skills/a/SKILL.md":"---\nname: a\n---\n[x](./gone.md)\n"}
+   """
+  When I run arguments "sync"
+  Then exit code is "1"
+  And console contains "E302 missing-link-target"
+  And console contains "W107 deprecated-setting"
+  And console contains "Found 1 error(s), 1 warning(s)"
+  And project path "out" exists "false"
 
  Scenario: Deprecated options still work, with a warning
   Given CLI project
@@ -131,9 +159,11 @@ Feature: Command line: sync and validate
    """
   When I run arguments "sync --force"
   Then exit code is "0"
-  And console contains "flag=--force"
-  And console contains "adapter=link-adapter"
-  And console contains "key=settings.on_conflict"
+  And console contains "setting --force\n└── W108 deprecated-flag\n    deprecated flag, remove it: every managed skill folder is rewritten on each sync\n"
+  And console contains "setting settings.on_conflict\n└── W107 deprecated-setting\n"
+  And console contains "setting target.default.adapters\n└── W107 deprecated-setting\n    deprecated adapter link-adapter, remove it: links are always rewritten\n"
+  And console contains "Found 0 error(s), 3 warning(s)"
+  And stdout contains "Synced 1 skill(s) to 1 target(s)"
   And project path "out/a/SKILL.md" exists "true"
 
  Scenario Outline: Usage and failures have stable exit codes

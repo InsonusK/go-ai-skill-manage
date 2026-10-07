@@ -17,7 +17,8 @@ type Reportable interface {
 
 // IssueReportRow is one problem in the printer's format: what went wrong
 // (Code, Message) and where (Where), from the broadest place to the
-// narrowest.
+// narrowest. Details, if any, list what the message is about, one item a
+// line (e.g. the links a file holds).
 //
 // Пример: папка скила в target ->
 // Where = [target "/p/.claude/skills", skill "guide"]; ссылка в файле скила ->
@@ -25,8 +26,10 @@ type Reportable interface {
 // link "[x](./y.md)"]; ошибка конфига -> [source "local:repo", setting
 // "sources[1].tags"].
 type IssueReportRow struct {
-	Code, Message string
-	Where         []Location
+	Code    Code
+	Message string
+	Where   []Location
+	Details []string
 }
 
 // LocationKind names what a Location points at.
@@ -65,9 +68,9 @@ func errorText(row IssueReportRow) string {
 		at = append(at, l.Value)
 	}
 	if len(at) == 0 {
-		return fmt.Sprintf("%s: %s", row.Code, row.Message)
+		return fmt.Sprintf("%s: %s", row.Code.Label(), row.Message)
 	}
-	return fmt.Sprintf("%s: %s: %s", row.Code, strings.Join(at, " "), row.Message)
+	return fmt.Sprintf("%s: %s: %s", row.Code.Label(), strings.Join(at, " "), row.Message)
 }
 
 // joinErrors is the Error text of a list: one line per problem.
@@ -77,4 +80,26 @@ func joinErrors[T Reportable](list []T) string {
 		out = append(out, errorText(i.Report()))
 	}
 	return strings.Join(out, "\n")
+}
+
+// HasErrors reports whether any problem of list stops the work
+// (SeverityError); the rest are warnings.
+func HasErrors[T Reportable](list []T) bool {
+	for _, i := range list {
+		if i.Report().Code.Severity() == SeverityError {
+			return true
+		}
+	}
+	return false
+}
+
+// Warnings are the problems of list that don't stop the work.
+func Warnings[T Reportable](list []T) []T {
+	var out []T
+	for _, i := range list {
+		if i.Report().Code.Severity() == SeverityWarning {
+			out = append(out, i)
+		}
+	}
+	return out
 }

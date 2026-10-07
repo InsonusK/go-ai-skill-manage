@@ -50,7 +50,7 @@ func (SkillNameValidator) Validate(ctx context.Context, catalog *sourcing.SkillC
 				others = append(others, o.Repo.Key.String()+" "+o.DirOrMarkerPath())
 			}
 		}
-		problems = append(problems, skillIssue(s, issues.SkillIssue{Code: "duplicate-name", Message: fmt.Sprintf("also defined at %s", strings.Join(others, ", "))}))
+		problems = append(problems, skillIssue(s, issues.SkillIssue{Code: issues.CodeDuplicateName, Message: fmt.Sprintf("also defined at %s", strings.Join(others, ", "))}))
 	}
 	return problems
 }

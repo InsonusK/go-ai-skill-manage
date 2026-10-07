@@ -72,7 +72,7 @@ func initialize(sc *godog.ScenarioContext) {
 	sc.Step(`^the plan issues are$`, func(ctx context.Context, d *godog.DocString) error {
 		got := [][]string{}
 		for _, i := range problems {
-			got = append(got, []string{i.Code, i.Target, i.Skill})
+			got = append(got, []string{string(i.Code), i.Target, i.Skill})
 		}
 		return testsupport.JSON(got, d)
 	})

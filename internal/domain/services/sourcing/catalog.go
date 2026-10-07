@@ -193,7 +193,7 @@ func (c *SkillCatalog) cachedRepoPath(ctx context.Context, key model.SourceKey, 
 func (c *SkillCatalog) acquire(ctx context.Context, key model.SourceKey, p string) (*entity.Repository, string, error) {
 	repo, err := c.Manager.Get(ctx, key)
 	if err != nil {
-		return nil, "", issues.SkillIssue{Code: "source-acquire", Source: key.String(), Message: err.Error()}
+		return nil, "", issues.SkillIssue{Code: issues.CodeSourceAcquire, Source: key.String(), Message: err.Error()}
 	}
 	p, err = normalizePath(repo, p)
 	if err != nil {
@@ -281,7 +281,7 @@ func (c *SkillCatalog) FetchByPath(ctx context.Context, repo *entity.Repository,
 	var scan func(string)
 	scan = func(p string) {
 		if err := ctx.Err(); err != nil {
-			problems = append(problems, issues.SkillIssue{Code: "canceled", Source: repo.Key.String(), File: p, Message: err.Error()})
+			problems = append(problems, issues.SkillIssue{Code: issues.CodeCanceled, Source: repo.Key.String(), File: p, Message: err.Error()})
 			return
 		}
 		if skill := c.skillAt(repo.Key, p); skill != nil {
@@ -291,7 +291,7 @@ func (c *SkillCatalog) FetchByPath(ctx context.Context, repo *entity.Repository,
 		info, err := fs.Stat(repo.FS, p)
 		if err != nil {
 			if !isNotExist(err) {
-				problems = append(problems, issues.SkillIssue{Code: "source-read", Source: repo.Key.String(), File: p, Message: err.Error()})
+				problems = append(problems, issues.SkillIssue{Code: issues.CodeSourceRead, Source: repo.Key.String(), File: p, Message: err.Error()})
 			}
 			return
 		}
@@ -299,7 +299,7 @@ func (c *SkillCatalog) FetchByPath(ctx context.Context, repo *entity.Repository,
 			if strings.HasSuffix(p, ".skill.md") {
 				skill, err := entity.MakeSkill(repo, p, "", entity.FlatSkill)
 				if err != nil {
-					problems = append(problems, issues.SkillIssue{Code: "invalid-name", Source: repo.Key.String(), File: p, Message: err.Error()})
+					problems = append(problems, issues.SkillIssue{Code: issues.CodeInvalidName, Source: repo.Key.String(), File: p, Message: err.Error()})
 					return
 				}
 				if err := c.validate(skill); err != nil {
@@ -312,7 +312,7 @@ func (c *SkillCatalog) FetchByPath(ctx context.Context, repo *entity.Repository,
 		}
 		skill, err := c.isSkillDir(repo, p)
 		if err != nil {
-			problems = append(problems, issues.SkillIssue{Code: "invalid-skill", Source: repo.Key.String(), File: p, Message: err.Error()})
+			problems = append(problems, issues.SkillIssue{Code: issues.CodeInvalidSkill, Source: repo.Key.String(), File: p, Message: err.Error()})
 			return
 		}
 		if skill != nil {
@@ -325,7 +325,7 @@ func (c *SkillCatalog) FetchByPath(ctx context.Context, repo *entity.Repository,
 		}
 		entries, err := fs.ReadDir(repo.FS, p)
 		if err != nil {
-			problems = append(problems, issues.SkillIssue{Code: "source-read", Source: repo.Key.String(), File: p, Message: err.Error()})
+			problems = append(problems, issues.SkillIssue{Code: issues.CodeSourceRead, Source: repo.Key.String(), File: p, Message: err.Error()})
 			return
 		}
 		for _, e := range entries {
@@ -375,13 +375,13 @@ func (c *SkillCatalog) FetchByPathUp(ctx context.Context, repo *entity.Repositor
 	for {
 		skill, err := c.isSkillDir(repo, dir)
 		if err != nil {
-			return nil, issues.SkillIssue{Code: "invalid-skill", Source: repo.Key.String(), File: dir, Message: err.Error()}
+			return nil, issues.SkillIssue{Code: issues.CodeInvalidSkill, Source: repo.Key.String(), File: dir, Message: err.Error()}
 		}
 		// A file that isn't claimed by its own folder's marker may still
 		// be a flat skill of its own.
 		if skill == nil && dir == path.Dir(p) && !info.IsDir() && strings.HasSuffix(p, ".skill.md") {
 			if skill, err = entity.MakeSkill(repo, p, "", entity.FlatSkill); err != nil {
-				return nil, issues.SkillIssue{Code: "invalid-name", Source: repo.Key.String(), File: p, Message: err.Error()}
+				return nil, issues.SkillIssue{Code: issues.CodeInvalidName, Source: repo.Key.String(), File: p, Message: err.Error()}
 			}
 		}
 		if skill != nil {
@@ -391,7 +391,7 @@ func (c *SkillCatalog) FetchByPathUp(ctx context.Context, repo *entity.Repositor
 			return skill, nil
 		}
 		if dir == "." {
-			return nil, issues.SkillIssue{Code: "skill-not-found", Source: repo.Key.String(), File: p, Message: "no skill holds this path"}
+			return nil, issues.SkillIssue{Code: issues.CodeSkillNotFound, Source: repo.Key.String(), File: p, Message: "no skill holds this path"}
 		}
 		dir = path.Dir(dir)
 	}
@@ -404,10 +404,10 @@ func (c *SkillCatalog) FetchByPathUp(ctx context.Context, repo *entity.Repositor
 func (c *SkillCatalog) validate(skill *entity.Skill) *issues.SkillIssue {
 	files, err := skill.FilesByPath("")
 	if err != nil {
-		return &issues.SkillIssue{Code: "source-read", Source: skill.Repo.Key.String(), Skill: skill.Name, SkillPath: skill.DirOrMarkerPath(), File: skill.MainFilePath, Message: err.Error()}
+		return &issues.SkillIssue{Code: issues.CodeSourceRead, Source: skill.Repo.Key.String(), Skill: skill.Name, SkillPath: skill.DirOrMarkerPath(), File: skill.MainFilePath, Message: err.Error()}
 	}
 	if nested := c.nestedSkillPath(skill, files); nested != "" {
-		return &issues.SkillIssue{Code: "nested-skill", Source: skill.Repo.Key.String(), Skill: skill.Name, SkillPath: skill.DirOrMarkerPath(), File: nested, Message: fmt.Sprintf("nested-skill: %s", nested)}
+		return &issues.SkillIssue{Code: issues.CodeNestedSkill, Source: skill.Repo.Key.String(), Skill: skill.Name, SkillPath: skill.DirOrMarkerPath(), File: nested, Message: fmt.Sprintf("nested-skill: %s", nested)}
 	}
 	return nil
 }
@@ -576,13 +576,13 @@ func cleanRelative(repo *entity.Repository, start string) (string, error) {
 	if filepath.IsAbs(start) {
 		rel, err := filepath.Rel(repo.RootPath, start)
 		if err != nil {
-			return "", issues.SkillIssue{Code: "unsafe-subpath", Source: repo.Key.String(), File: start, Message: err.Error()}
+			return "", issues.SkillIssue{Code: issues.CodeUnsafeSubpath, Source: repo.Key.String(), File: start, Message: err.Error()}
 		}
 		start = rel
 	}
 	start = filepath.ToSlash(filepath.Clean(start))
 	if !fs.ValidPath(start) || strings.Contains(start, "\\") {
-		return "", issues.SkillIssue{Code: "unsafe-subpath", Source: repo.Key.String(), File: start, Message: fmt.Sprintf("unsafe subpath %q", start)}
+		return "", issues.SkillIssue{Code: issues.CodeUnsafeSubpath, Source: repo.Key.String(), File: start, Message: fmt.Sprintf("unsafe subpath %q", start)}
 	}
 	return start, nil
 }
@@ -602,7 +602,7 @@ func normalizePath(repo *entity.Repository, start string) (string, error) {
 		return "", err
 	}
 	if _, err := fs.Stat(repo.FS, start); err != nil {
-		return "", issues.SkillIssue{Code: "missing-subpath", Source: repo.Key.String(), File: start, Message: fmt.Sprintf("subpath %q does not exist in repository %q", start, repo.Key)}
+		return "", issues.SkillIssue{Code: issues.CodeMissingSubpath, Source: repo.Key.String(), File: start, Message: fmt.Sprintf("subpath %q does not exist in repository %q", start, repo.Key)}
 	}
 	return start, nil
 }

@@ -48,7 +48,7 @@ func initialize(sc *godog.ScenarioContext) {
 		}
 		for _, code := range strings.Split(codes, ",") {
 			if code != "" {
-				f.problems = append(f.problems, issues.SkillIssue{Code: code})
+				f.problems = append(f.problems, issues.SkillIssue{Code: issues.Code(code)})
 			}
 		}
 		fakes[name] = f
@@ -88,7 +88,7 @@ func initialize(sc *godog.ScenarioContext) {
 	sc.Step(`^the issue codes are "([^"]*)"$`, func(ctx context.Context, want string) error {
 		var codes []string
 		for _, i := range problems {
-			codes = append(codes, i.Code)
+			codes = append(codes, string(i.Code))
 		}
 		return testsupport.Equal(strings.Join(codes, ","), want)
 	})

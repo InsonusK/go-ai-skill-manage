@@ -1,17 +1,16 @@
 package transformers_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
 	"testing/fstest"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/transform"
@@ -41,11 +40,11 @@ func initialize(sc *godog.ScenarioContext) {
 	var catalog *sourcing.SkillCatalog
 	var target *entity.TargetSkillCatalog
 	var panicked string
-	var logs bytes.Buffer
+	var warnings issues.SkillIssues
 
 	sc.Before(func(ctx context.Context, s *godog.Scenario) (context.Context, error) {
 		trees, commits, target, panicked = map[string]fstest.MapFS{}, map[string]string{}, nil, ""
-		logs.Reset()
+		warnings = nil
 		catalog = &sourcing.SkillCatalog{Manager: sourcing.NewManager(map[string]interfaces.SourceProvider{"local": repositories{trees: trees, commits: commits}}, ""), ExcludeFromChecks: map[model.SourceKey][]string{}}
 		entity.SetDefaultLinkSearcher(links.NewDefaultLinkFactory())
 		return ctx, nil
@@ -113,13 +112,14 @@ func initialize(sc *godog.ScenarioContext) {
 				testsupport.Log("panic=%s", panicked)
 			}
 		}()
-		return transformers.FlatTransformer{Catalog: catalog}.Transform(ctx, target)
+		_, err = transformers.FlatTransformer{Catalog: catalog}.Transform(ctx, target)
+		return err
 	})
 	sc.Step(`^I apply the claude when-to-use transformer$`, func(ctx context.Context) error {
-		previous := slog.Default()
-		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
-		defer slog.SetDefault(previous)
-		return transformers.ClaudeWhenToUseTransformer{}.Transform(ctx, target)
+		var err error
+		warnings, err = transformers.ClaudeWhenToUseTransformer{}.Transform(ctx, target)
+		testsupport.Log("warnings=%v", warnings)
+		return err
 	})
 	// transformers: comma-separated names, run as one pipeline.
 	sc.Step(`^I run the transformers "([^"]*)"$`, func(ctx context.Context, names string) error {
@@ -136,21 +136,16 @@ func initialize(sc *godog.ScenarioContext) {
 		if err != nil {
 			return err
 		}
-		return pipeline.Run(ctx, target)
+		_, err = pipeline.Run(ctx, target)
+		return err
 	})
-	sc.Step(`^the log has WARN "([^"]*)"$`, func(ctx context.Context, text string) error {
-		for _, line := range strings.Split(logs.String(), "\n") {
-			if strings.Contains(line, "level=WARN") && strings.Contains(line, text) {
-				return nil
-			}
+	// warnings: [[code, source, skill, skill path, file], ...].
+	sc.Step(`^the transformer warnings are$`, func(ctx context.Context, d *godog.DocString) error {
+		got := [][]string{}
+		for _, w := range warnings {
+			got = append(got, []string{string(w.Code), w.Source, w.Skill, w.SkillPath, w.File})
 		}
-		return fmt.Errorf("no WARN log with %q in:\n%s", text, logs.String())
-	})
-	sc.Step(`^the log has no WARN$`, func(ctx context.Context) error {
-		if strings.Contains(logs.String(), "level=WARN") {
-			return fmt.Errorf("unexpected WARN in:\n%s", logs.String())
-		}
-		return nil
+		return testsupport.JSON(got, d)
 	})
 	sc.Step(`^the flattening panics with "([^"]*)"$`, func(ctx context.Context, want string) error {
 		if !strings.Contains(panicked, want) {

@@ -3,11 +3,12 @@ package config
 import (
 	"fmt"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"log/slog"
 	"strings"
 )
 
-func parseSource(m map[string]any) (model.SourceSpec, error) {
+// parseSource reads one source; setting is where it is in the
+// configuration, e.g. "sources[1]".
+func parseSource(m map[string]any, setting string, warnings *deprecations) (model.SourceSpec, error) {
 	s := model.SourceSpec{}
 	var err error
 	if s.Type, err = stringValue(m, "type", "local"); err != nil {
@@ -30,7 +31,7 @@ func parseSource(m map[string]any) (model.SourceSpec, error) {
 		return s, err
 	}
 	if _, set := m["name"]; set {
-		slog.Warn("removed setting, it has no effect: a skill keeps the name from its frontmatter", "source", s.Path, "key", "name")
+		warnings.add(setting+".name", "removed setting, it has no effect: a skill keeps the name from its frontmatter")
 	}
 	def := []string{}
 	if s.Type == "github" {
@@ -42,7 +43,7 @@ func parseSource(m map[string]any) (model.SourceSpec, error) {
 	if s.Tags, err = listValue(m["tags"], "tags", nil); err != nil {
 		return s, err
 	}
-	if s.ExcludeFromChecks, err = sourceExcludeFromChecks(m, s.Path); err != nil {
+	if s.ExcludeFromChecks, err = sourceExcludeFromChecks(m, s.Path, setting, warnings); err != nil {
 		return s, err
 	}
 	return s, nil

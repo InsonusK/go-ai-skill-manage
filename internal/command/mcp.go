@@ -115,10 +115,11 @@ func (m *MCP) Run(ctx context.Context, app *common.App, cwd string) int {
 // belongs to the protocol, so nothing else is printed there.
 func (m *MCP) serve(ctx context.Context, app *common.App, cwd string) int {
 	open := func(ctx context.Context) (mcpserver.Project, error) {
-		req, err := app.Request(m.Source, config.Overrides{}, cwd)
+		req, warnings, err := app.Request(m.Source, config.Overrides{}, cwd)
 		if err != nil {
 			return mcpserver.Project{}, err
 		}
+		app.PrintWarnings(common.Rows(warnings))
 		if problems := configvalidator.Validate(ctx, req); len(problems) > 0 {
 			var b strings.Builder
 			common.PrintIssues(&b, common.Reportables(problems), false)

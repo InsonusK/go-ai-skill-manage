@@ -8,16 +8,18 @@ import (
 	"fmt"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 )
 
 // Transformer changes a TargetSkillCatalog in place. An error is a failure
 // to do the work (e.g. reading a file), not a problem of the skills: they
 // were validated before, so a transformer that meets an invalid skill
-// panics.
+// panics. The issues it returns are warnings: something for the user to
+// check that doesn't stop the work.
 type Transformer interface {
 	// Name identifies the transformer in TargetSkillCatalog.Applied.
 	Name() string
-	Transform(ctx context.Context, catalog *entity.TargetSkillCatalog) error
+	Transform(ctx context.Context, catalog *entity.TargetSkillCatalog) (issues.SkillIssues, error)
 }
 
 // Pipeline runs its transformers in the order they were given.
@@ -39,21 +41,25 @@ func NewPipeline(transformers ...Transformer) (*Pipeline, error) {
 }
 
 // Run applies every transformer to catalog in order and records each one
-// in catalog.Applied once it is done. It stops at the first error -- the
-// catalog is then half transformed and must not be written.
+// in catalog.Applied once it is done, and returns their warnings together.
+// It stops at the first error -- the catalog is then half transformed and
+// must not be written.
 //
 // Пример: конвейер [flat, marker] -> после Run catalog.Applied() =
 // [..., "flat", "marker"]; если flat вернул ошибку -- marker не
 // запускается, "flat" не записан.
-func (p *Pipeline) Run(ctx context.Context, catalog *entity.TargetSkillCatalog) error {
+func (p *Pipeline) Run(ctx context.Context, catalog *entity.TargetSkillCatalog) (issues.SkillIssues, error) {
+	var warnings issues.SkillIssues
 	for _, t := range p.transformers {
 		if err := ctx.Err(); err != nil {
-			return err
+			return warnings, err
 		}
-		if err := t.Transform(ctx, catalog); err != nil {
-			return fmt.Errorf("transformer %s: %w", t.Name(), err)
+		found, err := t.Transform(ctx, catalog)
+		warnings = append(warnings, found...)
+		if err != nil {
+			return warnings, fmt.Errorf("transformer %s: %w", t.Name(), err)
 		}
 		catalog.AddApplied(t.Name())
 	}
-	return nil
+	return warnings, nil
 }

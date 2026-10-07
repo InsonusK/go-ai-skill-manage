@@ -57,8 +57,23 @@
   `SkillIssue{Code, Source, Skill, SkillPath, File, Link, Message}` →
   source → skill («имя (путь)») → file → link; `ConfigIssue{Code, Source,
   Setting, Message}` → source → setting. Списки `SkillIssues`,
-  `ConfigIssues`. Печать — будущий общий сервис по `Report()`. Локальные
-  переменные-списки называть `problems`, не `issues` (перекрывают пакет).
+  `ConfigIssues`. Локальные переменные-списки называть `problems`, не
+  `issues` (перекрывают пакет).
+  Коды — тип `issues.Code` (слово, например `missing-link-target`) и
+  **единственный реестр** `model/issues/codes.go`: константы `Code…` и номер
+  (`Code.ID()` → `E302`); печатается `Code.Label()` → `E302
+  missing-link-target` (и в дереве, и в `Error()`). Диапазоны: 1xx конфиг,
+  2xx источник и загрузка скилов, 3xx ссылки, 4xx target, 9xx сам прогон
+  (`canceled`, `unsupported-path-kind`); буква — серьёзность
+  (`Code.Severity()`: `E` — ошибка, останавливает работу; `W` —
+  предупреждение, не останавливает; необъявленный код — ошибка). Номер
+  уникален без буквы, не меняется и не переиспользуется.
+  `issues.HasErrors(list)` / `issues.Warnings(list)` — единственный способ
+  решать «стоп или нет» (не `len(problems) > 0`). `Details []string` (в
+  `SkillIssue` и `IssueReportRow`) — список к сообщению, по строке на пункт. Код литералом в
+  не-тестовом коде запрещён — ловит сценарий в `issues/features/
+  report.feature` (там же уникальность номеров). Тесты сверяют слово, не
+  номер.
 - `entity`: `Repository`, `Skill` (`FilesByPath` — чистый листер,
   `DirOrMarkerPath()`), `File` (`Content`, `Path(kind)`, `Links()`), `Link`
   (`MakeLink`, `Path(ctx, kind, resolver)`, `Skill(ctx, resolver)`),
@@ -259,7 +274,8 @@
 
 Принятые решения:
 - Трансформеры: `services/transform` — `Transformer{Name, Transform(ctx,
-  *TargetSkillCatalog) error}` и `Pipeline` (`NewPipeline` отказывает
+  *TargetSkillCatalog) (issues.SkillIssues, error)}` (issues —
+  предупреждения) и `Pipeline` (`NewPipeline` отказывает
   повтору имени; `Run` по порядку, после каждого `AddApplied`, стоп на
   первой ошибке — каталог тогда писать нельзя) — и
   `services/transform/transformers`. Ошибка трансформера — сбой работы
@@ -284,7 +300,8 @@
   `whenToUse` → нативное `when_to_use` (Claude Code дописывает его к
   `description`, лимит 1536 символов на оба; незнакомые поля молча
   игнорирует). Список → через `", "`; если оба поля есть — остаётся
-  `when_to_use`, warning, `whenToUse` не трогается.
+  `when_to_use`, предупреждение `when-to-use-both`, `whenToUse` не
+  трогается.
 - Маркер `.ai-skills-managed` (`model.Marker`, имя не менять — по нему
   распознаются уже синхронизированные папки) — трансформер, последний в
   каждом target (`ManagedMarkerTransformer`, `managed-marker`): JSON
@@ -365,7 +382,8 @@
 - `--color auto|always|never` (default `auto`) управляет ANSI-цветами логов
   и проблем; `auto` красит только stderr-терминал и учитывает `NO_COLOR`.
   Уровни `slog`: DEBUG серый, INFO голубой, WARN жёлтый, ERROR красный;
-- Устаревшее (warning через `slog`): флаг `-f/--force` (`Sync.Force`),
+- Устаревшее (предупреждения `deprecated-flag`/`deprecated-setting` в
+  дереве проблем): флаг `-f/--force` (`Sync.Force`),
   `settings.on_conflict` (ключ задан), адаптер `link-adapter` (только если
   указан явно; из умолчаний убран, в `Target.Adapters` не попадает). Поля
   `Request.Force`/`Conflict`, `Overrides.Force` удалены.
@@ -668,3 +686,34 @@ master или запустить workflow вручную.
 | `ownsPath` | лежит ли путь в папке скила | `skillContainsPath` |
 
 `Skill.SkillDirPath` — конкретное, оставить.
+
+## Текущая задача: структурный вывод и номера проблем ⏳
+
+Решения пользователя: формат `E302 missing-link-target`; **проблема — всё,
+что можно/нужно исправить или проверить** (в том числе устаревшие
+настройки), и печатается деревом с кодом; не проблема — только статус хода
+работы, его тоже можно вынести в дерево как `I`.
+
+Шаги (после каждого — стоп):
+1. ✅ Реестр кодов с номерами (`issues/codes.go`), замена литералов, номер
+   в `PrintIssues` и `Error()`.
+2. ✅ Предупреждения — те же `Reportable` с кодами `W…`, через `slog` идёт
+   только ход работы. Откуда берутся:
+   - `LinkValidator` возвращает `shared-file-links` (ссылки — в `Details`)
+     и `shared-file-unread` вместе с ошибками;
+   - `Transformer.Transform` и `Pipeline.Run` возвращают
+     `(issues.SkillIssues, error)` — предупреждения (`when-to-use-both`);
+   - `config.Parse` → `Config.Warnings` (`deprecated-setting`, Setting —
+     путь в YAML: `sources[0].name`, `target.claude.adapters`);
+   - `command`: `deprecated-flag` (`--force`, `--type auto|flat|directory`).
+   Путь наверх: `App.Request` → `(req, warnings, err)`; `LoadRequest` →
+   `(req, warnings, ok)`; `SyncResult.Warnings` (каждое один раз — у
+   каждого target свои трансформеры); при ошибках скилов предупреждения
+   едут в той же `SkillIssues`. Команда печатает всё одним деревом в
+   stderr (`App.PrintWarnings`), итог `Found N error(s), M warning(s)`;
+   код выхода 1 только при ошибках; `validate` без ошибок, но с
+   предупреждениями — `Checked N skill(s): no errors, M warning(s)`.
+   Не сделано: статусы хода работы как `I…` (остались в `slog`, в том
+   числе info про умолчание `exclude_from_checks`).
+3. `docs/issues.md` (на каждый код: что значит, почему, как исправить) +
+   сценарий «каждый код реестра описан».

@@ -13,6 +13,7 @@ import (
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/transform"
 )
@@ -54,7 +55,11 @@ var _ transform.Transformer = FlatTransformer{}
 
 func (FlatTransformer) Name() string { return "flat" }
 
-func (t FlatTransformer) Transform(ctx context.Context, catalog *entity.TargetSkillCatalog) error {
+func (t FlatTransformer) Transform(ctx context.Context, catalog *entity.TargetSkillCatalog) (issues.SkillIssues, error) {
+	return nil, t.transform(ctx, catalog)
+}
+
+func (t FlatTransformer) transform(ctx context.Context, catalog *entity.TargetSkillCatalog) error {
 	skills := catalog.Skills()
 	places := placesOf(skills)
 	for _, s := range skills {

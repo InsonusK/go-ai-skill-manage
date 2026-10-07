@@ -103,10 +103,11 @@ func (m *MCP) uninstall(app *common.App, cwd string) int {
 
 // configFile is .mcp.json in the project's root: the config's folder.
 func (m *MCP) configFile(app *common.App, cwd string) (string, error) {
-	req, err := app.Request(m.Source, config.Overrides{}, cwd)
+	req, warnings, err := app.Request(m.Source, config.Overrides{}, cwd)
 	if err != nil {
 		return "", err
 	}
+	app.PrintWarnings(common.Rows(warnings))
 	return filepath.Join(req.Base, MCPConfigFile), nil
 }
 

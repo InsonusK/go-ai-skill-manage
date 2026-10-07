@@ -7,6 +7,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/command/common"
 	"github.com/InsonusK/go-ai-skill-manage/internal/config"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/handler"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 )
 
@@ -41,23 +42,29 @@ func (v *Validate) Help(global []common.Flag) string {
 	return common.Help{
 		Usage: []string{"aism validate [options]"},
 		Description: "Check the configuration and the skills of the sources, as sync does, without\n" +
-			"writing anything. Problems are printed as a tree, exit code 1.",
+			"writing anything. Problems are printed as a tree; exit code 1 if any of\n" +
+			"them is an error (E...), 0 if they are only warnings (W...).",
 		Flags:  v.flags(),
 		Global: global,
 	}.String()
 }
 
 func (v *Validate) Run(ctx context.Context, app *common.App, cwd string) (code int) {
-	req, ok := app.LoadRequest(ctx, v.Source, v.Override, cwd)
+	req, warnings, ok := app.LoadRequest(ctx, v.Source, v.Override, cwd)
 	if !ok {
 		return 1
 	}
 	sources := sourcing.NewManager(app.Providers, req.TempDir)
 	defer closeSources(ctx, app, sources, &code)
 	catalog, problems := handler.FetchAndValidateSkills(ctx, sources, req)
-	if len(problems) > 0 {
-		common.PrintIssues(app.Err, common.Reportables(problems), app.Color)
+	warnings = append(warnings, common.Rows(problems)...)
+	app.PrintWarnings(warnings)
+	if issues.HasErrors(problems) {
 		return 1
+	}
+	if len(warnings) > 0 {
+		fmt.Fprintf(app.Out, "Checked %d skill(s): no errors, %d warning(s)\n", len(catalog.Skills()), len(warnings))
+		return 0
 	}
 	fmt.Fprintf(app.Out, "Checked %d skill(s): no problems\n", len(catalog.Skills()))
 	return 0

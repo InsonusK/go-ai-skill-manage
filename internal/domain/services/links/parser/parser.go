@@ -25,7 +25,7 @@ type LinkParser interface {
 }
 
 func invalidLink(raw, format string) error {
-	return issues.SkillIssue{Code: "invalid-link", Link: raw, Message: "not a " + format + " link"}
+	return issues.SkillIssue{Code: issues.CodeInvalidLink, Link: raw, Message: "not a " + format + " link"}
 }
 
 func findSpans(re interface{ FindAllStringIndex(string, int) [][]int }, content string) []Span {

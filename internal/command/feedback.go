@@ -133,10 +133,11 @@ func (f *Feedback) Help(global []common.Flag) string {
 // terminal; send asks the user and so needs one: an agent can draft, but
 // only the user sends.
 func (f *Feedback) Run(ctx context.Context, app *common.App, cwd string) int {
-	req, ok := app.LoadRequest(ctx, f.Source, config.Overrides{}, cwd)
+	req, warnings, ok := app.LoadRequest(ctx, f.Source, config.Overrides{}, cwd)
 	if !ok {
 		return 1
 	}
+	app.PrintWarnings(warnings)
 	service, dir := app.FeedbackService(req)
 	id := draftID(f.ID)
 	switch f.Action {

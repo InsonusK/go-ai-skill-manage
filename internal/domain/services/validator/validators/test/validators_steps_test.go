@@ -1,11 +1,9 @@
 package validators_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
 	"testing/fstest"
 
@@ -37,14 +35,12 @@ func initialize(sc *godog.ScenarioContext) {
 	var trees map[string]fstest.MapFS
 	var catalog *sourcing.SkillCatalog
 	var problems issues.SkillIssues
-	var logs bytes.Buffer
 	var registerErr error
 
 	sc.Before(func(ctx context.Context, s *godog.Scenario) (context.Context, error) {
 		trees = map[string]fstest.MapFS{}
 		catalog = &sourcing.SkillCatalog{Manager: sourcing.NewManager(map[string]interfaces.SourceProvider{"local": sourcesProvider{trees: trees}}, "")}
 		problems, registerErr = nil, nil
-		logs.Reset()
 		entity.SetDefaultLinkSearcher(links.NewDefaultLinkFactory())
 		return ctx, nil
 	})
@@ -93,21 +89,15 @@ func initialize(sc *godog.ScenarioContext) {
 
 	// --- running validators
 	sc.Step(`^I validate links$`, func(ctx context.Context) error {
-		previous := slog.Default()
-		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
-		defer slog.SetDefault(previous)
 		problems = validators.LinkValidator{}.Validate(ctx, catalog)
-		testsupport.Log("issues=%v\nlogs=%s", problems, logs.String())
+		testsupport.Log("issues=%v", problems)
 		return nil
 	})
-	sc.Step(`^the log has (\d+) WARN with "([^"]*)"$`, func(ctx context.Context, n int, text string) error {
-		count := 0
-		for _, line := range strings.Split(logs.String(), "\n") {
-			if strings.Contains(line, "level=WARN") && strings.Contains(line, text) {
-				count++
-			}
+	sc.Step(`^issue (\d+) details are$`, func(ctx context.Context, n int, d *godog.DocString) error {
+		if n < 1 || n > len(problems) {
+			return fmt.Errorf("no issue %d among %d", n, len(problems))
 		}
-		return testsupport.Equal(count, n)
+		return testsupport.JSON(problems[n-1].Details, d)
 	})
 	sc.Step(`^I validate skill names$`, func(ctx context.Context) error {
 		problems = validators.SkillNameValidator{}.Validate(ctx, catalog)
@@ -156,14 +146,14 @@ func initialize(sc *godog.ScenarioContext) {
 	sc.Step(`^the issues are$`, func(ctx context.Context, d *godog.DocString) error {
 		actual := [][]string{}
 		for _, i := range problems {
-			actual = append(actual, []string{i.Code, i.Source, i.Skill, i.SkillPath, i.File, i.Link})
+			actual = append(actual, []string{string(i.Code), i.Source, i.Skill, i.SkillPath, i.File, i.Link})
 		}
 		return testsupport.JSON(actual, d)
 	})
 	sc.Step(`^the issue codes are "([^"]*)"$`, func(ctx context.Context, want string) error {
 		var codes []string
 		for _, i := range problems {
-			codes = append(codes, i.Code)
+			codes = append(codes, string(i.Code))
 		}
 		return testsupport.Equal(strings.Join(codes, ","), want)
 	})

@@ -53,7 +53,7 @@ func initialize(sc *godog.ScenarioContext) {
 		if !errors.As(parseErr, &issue) {
 			return fmt.Errorf("error=%v; want Issue %s", parseErr, code)
 		}
-		return testsupport.Equal(issue.Code, code)
+		return testsupport.Equal(string(issue.Code), code)
 	})
 	sc.Step(`^the found spans are$`, func(ctx context.Context, d *godog.DocString) error {
 		actual := [][2]int{}

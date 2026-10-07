@@ -17,6 +17,13 @@ Feature: A pipeline runs its transformers in order and records each applied one
   And the transformers ran in order "flat,claude"
   And the catalog has applied "flat"
 
+ Scenario: The warnings of every transformer that ran are returned together, a failing one's too
+  Given transformers "flat?,claude,marker?!,last?"
+  When I make a pipeline of them
+  And I run the pipeline
+  Then the pipeline fails with "transformer marker: broken"
+  And the pipeline warns about "flat,marker"
+
  Scenario: A canceled run applies nothing
   Given transformers "flat,marker"
   And the run is canceled

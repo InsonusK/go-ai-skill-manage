@@ -66,7 +66,7 @@ func MakePathInRepo(repoDirOsPath, p string, kind PathKind, baseDir string) (Pat
 		case repoDir != "" && strings.HasPrefix(p, repoDir+"/"):
 			p = strings.TrimPrefix(p, repoDir+"/")
 		default:
-			return PathInRepo{}, issues.Problem("path-escape", p)
+			return PathInRepo{}, issues.Problem(issues.CodePathEscape, p)
 		}
 	case RepoAbsolute:
 	case FileRelative, SkillRelative:
@@ -76,7 +76,7 @@ func MakePathInRepo(repoDirOsPath, p string, kind PathKind, baseDir string) (Pat
 	}
 	p = path.Clean(p)
 	if !fs.ValidPath(p) {
-		return PathInRepo{}, issues.Problem("path-escape", p)
+		return PathInRepo{}, issues.Problem(issues.CodePathEscape, p)
 	}
 	return PathInRepo{repoDirOsPath: repoDirOsPath, pathInRepo: p}, nil
 }

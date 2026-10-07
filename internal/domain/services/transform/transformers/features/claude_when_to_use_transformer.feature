@@ -15,7 +15,10 @@ Feature: ClaudeWhenToUseTransformer renames whenToUse to Claude Code's when_to_u
    """
    {"a/SKILL.md":"---\ndescription: d\nname: a\nwhen_to_use: <value>\n---\n# Body\n","a/docs/x.md":"x"}
    """
-  And the log has no WARN
+  And the transformer warnings are
+   """
+   []
+   """
   Examples:
    | frontmatter                     | value              |
    | whenToUse: on review            | on review          |
@@ -46,4 +49,7 @@ Feature: ClaudeWhenToUseTransformer renames whenToUse to Claude Code's when_to_u
    """
    {"a/SKILL.md":"---\nname: a\nwhenToUse: old\nwhen_to_use: native\n---\n"}
    """
-  And the log has WARN "skill=a"
+  And the transformer warnings are
+   """
+   [["when-to-use-both","local:repo","a","a",""]]
+   """

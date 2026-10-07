@@ -6,6 +6,7 @@ import (
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/transform"
 )
 
@@ -25,7 +26,11 @@ var _ transform.Transformer = ManagedMarkerTransformer{}
 
 func (ManagedMarkerTransformer) Name() string { return "managed-marker" }
 
-func (ManagedMarkerTransformer) Transform(ctx context.Context, catalog *entity.TargetSkillCatalog) error {
+func (ManagedMarkerTransformer) Transform(ctx context.Context, catalog *entity.TargetSkillCatalog) (issues.SkillIssues, error) {
+	return nil, ManagedMarkerTransformer{}.transform(ctx, catalog)
+}
+
+func (ManagedMarkerTransformer) transform(ctx context.Context, catalog *entity.TargetSkillCatalog) error {
 	applied := catalog.Applied()
 	for _, s := range catalog.Skills() {
 		if err := ctx.Err(); err != nil {

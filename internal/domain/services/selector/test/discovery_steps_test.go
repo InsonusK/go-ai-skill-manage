@@ -140,7 +140,7 @@ func initialize(sc *godog.ScenarioContext) {
 	sc.Step(`^the selection issues are$`, func(ctx context.Context, d *godog.DocString) error {
 		got := [][]string{}
 		for _, i := range problems {
-			got = append(got, []string{i.Code, i.Source, i.File})
+			got = append(got, []string{string(i.Code), i.Source, i.File})
 		}
 		testsupport.Log("issues=%v", problems)
 		return testsupport.JSON(got, d)

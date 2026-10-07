@@ -67,7 +67,7 @@ func MakeLink(file *File, parsed model.ParsedLink) (*Link, error) {
 		return nil, err
 	}
 	if parsed.Start < 0 || parsed.End > len(content) || parsed.Start >= parsed.End {
-		return nil, issues.SkillIssue{Code: "invalid-link-span", Message: fmt.Sprintf("span [%d,%d) outside content of length %d", parsed.Start, parsed.End, len(content))}
+		return nil, issues.SkillIssue{Code: issues.CodeInvalidLinkSpan, Message: fmt.Sprintf("span [%d,%d) outside content of length %d", parsed.Start, parsed.End, len(content))}
 	}
 	external := false
 	lower := strings.ToLower(parsed.Path)
@@ -151,7 +151,7 @@ func (l *Link) resolveTarget() (*model.PathInRepo, error) {
 		return l.target, nil
 	}
 	if l.External {
-		return nil, issues.SkillIssue{Code: "web-link", Link: l.Raw, Message: "a web link has no path in the repository"}
+		return nil, issues.SkillIssue{Code: issues.CodeWebLink, Link: l.Raw, Message: "a web link has no path in the repository"}
 	}
 	repo := l.file.skill.Repo
 	from, err := l.file.Path(model.RepoAbsolute)
@@ -164,7 +164,7 @@ func (l *Link) resolveTarget() (*model.PathInRepo, error) {
 	}
 	target, err := model.MakePathInRepo(repo.RootPath, written, model.DetectPathKind(written), path.Dir(from))
 	if err != nil {
-		return nil, issues.SkillIssue{Code: "path-escape", Link: l.Raw, Message: err.Error()}
+		return nil, issues.SkillIssue{Code: issues.CodePathEscape, Link: l.Raw, Message: err.Error()}
 	}
 	p, err := target.Path(model.RepoAbsolute, "")
 	if err != nil {
@@ -187,7 +187,7 @@ func (l *Link) resolveTarget() (*model.PathInRepo, error) {
 		if !errors.Is(err, fs.ErrNotExist) {
 			return nil, err
 		}
-		return nil, issues.SkillIssue{Code: "missing-link-target", Link: l.Raw, File: p, Message: "link target does not exist"}
+		return nil, issues.SkillIssue{Code: issues.CodeMissingLinkTarget, Link: l.Raw, File: p, Message: "link target does not exist"}
 	}
 	l.target = &target
 	return l.target, nil

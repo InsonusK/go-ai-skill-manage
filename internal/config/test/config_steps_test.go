@@ -15,6 +15,7 @@ func initialize(sc *godog.ScenarioContext) {
 	var input string
 	var actual map[string]any
 	var failure error
+	var warnings [][]string
 	var logs bytes.Buffer
 	sc.Before(func(ctx context.Context, s *godog.Scenario) (context.Context, error) {
 		logs.Reset()
@@ -35,6 +36,11 @@ func initialize(sc *godog.ScenarioContext) {
 		if err != nil {
 			return nil
 		}
+		warnings = [][]string{}
+		for _, w := range c.Warnings {
+			warnings = append(warnings, []string{string(w.Code), w.Setting, w.Message})
+		}
+		testsupport.Log("warnings=%v", warnings)
 		req, err := config.Resolve(c, config.Overrides{}, "/project")
 		failure = err
 		if err != nil {
@@ -64,6 +70,10 @@ func initialize(sc *godog.ScenarioContext) {
 			}
 		}
 		return fmt.Errorf("no %s log with %q in:\n%s", level, text, logs.String())
+	})
+	// warnings: [[code, setting, message], ...].
+	sc.Step(`^the config warnings are$`, func(ctx context.Context, d *godog.DocString) error {
+		return testsupport.JSON(warnings, d)
 	})
 	sc.Step(`^the config log has no (INFO|WARN)$`, func(ctx context.Context, level string) error {
 		if strings.Contains(logs.String(), "level="+level) {

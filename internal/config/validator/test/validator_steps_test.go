@@ -42,7 +42,7 @@ func initialize(sc *godog.ScenarioContext) {
 	sc.Step(`^the config issues are$`, func(ctx context.Context, d *godog.DocString) error {
 		got := [][]string{}
 		for _, i := range problems {
-			got = append(got, []string{i.Code, i.Source, i.Setting})
+			got = append(got, []string{string(i.Code), i.Source, i.Setting})
 		}
 		return testsupport.JSON(got, d)
 	})
@@ -52,8 +52,8 @@ func initialize(sc *godog.ScenarioContext) {
 	sc.Step(`^the config issues with codes "([^"]*)" are$`, func(ctx context.Context, codes string, d *godog.DocString) error {
 		got := [][]string{}
 		for _, i := range problems {
-			if slices.Contains(strings.Split(codes, ","), i.Code) {
-				got = append(got, []string{i.Code, i.Source, i.Setting})
+			if slices.Contains(strings.Split(codes, ","), string(i.Code)) {
+				got = append(got, []string{string(i.Code), i.Source, i.Setting})
 			}
 		}
 		return testsupport.JSON(got, d)

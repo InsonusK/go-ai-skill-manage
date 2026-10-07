@@ -19,6 +19,10 @@ Feature: Sync loads the skills, transforms them for each target, plans every tar
   When I run sync
   Then sync succeeds
   And the synchronized skills are "guide,h"
+  And the sync warnings are
+   """
+   []
+   """
   And the written targets are "/p/.agents/skills,/p/.claude/skills"
   And the marker of "guide" in "/p/.agents/skills" lists transformers "flat"
   And the marker of "guide" in "/p/.claude/skills" lists transformers "flat,claude-when-to-use"
@@ -99,5 +103,41 @@ Feature: Sync loads the skills, transforms them for each target, plans every tar
    """
    [["source-acquire","local:gone","","",""],
     ["missing-link-target","local:broken","b","SKILL.md","[gone](./gone.md)"]]
+   """
+  And the written targets are ""
+
+ Scenario: Warnings don't stop sync: every target is written and each warning is returned once
+  Given a repository "warn" holding
+   """
+   {"w/SKILL.md":"---\nname: w\nwhenToUse: old\nwhen_to_use: native\n---\n[n](../shared/notes.md)\n","shared/notes.md":"[w](../w/SKILL.md)\n"}
+   """
+  And the sources are
+   | repository | subpath | tags | exclude_from_checks |
+   | warn       |         |      |                     |
+  And a target "claude" at "/p/.claude/skills" with adapters "claude-property-adapter"
+  And a target "other" at "/p/other/skills" with adapters "claude-property-adapter"
+  When I run sync
+  Then sync succeeds
+  And the written targets are "/p/.claude/skills,/p/other/skills"
+  And the sync warnings are
+   """
+   [["shared-file-links","local:warn","","shared/notes.md"],
+    ["when-to-use-both","local:warn","w",""]]
+   """
+
+ Scenario: An error stops sync and is returned with the warnings found before it
+  Given a repository "bad" holding
+   """
+   {"w/SKILL.md":"---\nname: w\n---\n[n](../shared/notes.md) [gone](./gone.md)\n","shared/notes.md":"[w](../w/SKILL.md)\n"}
+   """
+  And the sources are
+   | repository | subpath | tags | exclude_from_checks |
+   | bad        |         |      |                     |
+  And a target "claude" at "/p/.claude/skills" with adapters ""
+  When I run sync
+  Then the issues are
+   """
+   [["missing-link-target","local:bad","w","SKILL.md","[gone](./gone.md)"],
+    ["shared-file-links","local:bad","","shared/notes.md",""]]
    """
   And the written targets are ""

@@ -35,7 +35,7 @@ func (p *fakeParser) Find(content string) []link_parser.Span {
 func (p *fakeParser) Parse(raw string) (model.ParsedLink, error) {
 	p.parsed = append(p.parsed, raw)
 	if p.fails[raw] {
-		return model.ParsedLink{}, issues.SkillIssue{Code: "invalid-link", Link: raw, Message: "fake failure"}
+		return model.ParsedLink{}, issues.SkillIssue{Code: issues.CodeInvalidLink, Link: raw, Message: "fake failure"}
 	}
 	return model.ParsedLink{Path: raw, Format: p.name}, nil
 }
@@ -182,5 +182,5 @@ func issueCode(err error, code string) error {
 	if !errors.As(err, &issue) {
 		return fmt.Errorf("error=%v; want Issue %s", err, code)
 	}
-	return testsupport.Equal(issue.Code, code)
+	return testsupport.Equal(string(issue.Code), code)
 }

@@ -110,10 +110,14 @@ Feature: LinkValidator checks that every link leads to an existing file and anch
    """
   And skills at "one,two" of source "repo" are selected
   When I validate links
-  Then there are no issues
-  And the log has 1 WARN with "file=shared/notes.md"
-  And the log has 1 WARN with "[one](../one/SKILL.md) [[two/SKILL.md|two]] [web](https://example.com)"
-  And the log has 0 WARN with "file=shared/plain.md"
+  Then the issues are
+   """
+   [["shared-file-links","local:repo","","","shared/notes.md",""]]
+   """
+  And issue 1 details are
+   """
+   ["[one](../one/SKILL.md)","[[two/SKILL.md|two]]","[web](https://example.com)"]
+   """
 
  Scenario: A link to an invalid skill reports why that skill cannot be loaded
   Given a source "repo" holding

@@ -27,7 +27,7 @@ func (UnsupportedTagsValidator) Validate(ctx context.Context, req model.Request)
 	var problems []issues.ConfigIssue
 	for i, spec := range req.Sources {
 		if len(spec.Tags) > 0 {
-			problems = append(problems, issues.ConfigIssue{Code: "unsupported-tags", Source: spec.Key().String(), Setting: fmt.Sprintf("sources[%d].tags", i), Message: "selecting skills by tags is not supported yet, remove tags"})
+			problems = append(problems, issues.ConfigIssue{Code: issues.CodeUnsupportedTags, Source: spec.Key().String(), Setting: fmt.Sprintf("sources[%d].tags", i), Message: "selecting skills by tags is not supported yet, remove tags"})
 		}
 	}
 	return problems
