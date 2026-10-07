@@ -28,7 +28,7 @@ func (TargetValidator) Validate(ctx context.Context, req model.Request) []issues
 	for i, a := range req.Targets {
 		for j, b := range req.Targets[i+1:] {
 			if within(a.Path, b.Path) || within(b.Path, a.Path) {
-				problems = append(problems, issues.ConfigIssue{Code: "target-overlap", Setting: fmt.Sprintf("targets[%d].path", i+1+j), Message: fmt.Sprintf("target %q path %s overlaps target %q path %s", b.Name, b.Path, a.Name, a.Path)})
+				problems = append(problems, issues.ConfigIssue{Code: issues.CodeTargetOverlap, Setting: fmt.Sprintf("targets[%d].path", i+1+j), Message: fmt.Sprintf("target %q path %s overlaps target %q path %s", b.Name, b.Path, a.Name, a.Path)})
 			}
 		}
 	}

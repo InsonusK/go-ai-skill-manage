@@ -18,7 +18,7 @@ import (
 //   - exclude_from_checks: [demo]                -> ["demo"]
 //   - exclude_from_checks: [] (или без значения) -> []
 //   - rules.link.skip_folder: demo               -> ["demo"] + warning
-func globalExcludeFromChecks(settings map[string]any) ([]string, error) {
+func globalExcludeFromChecks(settings map[string]any, warnings *deprecations) ([]string, error) {
 	const name, legacyName = "settings.validation.exclude_from_checks", "settings.validation.rules.link.skip_folder"
 	validation, err := mapping(settings["validation"], "validation")
 	if err != nil {
@@ -33,7 +33,7 @@ func globalExcludeFromChecks(settings map[string]any) ([]string, error) {
 	case hasNew && hasLegacy:
 		return nil, fmt.Errorf("%s cannot be defined both with deprecated %s", name, legacyName)
 	case hasLegacy:
-		slog.Warn("deprecated configuration key, rename it", "key", legacyName, "use", name)
+		warnings.add(legacyName, "deprecated configuration key, rename it to "+name)
 		return listValue(legacy, "skip_folder", nil)
 	case hasNew:
 		return listValue(raw, "exclude_from_checks", nil)
@@ -63,14 +63,14 @@ func legacyLinkSkipFolder(validation map[string]any) (any, bool, error) {
 // deprecated name skip_folder, with a warning. Neither set excludes nothing
 // beyond the global settings.validation.exclude_from_checks. Both set is an
 // error.
-func sourceExcludeFromChecks(m map[string]any, source string) ([]string, error) {
+func sourceExcludeFromChecks(m map[string]any, source, setting string, warnings *deprecations) ([]string, error) {
 	raw, hasNew := m["exclude_from_checks"]
 	legacy, hasLegacy := m["skip_folder"]
 	switch {
 	case hasNew && hasLegacy:
 		return nil, fmt.Errorf("source %s: exclude_from_checks cannot be defined both with deprecated skip_folder", source)
 	case hasLegacy:
-		slog.Warn("deprecated configuration key, rename it", "source", source, "key", "skip_folder", "use", "exclude_from_checks")
+		warnings.add(setting+".skip_folder", "deprecated configuration key, rename it to exclude_from_checks")
 		return listValue(legacy, "skip_folder", nil)
 	}
 	return listValue(raw, "exclude_from_checks", nil)

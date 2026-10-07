@@ -38,7 +38,7 @@ func (SubpathValidator) Validate(ctx context.Context, req model.Request) []issue
 	for i, spec := range req.Sources {
 		for j, p := range spec.Subpaths {
 			if reason := unsafeSubpath(spec, p); reason != "" {
-				problems = append(problems, issues.ConfigIssue{Code: "unsafe-subpath", Source: spec.Key().String(), Setting: fmt.Sprintf("sources[%d].subpath[%d]", i, j), Message: fmt.Sprintf("subpath %q %s", p, reason)})
+				problems = append(problems, issues.ConfigIssue{Code: issues.CodeUnsafeSubpath, Source: spec.Key().String(), Setting: fmt.Sprintf("sources[%d].subpath[%d]", i, j), Message: fmt.Sprintf("subpath %q %s", p, reason)})
 			}
 		}
 	}

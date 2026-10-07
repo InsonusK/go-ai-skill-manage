@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/command/common"
 	"github.com/InsonusK/go-ai-skill-manage/internal/config"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/handler"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
 )
 
@@ -64,31 +64,34 @@ func (s *Sync) Help(global []common.Flag) string {
 		Usage: []string{"aism sync [options]"},
 		Description: "Load the skills of the configured sources, check them and write them into\n" +
 			"every target folder. Nothing is written when the configuration, a skill or\n" +
-			"a target has a problem: the problems are printed as a tree, exit code 1.",
+			"a target has an error (E...): the problems are printed as a tree, exit\n" +
+			"code 1. Warnings (W...) are printed the same way and don't stop it.",
 		Flags:  s.flags(),
 		Global: global,
 	}.String()
 }
 
 func (s *Sync) Run(ctx context.Context, app *common.App, cwd string) (code int) {
-	if s.Force {
-		slog.WarnContext(ctx, "deprecated flag, remove it: every managed skill folder is rewritten on each sync", "flag", "--force")
-	}
-	req, ok := app.LoadRequest(ctx, s.Source, s.Override, cwd)
+	req, warnings, ok := app.LoadRequest(ctx, s.Source, s.Override, cwd)
 	if !ok {
 		return 1
+	}
+	if s.Force {
+		warnings = append(warnings, issues.ConfigIssue{Code: issues.CodeDeprecatedFlag, Setting: "--force", Message: "deprecated flag, remove it: every managed skill folder is rewritten on each sync"})
 	}
 	sources := sourcing.NewManager(app.Providers, req.TempDir)
 	defer closeSources(ctx, app, sources, &code)
 	result, err := handler.SyncService{Sources: sources, State: app.State, Writer: app.Writer}.Run(ctx, req)
+	warnings = append(warnings, common.Rows(result.Warnings)...)
 	if err != nil {
-		if rows := common.Reportables(err); rows != nil {
-			common.PrintIssues(app.Err, rows, app.Color)
-		} else {
+		rows := common.Reportables(err)
+		app.PrintWarnings(append(warnings, rows...))
+		if rows == nil {
 			fmt.Fprintln(app.Err, err)
 		}
 		return 1
 	}
+	app.PrintWarnings(warnings)
 	PrintResult(app.Out, result)
 	return 0
 }
@@ -103,7 +106,8 @@ func closeSources(ctx context.Context, app *common.App, sources *sourcing.Manage
 }
 
 // PrintResult prints what a sync did (or, for a dry run, would do): each
-// target with its operations, then a summary.
+// target with its operations, then a summary, with the number of warnings
+// if there are any.
 //
 // Пример:
 //

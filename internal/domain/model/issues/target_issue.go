@@ -5,7 +5,7 @@ package issues
 // write.
 type TargetIssue struct {
 	// Code is the kind of problem, e.g. "unmanaged-target".
-	Code string
+	Code Code
 	// Target is the target folder (model.Target.Path).
 	Target string
 	// Skill is the skill whose folder in the target has the problem.

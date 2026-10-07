@@ -4,7 +4,7 @@ package issues
 // e.g. an invalid tag expression or a source listed twice.
 type ConfigIssue struct {
 	// Code is the kind of problem, e.g. "invalid-tags", "duplicate-source".
-	Code string
+	Code Code
 	// Source is the source the setting belongs to (model.SourceKey.String()),
 	// empty for a setting outside sources.
 	Source string

@@ -24,8 +24,14 @@ build:
 # PATH: `aism` then runs this build from any folder.
 INSTALL_DIR := $(or $(shell go env GOBIN),$(shell go env GOPATH)/bin)
 
+# A running MCP server (`aism mcp` started by an editor) is stopped first:
+# writing into a binary that is running fails with "Text file busy". The
+# brackets keep pkill from matching the shell that runs this recipe. The old
+# files are removed in case the server has not exited yet.
 install: build
 	@mkdir -p "$(INSTALL_DIR)"
+	@pkill -f '(ais[m]|ai-skill-manage[r])( .*)? mcp' && echo "stopped running MCP server" || true
+	rm -f "$(INSTALL_DIR)/ai-skill-manager" "$(INSTALL_DIR)/aism"
 	cp bin/ai-skill-manager bin/aism "$(INSTALL_DIR)/"
 	@echo "installed aism and ai-skill-manager into $(INSTALL_DIR)"
 

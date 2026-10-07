@@ -55,7 +55,7 @@ func Plan(target model.Target, catalog *entity.TargetSkillCatalog, state map[str
 		case entry.Managed:
 			plan.Operations = append(plan.Operations, entity.TargetOperation{Action: entity.UpdateTarget, Name: name, Skill: s})
 		default:
-			problems = append(problems, issues.TargetIssue{Code: "unmanaged-target", Target: target.Path, Skill: name, Message: fmt.Sprintf("%s exists but was not written by this tool (no %s): remove or rename it", filepath.Join(target.Path, name), model.Marker)})
+			problems = append(problems, issues.TargetIssue{Code: issues.CodeUnmanagedTarget, Target: target.Path, Skill: name, Message: fmt.Sprintf("%s exists but was not written by this tool (no %s): remove or rename it", filepath.Join(target.Path, name), model.Marker)})
 		}
 	}
 	if removeOrphans {

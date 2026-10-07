@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"log/slog"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
 	"go.yaml.in/yaml/v3"
@@ -14,8 +13,9 @@ import (
 const LinkAdapter = "link-adapter"
 
 // adapters reads an adapters list. link-adapter is accepted with a
-// warning and left out: it no longer changes anything.
-func adapters(v any) ([]string, error) {
+// warning and left out: it no longer changes anything. setting is where
+// the list is in the configuration.
+func adapters(v any, setting string, warnings *deprecations) ([]string, error) {
 	list, err := listValue(v, "adapters", nil)
 	if err != nil {
 		return nil, err
@@ -24,7 +24,7 @@ func adapters(v any) ([]string, error) {
 	seen := map[string]bool{}
 	for _, a := range list {
 		if a == LinkAdapter {
-			slog.Warn("deprecated adapter, remove it: links are always rewritten", "adapter", a)
+			warnings.add(setting, "deprecated adapter "+a+", remove it: links are always rewritten")
 			continue
 		}
 		if a != "claude-property-adapter" {
@@ -37,7 +37,7 @@ func adapters(v any) ([]string, error) {
 	}
 	return out, nil
 }
-func parseTargets(v any, node *yaml.Node) ([]model.Target, error) {
+func parseTargets(v any, node *yaml.Node, setting string, warnings *deprecations) ([]model.Target, error) {
 	if v == nil {
 		v = ".agents/skills"
 	}
@@ -55,7 +55,7 @@ func parseTargets(v any, node *yaml.Node) ([]model.Target, error) {
 	if err != nil {
 		return nil, err
 	}
-	shared, err := adapters(each["adapters"])
+	shared, err := adapters(each["adapters"], setting+".for_each.adapters", warnings)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func parseTargets(v any, node *yaml.Node) ([]model.Target, error) {
 		if p == "" {
 			return nil, fmt.Errorf("target %q requires path", name)
 		}
-		own, err := adapters(entry["adapters"])
+		own, err := adapters(entry["adapters"], setting+"."+name+".adapters", warnings)
 		if err != nil {
 			return nil, err
 		}

@@ -65,7 +65,7 @@ func (d SkillSelector) Select(ctx context.Context, spec model.SourceSpec) ([]*en
 		if err != nil {
 			list := asIssues(err, p)
 			for _, i := range list {
-				if i.Code == "unsafe-subpath" {
+				if i.Code == issues.CodeUnsafeSubpath {
 					panic(fmt.Sprintf("skill_selector: subpath %q of source %s leads out of it, config/validator.Validate must reject it: %s", p, source, i.Message))
 				}
 			}
@@ -101,9 +101,9 @@ func asIssues(err error, p string) issues.SkillIssues {
 	if errors.As(err, &one) {
 		return issues.SkillIssues{one}
 	}
-	code := "source-read"
+	code := issues.CodeSourceRead
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		code = "canceled"
+		code = issues.CodeCanceled
 	}
 	return issues.SkillIssues{{Code: code, File: p, Message: err.Error()}}
 }
@@ -115,7 +115,7 @@ func stopsSource(ctx context.Context, list issues.SkillIssues) bool {
 		return true
 	}
 	for _, i := range list {
-		if i.Code == "source-acquire" {
+		if i.Code == issues.CodeSourceAcquire {
 			return true
 		}
 	}

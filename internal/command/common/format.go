@@ -12,19 +12,26 @@ import (
 
 // PrintIssues prints problems of any kind as one tree: each problem under
 // where it is (issues.Reportable), from the broadest place to the
-// narrowest, problems at the same place together, then a count.
+// narrowest, problems at the same place together, then a count of errors
+// and warnings. A problem is its number and code, its message and, one a
+// line, its details.
 //
 // Пример:
 //
 //	source local:/p/skills
 //	└── skill guide (a/guide)
-//	    ├── duplicate-name
+//	    ├── E208 duplicate-name
 //	    │   also defined at local:/p/other guide
 //	    └── file SKILL.md
 //	        └── link [x](./gone.md)
-//	            └── missing-link-target
+//	            └── E302 missing-link-target
 //	                link target does not exist
-//	Found 2 problem(s)
+//	└── file shared/notes.md
+//	    └── W311 shared-file-links
+//	        shared file outside skills is copied as written, check where its links lead:
+//	        - [one](../one/SKILL.md)
+//	        - [[two/SKILL.md|two]]
+//	Found 2 error(s), 1 warning(s)
 func PrintIssues(out io.Writer, list []issues.Reportable, colored bool) {
 	rows := make([]issues.IssueReportRow, 0, len(list))
 	for _, i := range list {
@@ -60,7 +67,13 @@ func PrintIssues(out io.Writer, list []issues.Reportable, colored bool) {
 		fmt.Fprintln(out, issueLocationText(node.location, colored))
 		printIssueContents(out, node, "", colored)
 	}
-	fmt.Fprintf(out, "Found %d problem(s)\n", len(rows))
+	warnings := 0
+	for _, row := range rows {
+		if row.Code.Severity() == issues.SeverityWarning {
+			warnings++
+		}
+	}
+	fmt.Fprintf(out, "Found %d error(s), %d warning(s)\n", len(rows)-warnings, warnings)
 }
 
 type issueNode struct {
@@ -106,8 +119,15 @@ func printIssueRow(out io.Writer, prefix string, last bool, row issues.IssueRepo
 		branch = "└── "
 		continuation = "    "
 	}
-	fmt.Fprintf(out, "%s%s%s\n", prefix, branch, ansi(row.Code, "1;31", color))
+	style := "1;31"
+	if row.Code.Severity() == issues.SeverityWarning {
+		style = "1;33"
+	}
+	fmt.Fprintf(out, "%s%s%s\n", prefix, branch, ansi(row.Code.Label(), style, color))
 	fmt.Fprintf(out, "%s%s%s\n", prefix, continuation, row.Message)
+	for _, detail := range row.Details {
+		fmt.Fprintf(out, "%s%s- %s\n", prefix, continuation, detail)
+	}
 }
 
 func issueLocationText(location issues.Location, color bool) string {
@@ -121,6 +141,15 @@ func ansi(text, code string, enabled bool) string {
 		return text
 	}
 	return "\x1b[" + code + "m" + text + "\x1b[0m"
+}
+
+// Rows is a list of problems of one kind as the printer takes them.
+func Rows[T issues.Reportable](list []T) []issues.Reportable {
+	out := make([]issues.Reportable, 0, len(list))
+	for _, i := range list {
+		out = append(out, i)
+	}
+	return out
 }
 
 // Reportables returns the problems err carries, nil if it carries none.

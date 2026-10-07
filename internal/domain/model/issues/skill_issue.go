@@ -4,7 +4,7 @@ package issues
 // with enough context to report it grouped by source, skill and file.
 type SkillIssue struct {
 	// Code is the kind of problem, e.g. "nested-skill", "missing-link-target".
-	Code string
+	Code Code
 	// Source is the source the skill comes from (model.SourceKey.String()).
 	Source string
 	// Skill is the skill's name; SkillPath is its folder (or, for a flat
@@ -14,6 +14,9 @@ type SkillIssue struct {
 	// written, when the problem is a link.
 	File, Link string
 	Message    string
+	// Details list what the message is about, one item a line, e.g. the
+	// links a shared file holds.
+	Details []string
 }
 
 var _ Reportable = SkillIssue{}
@@ -30,7 +33,7 @@ func (e SkillIssue) Report() IssueReportRow {
 	if skill != "" && e.SkillPath != "" {
 		skill += " (" + e.SkillPath + ")"
 	}
-	return IssueReportRow{Code: e.Code, Message: e.Message, Where: where(
+	return IssueReportRow{Code: e.Code, Message: e.Message, Details: e.Details, Where: where(
 		Location{LocationSource, e.Source},
 		Location{LocationSkill, skill},
 		Location{LocationFile, e.File},
@@ -45,4 +48,4 @@ type SkillIssues []SkillIssue
 func (e SkillIssues) Error() string { return joinErrors(e) }
 
 // Problem is a SkillIssue with only a code and a message, as an error.
-func Problem(code, message string) error { return SkillIssue{Code: code, Message: message} }
+func Problem(code Code, message string) error { return SkillIssue{Code: code, Message: message} }

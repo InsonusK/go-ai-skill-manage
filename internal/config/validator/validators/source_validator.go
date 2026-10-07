@@ -43,10 +43,10 @@ func (SourceValidator) Validate(ctx context.Context, req model.Request) []issues
 		}
 		earlier := req.Sources[j]
 		if slices.Equal(subpathSet(spec), subpathSet(earlier)) && slices.Equal(set(spec.Tags), set(earlier.Tags)) {
-			problems = append(problems, issues.ConfigIssue{Code: "duplicate-source", Source: spec.Key().String(), Setting: fmt.Sprintf("sources[%d]", i), Message: fmt.Sprintf("same subpaths and tags as sources[%d]", j)})
+			problems = append(problems, issues.ConfigIssue{Code: issues.CodeDuplicateSource, Source: spec.Key().String(), Setting: fmt.Sprintf("sources[%d]", i), Message: fmt.Sprintf("same subpaths and tags as sources[%d]", j)})
 		}
 		if !slices.Equal(set(spec.ExcludeFromChecks), set(earlier.ExcludeFromChecks)) {
-			problems = append(problems, issues.ConfigIssue{Code: "conflicting-exclude", Source: spec.Key().String(), Setting: fmt.Sprintf("sources[%d].exclude_from_checks", i), Message: fmt.Sprintf("%v differs from %v in sources[%d] of the same repository", spec.ExcludeFromChecks, earlier.ExcludeFromChecks, j)})
+			problems = append(problems, issues.ConfigIssue{Code: issues.CodeConflictingExclude, Source: spec.Key().String(), Setting: fmt.Sprintf("sources[%d].exclude_from_checks", i), Message: fmt.Sprintf("%v differs from %v in sources[%d] of the same repository", spec.ExcludeFromChecks, earlier.ExcludeFromChecks, j)})
 		}
 	}
 	return problems

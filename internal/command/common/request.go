@@ -9,6 +9,7 @@ import (
 	"github.com/InsonusK/go-ai-skill-manage/internal/config"
 	configvalidator "github.com/InsonusK/go-ai-skill-manage/internal/config/validator"
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
 )
 
 // DefaultConfigFile is the config read without --config.
@@ -49,8 +50,9 @@ func AddRelationsFlag(o *config.Overrides) Flag {
 }
 
 // Request resolves src (plus, when applicable, the config file it points
-// at) and override into a model.Request.
-func (a *App) Request(src Source, override config.Overrides, cwd string) (model.Request, error) {
+// at) and override into a model.Request. The warnings are what the user
+// should fix though the request works: deprecated settings and options.
+func (a *App) Request(src Source, override config.Overrides, cwd string) (model.Request, issues.ConfigIssues, error) {
 	base := cwd
 	var cfg config.Config
 	if src.Config != "" || src.Type == "" {
@@ -63,25 +65,25 @@ func (a *App) Request(src Source, override config.Overrides, cwd string) (model.
 		}
 		data, err := a.ReadFile(filename)
 		if err != nil {
-			return model.Request{}, err
+			return model.Request{}, nil, err
 		}
 		cfg, err = config.Parse(data)
 		if err != nil {
-			return model.Request{}, err
+			return model.Request{}, nil, err
 		}
 		base = filepath.Dir(filename)
 	} else {
 		if strings.TrimSpace(src.Path) == "" {
-			return model.Request{}, fmt.Errorf("--path is required when using --type")
+			return model.Request{}, nil, fmt.Errorf("--path is required when using --type")
 		}
 		var err error
 		cfg, err = config.Parse([]byte("sources: []"))
 		if err != nil {
-			return model.Request{}, err
+			return model.Request{}, nil, err
 		}
 		source := model.SourceSpec{Type: src.Type, Path: src.Path, Tree: "master"}
 		if source.Type == "auto" || source.Type == "flat" || source.Type == "directory" {
-			fmt.Fprintf(a.Err, "Source type %s is deprecated; use local\n", source.Type)
+			cfg.Warnings = append(cfg.Warnings, issues.ConfigIssue{Code: issues.CodeDeprecatedFlag, Setting: "--type " + source.Type, Message: "deprecated source type, use local"})
 			source.Type = "local"
 		}
 		if source.Type == "github" {
@@ -97,21 +99,31 @@ func (a *App) Request(src Source, override config.Overrides, cwd string) (model.
 		}
 		cfg.Request.Sources = []model.SourceSpec{source}
 	}
-	return config.Resolve(cfg, override, base)
+	req, err := config.Resolve(cfg, override, base)
+	return req, cfg.Warnings, err
 }
 
 // LoadRequest is Request, then the configuration's check (config/validator
 // -- the domain trusts the request after that). On failure it prints the
-// error or the problems (as a tree) and returns false.
-func (a *App) LoadRequest(ctx context.Context, src Source, override config.Overrides, cwd string) (model.Request, bool) {
-	req, err := a.Request(src, override, cwd)
+// error or the problems (as a tree, warnings included) and returns false;
+// otherwise it returns the warnings for the command to print with its own.
+func (a *App) LoadRequest(ctx context.Context, src Source, override config.Overrides, cwd string) (model.Request, []issues.Reportable, bool) {
+	req, warnings, err := a.Request(src, override, cwd)
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
-		return model.Request{}, false
+		return model.Request{}, nil, false
 	}
-	if problems := configvalidator.Validate(ctx, req); len(problems) > 0 {
-		PrintIssues(a.Err, Reportables(problems), a.Color)
-		return model.Request{}, false
+	problems := append(warnings, configvalidator.Validate(ctx, req)...)
+	if issues.HasErrors(problems) {
+		PrintIssues(a.Err, Rows(problems), a.Color)
+		return model.Request{}, nil, false
 	}
-	return req, true
+	return req, Rows(problems), true
+}
+
+// PrintWarnings prints the problems that didn't stop the command, if any.
+func (a *App) PrintWarnings(warnings []issues.Reportable) {
+	if len(warnings) > 0 {
+		PrintIssues(a.Err, warnings, a.Color)
+	}
 }

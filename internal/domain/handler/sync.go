@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 
@@ -34,11 +35,14 @@ type SyncResult struct {
 	// Plans are the planned changes, one per target, in req.Targets order.
 	Plans  []entity.TargetPlan
 	DryRun bool
+	// Warnings are the problems that didn't stop the sync, each once.
+	Warnings issues.SkillIssues
 }
 
 // Run synchronizes req (which passed config/validator.Validate):
-//  1. FetchAndValidateSkills -- skill problems stop it here, as
-//     issues.SkillIssues;
+//  1. FetchAndValidateSkills -- skill errors stop it here, returned with
+//     the warnings as issues.SkillIssues; warnings alone go on into
+//     SyncResult.Warnings, as the transformers' warnings do;
 //  2. a base TargetSkillCatalog of the loaded skills, laid out by
 //     FlatTransformer -- the part every target shares, done once;
 //  3. per target, a clone of the base transformed by the target's
@@ -51,15 +55,20 @@ type SyncResult struct {
 //
 // So a problem anywhere leaves every target untouched; a failure while
 // writing (the disk) can still stop after some targets are written.
-func (s SyncService) Run(ctx context.Context, req model.Request) (SyncResult, error) {
+func (s SyncService) Run(ctx context.Context, req model.Request) (result SyncResult, err error) {
 	slog.InfoContext(ctx, "synchronization started", "sources", len(req.Sources), "targets", len(req.Targets), "dry_run", req.DryRun)
-	result := SyncResult{DryRun: req.DryRun, Skills: []string{}, Plans: []entity.TargetPlan{}}
+	result = SyncResult{DryRun: req.DryRun, Skills: []string{}, Plans: []entity.TargetPlan{}}
 	catalog, problems := FetchAndValidateSkills(ctx, s.Sources, req)
-	if len(problems) > 0 {
+	if issues.HasErrors(problems) {
 		return result, problems
 	}
+	warnings := &warningSet{seen: map[string]bool{}}
+	defer func() { result.Warnings = warnings.list }()
+	warnings.add(problems)
 	base := entity.NewTargetSkillCatalog(catalog.Skills())
-	if err := mustPipeline(transformers.FlatTransformer{Catalog: catalog}).Run(ctx, base); err != nil {
+	found, err := mustPipeline(transformers.FlatTransformer{Catalog: catalog}).Run(ctx, base)
+	warnings.add(found)
+	if err != nil {
 		return result, err
 	}
 	for _, skill := range base.Skills() {
@@ -67,7 +76,7 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (SyncResult, er
 	}
 	var targetProblems issues.TargetIssues
 	for _, target := range req.Targets {
-		plan, found, err := s.planTarget(ctx, base, target, req.RemoveOrphans)
+		plan, found, err := s.planTarget(ctx, base, target, req.RemoveOrphans, warnings)
 		if err != nil {
 			return result, err
 		}
@@ -90,15 +99,18 @@ func (s SyncService) Run(ctx context.Context, req model.Request) (SyncResult, er
 	return result, nil
 }
 
-// planTarget transforms a clone of base for target and plans it.
-func (s SyncService) planTarget(ctx context.Context, base *entity.TargetSkillCatalog, target model.Target, removeOrphans bool) (entity.TargetPlan, issues.TargetIssues, error) {
+// planTarget transforms a clone of base for target and plans it; the
+// transformers' warnings go into warnings.
+func (s SyncService) planTarget(ctx context.Context, base *entity.TargetSkillCatalog, target model.Target, removeOrphans bool, warnings *warningSet) (entity.TargetPlan, issues.TargetIssues, error) {
 	catalog := base.Clone()
 	list := []transform.Transformer{}
 	if slices.Contains(target.Adapters, ClaudeAdapter) {
 		list = append(list, transformers.ClaudeWhenToUseTransformer{})
 	}
 	list = append(list, transformers.ManagedMarkerTransformer{})
-	if err := mustPipeline(list...).Run(ctx, catalog); err != nil {
+	found, err := mustPipeline(list...).Run(ctx, catalog)
+	warnings.add(found)
+	if err != nil {
 		return entity.TargetPlan{}, nil, err
 	}
 	state, err := s.State.Snapshot(ctx, target.Path)
@@ -107,6 +119,23 @@ func (s SyncService) planTarget(ctx context.Context, base *entity.TargetSkillCat
 	}
 	plan, problems := planning.Plan(target, catalog, state, removeOrphans)
 	return plan, problems, nil
+}
+
+// warningSet collects warnings, each once: every target's transformers
+// warn about the same skill.
+type warningSet struct {
+	seen map[string]bool
+	list issues.SkillIssues
+}
+
+func (w *warningSet) add(found issues.SkillIssues) {
+	for _, i := range found {
+		key := fmt.Sprintf("%#v", i)
+		if !w.seen[key] {
+			w.seen[key] = true
+			w.list = append(w.list, i)
+		}
+	}
 }
 
 func mustPipeline(list ...transform.Transformer) *transform.Pipeline {

@@ -124,8 +124,11 @@ Feature: Effective synchronization configuration
    """
    {"sources":[{"type":"local","path":"/project/input","subpaths":["part"],"tags":["!deprecated"],"exclude":["demo"]}],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":["claude-property-adapter"]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"exclude":[]}
    """
-  And the config log has WARN "key=skip_folder use=exclude_from_checks"
-  And the config log has WARN "key=settings.validation.rules.link.skip_folder use=settings.validation.exclude_from_checks"
+  And the config warnings are
+   """
+   [["deprecated-setting","settings.validation.rules.link.skip_folder","deprecated configuration key, rename it to settings.validation.exclude_from_checks"],
+    ["deprecated-setting","sources[0].skip_folder","deprecated configuration key, rename it to exclude_from_checks"]]
+   """
   And the config log has no INFO
 
  Scenario Outline: Folders excluded from checks come from settings and from each source
@@ -138,7 +141,10 @@ Feature: Effective synchronization configuration
    """
    {"sources":[{"type":"local","path":"/project/in","subpaths":[],"tags":[],"exclude":<source>}],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":[]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"exclude":<global>}
    """
-  And the config log has no WARN
+  And the config warnings are
+   """
+   []
+   """
   Examples:
    | config | source | global |
    | {sources: [{path: in, exclude_from_checks: [demo]}], settings: {validation: {exclude_from_checks: [examples, docs]}}} | ["demo"] | ["examples","docs"] |
@@ -187,8 +193,11 @@ Feature: Effective synchronization configuration
    """
    {"sources":[],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":[]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"exclude":["examples","templates"]}
    """
-  And the config log has WARN "adapter=link-adapter"
-  And the config log has WARN "key=settings.on_conflict"
+  And the config warnings are
+   """
+   [["deprecated-setting","settings.on_conflict","deprecated setting, remove it: skills with the same name are always an error"],
+    ["deprecated-setting","target.default.adapters","deprecated adapter link-adapter, remove it: links are always rewritten"]]
+   """
 
  Scenario: The removed source name is accepted with a warning and has no effect
   Given configuration
@@ -202,4 +211,7 @@ Feature: Effective synchronization configuration
    """
    {"sources":[{"type":"local","path":"/project/in","subpaths":[],"tags":[],"exclude":[]}],"targets":[{"name":"default","path":"/project/.agents/skills","adapters":[]}],"tempDir":"","dry":false,"orphans":true,"relations":false,"exclude":["examples","templates"]}
    """
-  And the config log has WARN "key=name"
+  And the config warnings are
+   """
+   [["deprecated-setting","sources[0].name","removed setting, it has no effect: a skill keeps the name from its frontmatter"]]
+   """

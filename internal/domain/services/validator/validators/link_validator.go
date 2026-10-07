@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log/slog"
 	"strings"
 
 	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
@@ -39,26 +38,26 @@ func (LinkValidator) DependsOn() []validator.Dependency { return nil }
 // skills loaded before, so walking it by index reaches them too.
 func (v LinkValidator) Validate(ctx context.Context, catalog *sourcing.SkillCatalog) []issues.SkillIssue {
 	var problems issues.SkillIssues
-	warned := map[string]bool{}
+	shared := &sharedFiles{seen: map[string]bool{}}
 	for i := 0; i < len(catalog.Skills()); i++ {
 		if err := ctx.Err(); err != nil {
-			return append(problems, issues.SkillIssue{Code: "canceled", Message: err.Error()})
+			return append(problems, issues.SkillIssue{Code: issues.CodeCanceled, Message: err.Error()})
 		}
-		problems = append(problems, v.validateSkill(ctx, catalog, catalog.Skills()[i], warned)...)
+		problems = append(problems, v.validateSkill(ctx, catalog, catalog.Skills()[i], shared)...)
 	}
-	return problems
+	return append(problems, shared.warnings...)
 }
 
-func (v LinkValidator) validateSkill(ctx context.Context, catalog *sourcing.SkillCatalog, skill *entity.Skill, warned map[string]bool) issues.SkillIssues {
+func (v LinkValidator) validateSkill(ctx context.Context, catalog *sourcing.SkillCatalog, skill *entity.Skill, shared *sharedFiles) issues.SkillIssues {
 	files, err := skill.FilesByPath("")
 	if err != nil {
-		return issues.SkillIssues{skillIssue(skill, issues.SkillIssue{Code: "source-read", Message: err.Error()})}
+		return issues.SkillIssues{skillIssue(skill, issues.SkillIssue{Code: issues.CodeSourceRead, Message: err.Error()})}
 	}
 	var problems issues.SkillIssues
 	for _, file := range append([]*entity.File{skill.MainFile}, files...) {
 		rel, err := file.Path(model.SkillRelative)
 		if err != nil {
-			problems = append(problems, skillIssue(skill, issues.SkillIssue{Code: "source-read", Message: err.Error()}))
+			problems = append(problems, skillIssue(skill, issues.SkillIssue{Code: issues.CodeSourceRead, Message: err.Error()}))
 			continue
 		}
 		if !strings.HasSuffix(strings.ToLower(rel), ".md") || catalog.IsExcludedFromChecks(skill, rel) {
@@ -73,7 +72,7 @@ func (v LinkValidator) validateSkill(ctx context.Context, catalog *sourcing.Skil
 			if link.External {
 				continue
 			}
-			if err := validateLink(ctx, catalog, link, warned); err != nil {
+			if err := validateLink(ctx, catalog, link, shared); err != nil {
 				problems = append(problems, skillIssue(skill, asIssue(err, issues.SkillIssue{File: rel, Link: link.Raw})))
 			}
 		}
@@ -88,9 +87,9 @@ func (v LinkValidator) validateSkill(ctx context.Context, catalog *sourcing.Skil
 // link names, if any. A link into a skill no source selects is
 // "unselected-skill"; a link to a folder outside every skill is
 // "external-folder", only files are copied. A shared markdown file that
-// holds links of its own gets a warning, once (warned): they are copied as
+// holds links of its own gets a warning, once (shared): they are copied as
 // written, not rewritten.
-func validateLink(ctx context.Context, catalog *sourcing.SkillCatalog, link *entity.Link, warned map[string]bool) error {
+func validateLink(ctx context.Context, catalog *sourcing.SkillCatalog, link *entity.Link, shared *sharedFiles) error {
 	repoPath, err := link.Path(ctx, model.RepoAbsolute, catalog)
 	if err != nil {
 		return err
@@ -100,9 +99,9 @@ func validateLink(ctx context.Context, catalog *sourcing.SkillCatalog, link *ent
 	if errors.Is(err, entity.ErrSkillNotCached) {
 		// Not loaded: some skill no source selects holds it, or none does.
 		if _, upErr := catalog.FetchByPathUp(ctx, repo, repoPath); !isSkillNotFound(upErr) {
-			return issues.SkillIssue{Code: "unselected-skill", Message: "the link leads outside the selected skills and add_relations is off"}
+			return issues.SkillIssue{Code: issues.CodeUnselectedSkill, Message: "the link leads outside the selected skills and add_relations is off"}
 		}
-		err = issues.SkillIssue{Code: "skill-not-found"}
+		err = issues.SkillIssue{Code: issues.CodeSkillNotFound}
 	}
 	var content []byte
 	switch {
@@ -112,23 +111,20 @@ func validateLink(ctx context.Context, catalog *sourcing.SkillCatalog, link *ent
 			return statErr
 		}
 		if info.IsDir() {
-			return issues.SkillIssue{Code: "external-folder", Message: fmt.Sprintf("%s is a folder outside every skill: only files outside skills are copied, link a file", repoPath)}
+			return issues.SkillIssue{Code: issues.CodeExternalFolder, Message: fmt.Sprintf("%s is a folder outside every skill: only files outside skills are copied, link a file", repoPath)}
 		}
-		if key := entity.GetSkillKey(repo.Key, repoPath); !warned[key] {
-			warned[key] = true
-			warnSharedLinks(ctx, repo, repoPath)
-		}
+		shared.check(repo, repoPath)
 		if link.Fragment == "" || link.Fragment == "#" {
 			return nil
 		}
 		if !strings.HasSuffix(strings.ToLower(repoPath), ".md") {
-			return issues.SkillIssue{Code: "missing-anchor", Message: fmt.Sprintf("anchor %s is looked for only in markdown files, not in %s", link.Fragment, repoPath)}
+			return issues.SkillIssue{Code: issues.CodeMissingAnchor, Message: fmt.Sprintf("anchor %s is looked for only in markdown files, not in %s", link.Fragment, repoPath)}
 		}
 		if content, err = fs.ReadFile(repo.FS, repoPath); err != nil {
 			return err
 		}
 		if !hasAnchor(string(content), link.Fragment) {
-			return issues.SkillIssue{Code: "missing-anchor", Message: fmt.Sprintf("anchor %s is not in %s", link.Fragment, repoPath)}
+			return issues.SkillIssue{Code: issues.CodeMissingAnchor, Message: fmt.Sprintf("anchor %s is not in %s", link.Fragment, repoPath)}
 		}
 		return nil
 	case err != nil:
@@ -142,31 +138,41 @@ func validateLink(ctx context.Context, catalog *sourcing.SkillCatalog, link *ent
 		return err
 	}
 	if !strings.HasSuffix(strings.ToLower(rel), ".md") {
-		return issues.SkillIssue{Code: "missing-anchor", Message: fmt.Sprintf("anchor %s is looked for only in markdown files, not in %s", link.Fragment, rel)}
+		return issues.SkillIssue{Code: issues.CodeMissingAnchor, Message: fmt.Sprintf("anchor %s is looked for only in markdown files, not in %s", link.Fragment, rel)}
 	}
 	if content, err = entity.MakeFile(rel, target).Content(); err != nil {
 		return err
 	}
 	if !hasAnchor(string(content), link.Fragment) {
-		return issues.SkillIssue{Code: "missing-anchor", Message: fmt.Sprintf("anchor %s is not in %s", link.Fragment, rel)}
+		return issues.SkillIssue{Code: issues.CodeMissingAnchor, Message: fmt.Sprintf("anchor %s is not in %s", link.Fragment, rel)}
 	}
 	return nil
 }
 
-// warnSharedLinks logs a warning listing the links a shared markdown file
-// holds: sync copies the file as written, so where they lead in the target
-// is up to the reader to check.
-func warnSharedLinks(ctx context.Context, repo *entity.Repository, repoPath string) {
-	if !strings.HasSuffix(strings.ToLower(repoPath), ".md") {
+// sharedFiles collects the warnings about the shared files the checked
+// links lead to, one per file whatever number of links lead to it.
+type sharedFiles struct {
+	seen     map[string]bool
+	warnings issues.SkillIssues
+}
+
+// check adds a warning listing the links a shared markdown file holds
+// ("shared-file-links"), or saying they can't be read
+// ("shared-file-unread"): sync copies the file as written, so where they
+// lead in the target is up to the reader to check.
+func (f *sharedFiles) check(repo *entity.Repository, repoPath string) {
+	key := entity.GetSkillKey(repo.Key, repoPath)
+	if f.seen[key] || !strings.HasSuffix(strings.ToLower(repoPath), ".md") {
 		return
 	}
+	f.seen[key] = true
 	content, err := fs.ReadFile(repo.FS, repoPath)
 	if err != nil {
 		return
 	}
 	parsed, err := entity.SearchLinks(content)
 	if err != nil {
-		slog.WarnContext(ctx, "shared file outside skills: its links can't be read, it is copied as written", "source", repo.Key.String(), "file", repoPath, "error", err)
+		f.warnings = append(f.warnings, issues.SkillIssue{Code: issues.CodeSharedFileUnread, Source: repo.Key.String(), File: repoPath, Message: fmt.Sprintf("shared file outside skills is copied as written, its links can't be read: %v", err)})
 		return
 	}
 	if len(parsed) == 0 {
@@ -176,13 +182,13 @@ func warnSharedLinks(ctx context.Context, repo *entity.Repository, repoPath stri
 	for _, l := range parsed {
 		raws = append(raws, string(content[l.Start:l.End]))
 	}
-	slog.WarnContext(ctx, "shared file outside skills holds links, they are copied as written", "source", repo.Key.String(), "file", repoPath, "links", strings.Join(raws, " "))
+	f.warnings = append(f.warnings, issues.SkillIssue{Code: issues.CodeSharedFileLinks, Source: repo.Key.String(), File: repoPath, Message: "shared file outside skills is copied as written, check where its links lead:", Details: raws})
 }
 
 // isSkillNotFound reports whether err says no skill holds the path.
 func isSkillNotFound(err error) bool {
 	var issue issues.SkillIssue
-	return errors.As(err, &issue) && issue.Code == "skill-not-found"
+	return errors.As(err, &issue) && issue.Code == issues.CodeSkillNotFound
 }
 
 // asIssue turns err into an Issue carrying at's File and Link: an Issue
@@ -192,7 +198,7 @@ func isSkillNotFound(err error) bool {
 func asIssue(err error, at issues.SkillIssue) issues.SkillIssue {
 	var issue issues.SkillIssue
 	if !errors.As(err, &issue) {
-		at.Code, at.Message = "link-target", err.Error()
+		at.Code, at.Message = issues.CodeLinkTarget, err.Error()
 		return at
 	}
 	at.Code, at.Message = issue.Code, issue.Message

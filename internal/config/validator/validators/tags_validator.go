@@ -28,7 +28,7 @@ func (TagsValidator) Validate(ctx context.Context, req model.Request) []issues.C
 	for i, spec := range req.Sources {
 		for j, expr := range spec.Tags {
 			if _, err := tags.Match(nil, []string{expr}); err != nil {
-				problems = append(problems, issues.ConfigIssue{Code: "invalid-tags", Source: spec.Key().String(), Setting: fmt.Sprintf("sources[%d].tags[%d]", i, j), Message: fmt.Sprintf("%v: %q", err, expr)})
+				problems = append(problems, issues.ConfigIssue{Code: issues.CodeInvalidTags, Source: spec.Key().String(), Setting: fmt.Sprintf("sources[%d].tags[%d]", i, j), Message: fmt.Sprintf("%v: %q", err, expr)})
 			}
 		}
 	}

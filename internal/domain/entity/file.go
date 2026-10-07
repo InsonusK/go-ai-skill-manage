@@ -71,7 +71,7 @@ func (f *File) Mode() (fs.FileMode, error) {
 // its own folder is just its name.
 func (f *File) Path(kind model.PathKind) (string, error) {
 	if kind == model.FileRelative {
-		return "", issues.Problem("unsupported-path-kind", "a file has no path relative to itself")
+		return "", issues.Problem(issues.CodeUnsupportedPathKind, "a file has no path relative to itself")
 	}
 	p, err := model.MakePathInRepo(f.skill.Repo.RootPath, f.path, model.SkillRelative, f.skill.SkillDirPath)
 	if err != nil {

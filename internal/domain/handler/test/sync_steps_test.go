@@ -127,7 +127,15 @@ func registerSyncSteps(sc *godog.ScenarioContext, trees *map[string]fstest.MapFS
 		}
 		got := [][]string{}
 		for _, i := range list {
-			got = append(got, []string{i.Code, i.Target, i.Skill})
+			got = append(got, []string{string(i.Code), i.Target, i.Skill})
+		}
+		return testsupport.JSON(got, d)
+	})
+	// the sync warnings are: a JSON list of [code, source, skill, file].
+	sc.Step(`^the sync warnings are$`, func(ctx context.Context, d *godog.DocString) error {
+		got := [][]string{}
+		for _, w := range result.Warnings {
+			got = append(got, []string{string(w.Code), w.Source, w.Skill, w.File})
 		}
 		return testsupport.JSON(got, d)
 	})

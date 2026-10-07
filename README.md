@@ -109,17 +109,20 @@ aism sync --type github --path "https://github.com/InsonusK/ai-skills.git master
   --subpath skills/go --target .agents/skills --dry-run
 ```
 
-При проблемах `validate` и `sync` печатают их деревом «источник → скил → файл
-→ ссылка» и завершаются с кодом 1, ничего не записав:
+Проблемы `validate` и `sync` печатают деревом «источник → скил → файл →
+ссылка». У каждой есть номер и код: по номеру её можно найти в коде
+(`internal/domain/model/issues/codes.go`). Ошибка (`E…`) останавливает работу —
+код выхода 1, ничего не записано; предупреждение (`W…`) печатается так же, но
+работу не останавливает:
 
 ```text
 source local:/project/my-skills@master
 └── skill code-review (code-review)
     └── file SKILL.md
         └── link [the checklist](./docs/checklist.md)
-            └── missing-link-target
+            └── E302 missing-link-target
                 code-review/docs/checklist.md: link target does not exist
-Found 1 problem(s)
+Found 1 error(s), 0 warning(s)
 ```
 
 Логи и коды проблем окрашиваются по умолчанию только при выводе в терминал.
