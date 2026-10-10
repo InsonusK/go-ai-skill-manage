@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/interfaces"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

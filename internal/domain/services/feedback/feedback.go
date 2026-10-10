@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
 )
 
 // labels maps a feedback kind to the issue label (GitHub's default ones).

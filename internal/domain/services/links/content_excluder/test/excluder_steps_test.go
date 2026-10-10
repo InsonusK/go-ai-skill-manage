@@ -3,9 +3,9 @@ package content_excluder_test
 import (
 	"context"
 
-	content_excluder "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/content_excluder"
-	link_parser "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/parser"
-	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
+	content_excluder "github.com/InsonusK/go-ai-skill-manager/internal/domain/services/links/content_excluder"
+	link_parser "github.com/InsonusK/go-ai-skill-manager/internal/domain/services/links/parser"
+	"github.com/InsonusK/go-ai-skill-manager/tools/testsupport"
 	"github.com/cucumber/godog"
 )
 

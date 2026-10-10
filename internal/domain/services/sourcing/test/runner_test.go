@@ -1,7 +1,7 @@
 package sourcing_test
 
 import (
-	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
+	"github.com/InsonusK/go-ai-skill-manager/tools/testsupport"
 	"testing"
 )
 

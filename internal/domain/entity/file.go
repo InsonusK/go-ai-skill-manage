@@ -5,8 +5,8 @@ import (
 	"io/fs"
 	"path"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model/issues"
 )
 
 // LinkSearcher finds links inside a file's content.

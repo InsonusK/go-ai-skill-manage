@@ -6,14 +6,14 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/planning"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/transform"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/transform/transformers"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/interfaces"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model/issues"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/services/planning"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/services/sourcing"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/services/transform"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/services/transform/transformers"
 )
 
 // ClaudeAdapter is the target adapter that adds Claude Code's

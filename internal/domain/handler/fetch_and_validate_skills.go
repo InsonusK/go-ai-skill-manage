@@ -6,12 +6,12 @@ import (
 	"context"
 	"slices"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
-	skill_selector "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/selector"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validator"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validator/validators"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model/issues"
+	skill_selector "github.com/InsonusK/go-ai-skill-manager/internal/domain/services/selector"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/services/sourcing"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/services/validator"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/services/validator/validators"
 )
 
 // skillValidators checks the loaded skills, in this order.

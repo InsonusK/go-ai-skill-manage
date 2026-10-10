@@ -3,7 +3,7 @@ package link_parser
 import (
 	"strings"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
 )
 
 // MarkdownParser handles "[label](path#fragment)" links and their

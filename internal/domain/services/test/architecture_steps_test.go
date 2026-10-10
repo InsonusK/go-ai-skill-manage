@@ -2,7 +2,7 @@ package services_test
 
 import (
 	"context"
-	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
+	"github.com/InsonusK/go-ai-skill-manager/tools/testsupport"
 	"github.com/cucumber/godog"
 	"go/ast"
 	"go/parser"
@@ -49,7 +49,7 @@ func architectureSteps(sc *godog.ScenarioContext) {
 				if err != nil {
 					return err
 				}
-				local := strings.HasPrefix(name, "github.com/InsonusK/go-ai-skill-manage/")
+				local := strings.HasPrefix(name, "github.com/InsonusK/go-ai-skill-manager/")
 				external := !local && strings.Contains(strings.Split(name, "/")[0], ".")
 				if external && allowedExternal[name] != "" && strings.Contains(filepath.ToSlash(p), allowedExternal[name]) {
 					external = false

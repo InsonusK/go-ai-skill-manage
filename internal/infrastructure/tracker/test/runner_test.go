@@ -3,7 +3,7 @@ package tracker_test
 import (
 	"testing"
 
-	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
+	"github.com/InsonusK/go-ai-skill-manager/tools/testsupport"
 )
 
 func TestFeatures(t *testing.T) { testsupport.Run(t, initialize) }

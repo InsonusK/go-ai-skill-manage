@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/command"
-	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
+	"github.com/InsonusK/go-ai-skill-manager/internal/command"
+	"github.com/InsonusK/go-ai-skill-manager/tools/testsupport"
 	"github.com/cucumber/godog"
 )
 

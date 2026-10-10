@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/interfaces"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
 	"go.yaml.in/yaml/v3"
 )
 

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode"
 
-	content_excluder "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/content_excluder"
-	link_parser "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/parser"
+	content_excluder "github.com/InsonusK/go-ai-skill-manager/internal/domain/services/links/content_excluder"
+	link_parser "github.com/InsonusK/go-ai-skill-manager/internal/domain/services/links/parser"
 )
 
 var (

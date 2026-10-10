@@ -2,8 +2,8 @@ package tags_test
 
 import (
 	"context"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/tags"
-	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/services/tags"
+	"github.com/InsonusK/go-ai-skill-manager/tools/testsupport"
 	"github.com/cucumber/godog"
 	"strings"
 )

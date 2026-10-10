@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/interfaces"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
 )
 
 // Manager caches acquired repositories by SourceKey (type+path+tree),

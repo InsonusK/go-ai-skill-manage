@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/feedback"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/interfaces"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/services/feedback"
 )
 
 // FeedbackService takes a feedback about a skill to the issue tracker of

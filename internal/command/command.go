@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/command/common"
+	"github.com/InsonusK/go-ai-skill-manager/internal/command/common"
 )
 
 // commands are the commands of the CLI, new and empty for each parse, in

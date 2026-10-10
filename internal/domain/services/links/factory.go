@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
-	content_excluder "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/content_excluder"
-	link_parser "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/parser"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model/issues"
+	content_excluder "github.com/InsonusK/go-ai-skill-manager/internal/domain/services/links/content_excluder"
+	link_parser "github.com/InsonusK/go-ai-skill-manager/internal/domain/services/links/parser"
 )
 
 // LinkFactory finds every link in a file's content: it first lets each

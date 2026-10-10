@@ -3,8 +3,8 @@ package link_parser
 import (
 	"strings"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model/issues"
 )
 
 // Span is the [Start, End) byte range of one link inside a file's content.

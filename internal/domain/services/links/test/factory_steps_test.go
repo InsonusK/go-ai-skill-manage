@@ -7,12 +7,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links"
-	content_excluder "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/content_excluder"
-	link_parser "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/parser"
-	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model/issues"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/services/links"
+	content_excluder "github.com/InsonusK/go-ai-skill-manager/internal/domain/services/links/content_excluder"
+	link_parser "github.com/InsonusK/go-ai-skill-manager/internal/domain/services/links/parser"
+	"github.com/InsonusK/go-ai-skill-manager/tools/testsupport"
 	"github.com/cucumber/godog"
 )
 

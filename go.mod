@@ -1,4 +1,4 @@
-module github.com/InsonusK/go-ai-skill-manage
+module github.com/InsonusK/go-ai-skill-manager
 
 go 1.26
 

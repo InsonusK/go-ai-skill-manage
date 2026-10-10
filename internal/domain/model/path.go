@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model/issues"
 )
 
 // PathKind names the form a path inside a repository is written in.

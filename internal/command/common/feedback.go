@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/handler"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/handler"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
 )
 
 // FeedbackDraftsDir is where feedback drafts lie, from the project's root

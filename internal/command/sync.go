@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/command/common"
-	"github.com/InsonusK/go-ai-skill-manage/internal/config"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/handler"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/sourcing"
+	"github.com/InsonusK/go-ai-skill-manager/internal/command/common"
+	"github.com/InsonusK/go-ai-skill-manager/internal/config"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/handler"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model/issues"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/services/sourcing"
 )
 
 // Sync is the sync command: load the skills of the sources, check them

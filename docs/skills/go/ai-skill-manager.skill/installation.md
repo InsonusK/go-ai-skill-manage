@@ -12,22 +12,22 @@ A released binary (no Go needed) — `linux`, `darwin` or `windows`, `amd64`; th
 
 ```sh
 v=2.0.0; os=linux   # or darwin
-curl -fsSLo aism "https://github.com/InsonusK/go-ai-skill-manage/releases/download/v$v/ai-skill-manager_${v}_${os}_amd64"
+curl -fsSLo aism "https://github.com/InsonusK/go-ai-skill-manager/releases/download/v$v/ai-skill-manager_${v}_${os}_amd64"
 chmod +x aism && sudo mv aism /usr/local/bin/
 ```
 
 With `go install` (the binary is `ai-skill-manager`):
 
 ```sh
-go install github.com/InsonusK/go-ai-skill-manage/cmd/ai-skill-manager@latest
+go install github.com/InsonusK/go-ai-skill-manager/cmd/ai-skill-manager@latest
 ln -s "$(go env GOPATH)/bin/ai-skill-manager" "$(go env GOPATH)/bin/aism"   # optional short name
 ```
 
 From a clone (writes `bin/ai-skill-manager` and its copy `bin/aism`):
 
 ```sh
-git clone git@github.com:InsonusK/go-ai-skill-manage.git
-cd go-ai-skill-manage
+git clone git@github.com:InsonusK/go-ai-skill-manager.git
+cd go-ai-skill-manager
 make build
 export PATH="$PWD/bin:$PATH"
 ```

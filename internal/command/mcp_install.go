@@ -10,8 +10,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/command/common"
-	"github.com/InsonusK/go-ai-skill-manage/internal/config"
+	"github.com/InsonusK/go-ai-skill-manager/internal/command/common"
+	"github.com/InsonusK/go-ai-skill-manager/internal/config"
 )
 
 // MCPConfigFile is the file Claude Code reads the project's MCP servers

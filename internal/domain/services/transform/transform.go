@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model/issues"
 )
 
 // Transformer changes a TargetSkillCatalog in place. An error is a failure
