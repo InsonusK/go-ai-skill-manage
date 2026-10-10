@@ -192,13 +192,37 @@ Feature: LinkFactory collects links from its registered parsers
    ["[web](https://example.com)","[anchor](#part)","[real](docs/ok.md)"]
    """
 
- Scenario: Default factory drops a link whose label is inline code
+ Scenario: Default factory keeps a link whose label holds inline code
   Given the default link factory
   When I search links in
    """
-   [`template.md`](./missing.md) [normal](exists.md)
+   [`page`](a/page.html#top) [the `page` file](a/b.md) [[a/c.md|`c`]] ![`i`](a/i.png)
+   """
+  Then the searched links are
+   """
+   [
+    {"Start":0,"End":25,"Text":"`page`","Path":"a/page.html","Fragment":"#top","Format":"markdown","Image":false},
+    {"Start":26,"End":51,"Text":"the `page` file","Path":"a/b.md","Fragment":"","Format":"markdown","Image":false},
+    {"Start":52,"End":66,"Text":"`c`","Path":"a/c.md","Fragment":"","Format":"wikilink","Image":false},
+    {"Start":67,"End":82,"Text":"`i`","Path":"a/i.png","Fragment":"","Format":"markdown","Image":true}
+   ]
+   """
+
+ Scenario Outline: Default factory drops a link with inline code outside its label
+  Given the default link factory
+  When I search links in
+   """
+   <content> [normal](exists.md)
    """
   Then the searched link raws are
    """
    ["[normal](exists.md)"]
    """
+  Examples:
+   | content                 | why                                  |
+   | `[a](bad.md)`           | the link lies in the code            |
+   | `x [a`](bad.md)         | the code crosses the link's border   |
+   | [a](bad.md#`part`)      | the code is in the target            |
+   | [[`bad.md`]]            | the code is the wikilink's path      |
+   | [[`bad`.md\|label]]     | the code is in the wikilink's path   |
+   | [a `]` b](bad.md)       | a link only while the code is masked |

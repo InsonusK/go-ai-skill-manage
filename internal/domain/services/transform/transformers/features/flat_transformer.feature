@@ -53,6 +53,9 @@ Feature: FlatTransformer lays each skill out as {name}/SKILL.md and rewrites lin
    | [[a/b/guide/docs/x.md#top\|X]]                      | [X](../guide/docs/x.md#top)                 |
    | [[a/b/guide/docs/x.md]]                             | [x.md](../guide/docs/x.md)                  |
    | [[#top]]                                            | [top](#top)                                 |
+   | [`x`](a/b/guide/docs/x.md)                          | [`x`](../guide/docs/x.md)                   |
+   | [the `i` file](a/b/guide/docs/i.png)                | [the `i` file](../guide/docs/i.png)         |
+   | [[a/b/guide/docs/x.md\|`X`]]                        | [`X`](../guide/docs/x.md)                   |
 
  Scenario Outline: A link that already leads to the right place, a web link and an anchor stay as written
   Given a repository "repo" holding

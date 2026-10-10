@@ -39,8 +39,11 @@ func NewDefaultLinkFactory() *LinkFactory {
 }
 
 // SearchLinks returns the links of all registered parsers ordered by
-// Start, with Start and End taken from the span each parser found. A link
-// touching excluded text (e.g. "[`x`](y)") is dropped.
+// Start, with Start and End taken from the span each parser found.
+// Excluded text inside a link's label is part of the label: "[`x`](y)" and
+// "[[y|`x`]]" are links to y. A link touching excluded text anywhere else
+// -- it lies in the excluded text, crosses its border, or has it in its
+// target -- is dropped.
 // Fails with "invalid-link-span" if a parser reports a span that is empty
 // or outside content, with the parser's own error if it cannot parse a span
 // it found, and with "link-overlap" if two found spans share any text.
@@ -58,10 +61,21 @@ func (f *LinkFactory) SearchLinks(content string) ([]model.ParsedLink, error) {
 			if s.Start < 0 || s.End > len(content) || s.Start >= s.End {
 				return nil, issues.SkillIssue{Code: issues.CodeInvalidLinkSpan, Message: fmt.Sprintf("span [%d,%d) outside content of length %d", s.Start, s.End, len(content))}
 			}
-			if intersects(s, excluded) {
+			touched := intersecting(s, excluded)
+			if !within(s, touched) {
 				continue
 			}
 			l, err := p.Parse(content[s.Start:s.End])
+			if len(touched) > 0 {
+				// The masked link has the same target only when no
+				// excluded text is part of it. A link that is one only
+				// while masked (a "]" inside the code of its label) is
+				// dropped too.
+				masked, maskedErr := p.Parse(searchable[s.Start:s.End])
+				if err != nil || maskedErr != nil || masked.Path != l.Path || masked.Fragment != l.Fragment {
+					continue
+				}
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -81,12 +95,23 @@ func (f *LinkFactory) SearchLinks(content string) ([]model.ParsedLink, error) {
 	return out, nil
 }
 
-// intersects reports whether s shares any byte with one of spans.
-func intersects(s link_parser.Span, spans []link_parser.Span) bool {
+// intersecting returns the spans that share any byte with s.
+func intersecting(s link_parser.Span, spans []link_parser.Span) []link_parser.Span {
+	var out []link_parser.Span
 	for _, x := range spans {
 		if s.Start < x.End && s.End > x.Start {
-			return true
+			out = append(out, x)
 		}
 	}
-	return false
+	return out
+}
+
+// within reports whether every one of spans lies strictly inside s.
+func within(s link_parser.Span, spans []link_parser.Span) bool {
+	for _, x := range spans {
+		if x.Start <= s.Start || x.End >= s.End {
+			return false
+		}
+	}
+	return true
 }
