@@ -10,9 +10,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/interfaces"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/infrastructure/repository"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/interfaces"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/infrastructure/repository"
 )
 
 type HTTPClient interface {

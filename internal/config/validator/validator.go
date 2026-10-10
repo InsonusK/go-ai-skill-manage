@@ -6,10 +6,10 @@ package validator
 import (
 	"context"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/config/validator/validators"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
-	domainvalidator "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validator"
+	"github.com/InsonusK/go-ai-skill-manager/internal/config/validator/validators"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model/issues"
+	domainvalidator "github.com/InsonusK/go-ai-skill-manager/internal/domain/services/validator"
 )
 
 // manager runs every config validator, in this order.

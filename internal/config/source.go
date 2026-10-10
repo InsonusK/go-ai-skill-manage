@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
 	"strings"
 )
 

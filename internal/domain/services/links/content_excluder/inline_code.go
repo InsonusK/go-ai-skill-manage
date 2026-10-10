@@ -3,7 +3,7 @@ package content_excluder
 import (
 	"strings"
 
-	link_parser "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/parser"
+	link_parser "github.com/InsonusK/go-ai-skill-manager/internal/domain/services/links/parser"
 )
 
 // InlineCode hides inline code spans: text between a run of backticks and

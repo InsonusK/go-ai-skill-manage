@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
 )
 
 // SkillFormat names which of the three on-disk skill layouts a Skill was

@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
 )
 
 // Cloner clones (url, tree) into dest and returns the cloned commit.

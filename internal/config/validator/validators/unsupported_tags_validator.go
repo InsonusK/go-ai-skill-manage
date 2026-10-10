@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/services/validator"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model/issues"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/services/validator"
 )
 
 // UnsupportedTagsValidator rejects tags: selecting skills by tags is

@@ -6,8 +6,8 @@ package interfaces
 import (
 	"context"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
 )
 
 // SourceProvider fetches (never caches) one Repository -- implemented by

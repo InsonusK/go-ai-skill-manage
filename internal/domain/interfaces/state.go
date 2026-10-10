@@ -3,8 +3,8 @@ package interfaces
 import (
 	"context"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/entity"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/entity"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
 )
 
 // StateReader reads a target's managed-file state -- implemented by

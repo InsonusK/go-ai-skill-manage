@@ -9,10 +9,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/command/common"
-	"github.com/InsonusK/go-ai-skill-manage/internal/config"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/handler"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/command/common"
+	"github.com/InsonusK/go-ai-skill-manager/internal/config"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/handler"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
 )
 
 // Feedback is the feedback command: report a bug or suggest an improvement

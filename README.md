@@ -1,9 +1,9 @@
 # AI Skill Manager
 
-[![Pull request](https://github.com/InsonusK/go-ai-skill-manage/actions/workflows/pull-request.yml/badge.svg)](https://github.com/InsonusK/go-ai-skill-manage/actions/workflows/pull-request.yml)
-[![Tests](https://img.shields.io/endpoint?url=https://insonusk.github.io/go-ai-skill-manage/tests-badge.json)](https://insonusk.github.io/go-ai-skill-manage/tests/)
-[![Coverage](https://img.shields.io/endpoint?url=https://insonusk.github.io/go-ai-skill-manage/coverage-badge.json)](https://insonusk.github.io/go-ai-skill-manage/coverage/)
-[![Mutation score](https://img.shields.io/endpoint?url=https://insonusk.github.io/go-ai-skill-manage/mutation-score-badge.json)](https://insonusk.github.io/go-ai-skill-manage/mutation/)
+[![Pull request](https://github.com/InsonusK/go-ai-skill-manager/actions/workflows/pull-request.yml/badge.svg)](https://github.com/InsonusK/go-ai-skill-manager/actions/workflows/pull-request.yml)
+[![Tests](https://img.shields.io/endpoint?url=https://insonusk.github.io/go-ai-skill-manager/tests-badge.json)](https://insonusk.github.io/go-ai-skill-manager/tests/)
+[![Coverage](https://img.shields.io/endpoint?url=https://insonusk.github.io/go-ai-skill-manager/coverage-badge.json)](https://insonusk.github.io/go-ai-skill-manager/coverage/)
+[![Mutation score](https://img.shields.io/endpoint?url=https://insonusk.github.io/go-ai-skill-manager/mutation-score-badge.json)](https://insonusk.github.io/go-ai-skill-manager/mutation/)
 
 CLI на Go, который собирает AI-скилы из локальных папок и GitHub-репозиториев,
 проверяет их и раскладывает в папки скилов агентов проекта —
@@ -12,7 +12,7 @@ CLI на Go, который собирает AI-скилы из локальны
 ## Установка
 
 Готовые исполняемые файлы для Linux, macOS (amd64, arm64) и Windows (amd64) — на странице
-[Releases](https://github.com/InsonusK/go-ai-skill-manage/releases):
+[Releases](https://github.com/InsonusK/go-ai-skill-manager/releases):
 `ai-skill-manager_<версия>_<os>_<arch>` (для Windows — с `.exe`) и
 `ai-skill-manager_<версия>_checksums.txt` для проверки.
 
@@ -20,7 +20,7 @@ Linux (скрипт установит `aism` в `/usr/local/bin`, при нео
 `sudo`):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/InsonusK/go-ai-skill-manage/master/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/InsonusK/go-ai-skill-manager/master/scripts/install.sh | sh
 aism --version
 ```
 
@@ -28,7 +28,7 @@ Windows PowerShell (скрипт установит `aism.exe` в профиль
 добавит его в `PATH`):
 
 ```powershell
-irm https://raw.githubusercontent.com/InsonusK/go-ai-skill-manage/master/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/InsonusK/go-ai-skill-manager/master/scripts/install.ps1 | iex
 aism --version
 ```
 
@@ -43,15 +43,15 @@ Git нужен для GitHub-источников; если `git clone` не у�
 Через `go install` (исполняемый файл — `ai-skill-manager`):
 
 ```sh
-go install github.com/InsonusK/go-ai-skill-manage/cmd/ai-skill-manager@latest
+go install github.com/InsonusK/go-ai-skill-manager/cmd/ai-skill-manager@latest
 ai-skill-manager --help
 ```
 
 Из исходников (нужен Make):
 
 ```sh
-git clone git@github.com:InsonusK/go-ai-skill-manage.git
-cd go-ai-skill-manage
+git clone git@github.com:InsonusK/go-ai-skill-manager.git
+cd go-ai-skill-manager
 make build            # bin/ai-skill-manager и его копия bin/aism
 ./bin/aism --version
 ```

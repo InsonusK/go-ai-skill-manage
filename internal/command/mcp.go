@@ -7,10 +7,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/command/common"
-	"github.com/InsonusK/go-ai-skill-manage/internal/config"
-	configvalidator "github.com/InsonusK/go-ai-skill-manage/internal/config/validator"
-	"github.com/InsonusK/go-ai-skill-manage/internal/mcpserver"
+	"github.com/InsonusK/go-ai-skill-manager/internal/command/common"
+	"github.com/InsonusK/go-ai-skill-manager/internal/config"
+	configvalidator "github.com/InsonusK/go-ai-skill-manager/internal/config/validator"
+	"github.com/InsonusK/go-ai-skill-manager/internal/mcpserver"
 )
 
 // DefaultMCPServerName is the server's name in .mcp.json.

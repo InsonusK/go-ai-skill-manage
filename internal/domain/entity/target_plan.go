@@ -1,6 +1,6 @@
 package entity
 
-import "github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+import "github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
 
 // TargetAction is what a sync does with one skill folder of a target.
 type TargetAction string

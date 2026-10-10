@@ -1,7 +1,7 @@
 package content_excluder
 
 import (
-	link_parser "github.com/InsonusK/go-ai-skill-manage/internal/domain/services/links/parser"
+	link_parser "github.com/InsonusK/go-ai-skill-manager/internal/domain/services/links/parser"
 )
 
 // ExampleFence hides fenced code blocks tagged "example" ("```example" or

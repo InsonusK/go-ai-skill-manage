@@ -2,7 +2,7 @@
 
 set -eu
 
-repository="InsonusK/go-ai-skill-manage"
+repository="InsonusK/go-ai-skill-manager"
 install_dir="${AISM_INSTALL_DIR:-/usr/local/bin}"
 
 fail() {

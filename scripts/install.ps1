@@ -6,7 +6,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repository = 'InsonusK/go-ai-skill-manage'
+$repository = 'InsonusK/go-ai-skill-manager'
 if ([string]::IsNullOrWhiteSpace($InstallDir)) {
     $InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\aism'
 }

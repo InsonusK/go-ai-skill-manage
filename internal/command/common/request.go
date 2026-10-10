@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/config"
-	configvalidator "github.com/InsonusK/go-ai-skill-manage/internal/config/validator"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model/issues"
+	"github.com/InsonusK/go-ai-skill-manager/internal/config"
+	configvalidator "github.com/InsonusK/go-ai-skill-manager/internal/config/validator"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model/issues"
 )
 
 // DefaultConfigFile is the config read without --config.

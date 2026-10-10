@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/InsonusK/go-ai-skill-manage/tools/testsupport"
+	"github.com/InsonusK/go-ai-skill-manager/tools/testsupport"
 )
 
 // TestFeatures runs the shared scenarios against the CLI in AISM_CLI (the

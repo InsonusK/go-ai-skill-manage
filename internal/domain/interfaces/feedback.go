@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/InsonusK/go-ai-skill-manage/internal/domain/model"
+	"github.com/InsonusK/go-ai-skill-manager/internal/domain/model"
 )
 
 // ErrSkillNotManaged: the target has no folder of that skill written by
